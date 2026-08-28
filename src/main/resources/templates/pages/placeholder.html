@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head><title th:text="${pageTitle}">Скоро</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title" th:text="${pageTitle}">Раздел</h1>
+        <p class="page-subtitle" th:text="${pageDesc}">Описание</p>
+    </div>
+
+    <div class="card" style="text-align: center; padding: var(--sp-12);">
+        <div style="font-size: 3rem; margin-bottom: var(--sp-4); opacity: 0.3;">◈</div>
+        <div style="font-size: var(--text-lg); font-weight: var(--weight-semibold); margin-bottom: var(--sp-2);">
+            В разработке
+        </div>
+        <div class="muted" style="margin-bottom: var(--sp-8);">
+            Этот раздел появится в следующих обновлениях
+        </div>
+
+        <div style="text-align: left; max-width: 500px; margin: 0 auto;">
+            <div style="font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--text-secondary); margin-bottom: var(--sp-3);">
+                Запланировано:
+            </div>
+            <div th:each="item : ${planned}" style="display: flex; align-items: baseline; gap: var(--sp-3); margin-bottom: var(--sp-3);">
+                <span style="color: var(--accent); font-size: 0.6rem;">●</span>
+                <span class="text-sm" th:text="${item}"></span>
+            </div>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

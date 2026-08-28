@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head><title>Объекты</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Объекты</h1>
+            <p class="page-subtitle">Управление квартирами</p>
+        </div>
+        <button class="btn btn-primary" onclick="document.getElementById('add-form').style.display='block'">+ Добавить объект</button>
+    </div>
+
+    <!-- Add form -->
+    <div class="card" id="add-form" style="display:none">
+        <div class="card__title" style="margin-bottom: var(--sp-5)">Новый объект</div>
+        <form th:action="@{/settings/properties}" method="post">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label">Название *</label>
+                    <input type="text" name="name" class="form-input" placeholder="Садовая 5, кв. 38" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Город</label>
+                    <input type="text" name="city" class="form-input" value="Выборг">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Адрес</label>
+                    <input type="text" name="address" class="form-input" placeholder="ул. Садовая, д. 5, кв. 38">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">RC Object ID</label>
+                    <input type="text" name="rcObjectId" class="form-input form-input--sm" placeholder="ID из RealtyCalendar">
+                    <div class="form-hint">Найдите в URL шахматки или в настройках объекта в RC</div>
+                </div>
+            </div>
+            <div style="display: flex; gap: var(--sp-3); margin-top: var(--sp-2);">
+                <button type="submit" class="btn btn-primary">Создать</button>
+                <button type="button" class="btn btn-ghost" onclick="document.getElementById('add-form').style.display='none'">Отмена</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Properties list -->
+    <th:block th:each="prop : ${properties}">
+        <div class="card">
+            <div class="flex justify-between items-center" style="margin-bottom: var(--sp-4);">
+                <div>
+                    <div style="font-size: var(--text-lg); font-weight: var(--weight-semibold);" th:text="${prop.name}"></div>
+                    <div class="text-sm muted" th:text="${prop.address ?: prop.city}"></div>
+                </div>
+                <span class="tag tag--green">Активен</span>
+            </div>
+
+            <!-- Edit form (collapsible) -->
+            <details>
+                <summary style="cursor: pointer; font-size: var(--text-sm); color: var(--accent); margin-bottom: var(--sp-4);">Редактировать</summary>
+                <form th:action="@{'/settings/properties/' + ${prop.id} + '/edit'}" method="post">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4);">
+                        <div class="form-group">
+                            <label class="form-label">Название</label>
+                            <input type="text" name="name" class="form-input form-input--sm" th:value="${prop.name}" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Город</label>
+                            <input type="text" name="city" class="form-input form-input--sm" th:value="${prop.city}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Адрес</label>
+                            <input type="text" name="address" class="form-input form-input--sm" th:value="${prop.address}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">RC Object ID</label>
+                            <input type="text" name="rcObjectId" class="form-input form-input--sm" th:value="${prop.rcObjectId}">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: var(--sp-3); margin-top: var(--sp-2);">
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </form>
+            </details>
+
+            <!-- Info row -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-4); margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--border-subtle);">
+                <div>
+                    <div class="text-sm muted" style="margin-bottom: var(--sp-1);">QR для гостей</div>
+                    <code class="text-sm" style="color: var(--accent);" th:text="'/feedback/' + ${prop.feedbackCode}"></code>
+                </div>
+                <div>
+                    <div class="text-sm muted" style="margin-bottom: var(--sp-1);">Страница горничной</div>
+                    <code class="text-sm" style="color: var(--accent);" th:text="'/housekeeper/' + ${prop.housekeeperCode}"></code>
+                </div>
+                <div>
+                    <div class="text-sm muted" style="margin-bottom: var(--sp-1);">RC ID</div>
+                    <code class="text-sm mono" th:text="${prop.rcObjectId ?: 'не указан'}"></code>
+                </div>
+            </div>
+        </div>
+    </th:block>
+
+    <div th:if="${#lists.isEmpty(properties)}" class="card" style="text-align: center; padding: var(--sp-10);">
+        <div class="muted">Нет объектов. Нажмите «+ Добавить объект» чтобы начать.</div>
+    </div>
+
+</div>
+</body>
+</html>
