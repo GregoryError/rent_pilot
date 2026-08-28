@@ -21,7 +21,7 @@
             <nav class="sidebar__nav">
                 <div class="nav-section">Аналитика</div>
                 <a th:href="@{/dashboard}"
-                   th:classappend="${#strings.startsWith(#httpServletRequest.requestURI, '/dashboard')} ? 'nav-item--active'"
+                   th:classappend="${activePage == 'dashboard'} ? 'nav-item--active'"
                    class="nav-item">
                     <span>◉</span> Dashboard
                 </a>
@@ -47,7 +47,7 @@
 
                 <div class="nav-section">Система</div>
                 <a th:href="@{/settings}"
-                   th:classappend="${#strings.startsWith(#httpServletRequest.requestURI, '/settings')} ? 'nav-item--active'"
+                   th:classappend="${activePage == 'settings'} ? 'nav-item--active'"
                    class="nav-item">
                     <span>⚙</span> Настройки
                 </a>

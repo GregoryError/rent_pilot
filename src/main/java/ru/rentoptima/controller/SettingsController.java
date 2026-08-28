@@ -23,6 +23,7 @@ public class SettingsController {
     @GetMapping
     public String settings(Model model) {
         Long tenantId = AuthContext.tenantId();
+        model.addAttribute("activePage", "settings");
         model.addAttribute("settings", settingsService.getAllForTenant(tenantId));
         return "pages/settings/index";
     }

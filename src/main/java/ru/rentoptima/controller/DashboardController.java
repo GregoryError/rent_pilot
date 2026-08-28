@@ -25,6 +25,7 @@ public class DashboardController {
         var properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
         var settingsMap = settings.getSettingsMap(tenantId);
 
+        model.addAttribute("activePage", "dashboard");
         model.addAttribute("properties", properties);
         model.addAttribute("settings", settingsMap);
         model.addAttribute("autopilotMode", settingsMap.getOrDefault("autopilot_mode", "OFF"));
