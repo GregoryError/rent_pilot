@@ -5,3 +5,6 @@ target/
 .vscode/
 .env
 *.log
+
+# Maven wrapper jar will be downloaded at build time
+!.mvn/wrapper/maven-wrapper.properties
