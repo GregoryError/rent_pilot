@@ -68,7 +68,7 @@ public class ImportService {
                     }
 
                     // Dedup: same property + guest + check_in + check_out
-                    if (bookingRepo.existsByPropertyIdAndGuestNameAndCheckInAndCheckOut(
+                    if (bookingRepo.existsByPropertyAndGuest(
                             propertyId, guestName, checkIn, checkOut)) {
                         skipped++;
                         continue;

@@ -12,8 +12,8 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     Optional<Booking> findByRcBookingId(String rcBookingId);
 
-    boolean existsByPropertyIdAndGuestNameAndCheckInAndCheckOut(
-            Long propertyId, String guestName, LocalDate checkIn, LocalDate checkOut);
+    @Query("SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END FROM Booking b WHERE b.property.id = :propertyId AND b.guestName = :guestName AND b.checkIn = :checkIn AND b.checkOut = :checkOut")
+    boolean existsByPropertyAndGuest(Long propertyId, String guestName, LocalDate checkIn, LocalDate checkOut);
 
     List<Booking> findByTenantIdAndPropertyIdAndStatusOrderByCheckInAsc(
             Long tenantId, Long propertyId, String status);
