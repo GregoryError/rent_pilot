@@ -46,6 +46,11 @@
                 </a>
 
                 <div class="nav-section">Система</div>
+                <a th:href="@{/import}"
+                   th:classappend="${activePage == 'import'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>↑</span> Импорт
+                </a>
                 <a th:href="@{/settings}"
                    th:classappend="${activePage == 'settings'} ? 'nav-item--active'"
                    class="nav-item">
