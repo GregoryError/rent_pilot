@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Dashboard</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Dashboard</h1>
+            <p class="page-subtitle">Обзор показателей и рекомендации</p>
+        </div>
+        <div th:switch="${autopilotMode}">
+            <span th:case="'OFF'" class="autopilot-badge autopilot-badge--off">
+                <span class="autopilot-badge__dot"></span> Автопилот выкл
+            </span>
+            <span th:case="'SOFT'" class="autopilot-badge autopilot-badge--soft">
+                <span class="autopilot-badge__dot"></span> Автопилот: мягкий
+            </span>
+            <span th:case="'FULL'" class="autopilot-badge autopilot-badge--full">
+                <span class="autopilot-badge__dot"></span> Автопилот: полный
+            </span>
+        </div>
+    </div>
+
+    <!-- KPI Row (placeholder — will be populated from real data) -->
+    <div class="kpi-row">
+        <div class="kpi">
+            <div class="kpi__label">Доход за месяц</div>
+            <div class="kpi__value">—</div>
+            <div class="kpi__delta kpi__delta--up">Подключите данные</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi__label">Заполняемость</div>
+            <div class="kpi__value">—</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi__label">Ср. длительность</div>
+            <div class="kpi__value">—</div>
+        </div>
+        <div class="kpi">
+            <div class="kpi__label">Расходы на уборку</div>
+            <div class="kpi__value">—</div>
+        </div>
+    </div>
+
+    <!-- Properties -->
+    <div class="card">
+        <div class="card__header">
+            <div class="card__title">Объекты</div>
+            <a th:href="@{/settings/properties}" class="btn btn-ghost">Управление</a>
+        </div>
+        <div th:if="${#lists.isEmpty(properties)}" class="muted text-sm">
+            Нет объектов. <a th:href="@{/settings/properties}">Добавьте первый объект</a>.
+        </div>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(properties)}">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Название</th>
+                        <th>Город</th>
+                        <th>RC ID</th>
+                        <th>Статус</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="prop : ${properties}">
+                        <td th:text="${prop.name}"></td>
+                        <td th:text="${prop.city}"></td>
+                        <td class="mono muted" th:text="${prop.rcObjectId ?: '—'}"></td>
+                        <td><span class="tag tag--green">Активен</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Action items placeholder -->
+    <div class="card">
+        <div class="card__header">
+            <div class="card__title">Рекомендации</div>
+        </div>
+        <p class="muted text-sm">
+            Рекомендации появятся после подключения данных из RealtyCalendar
+            и настройки правил ценообразования.
+        </p>
+    </div>
+
+</div>
+</body>
+</html>

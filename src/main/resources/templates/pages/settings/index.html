@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Настройки</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Настройки</h1>
+        <p class="page-subtitle">Параметры системы и интеграций</p>
+    </div>
+
+    <form th:action="@{/settings}" method="post">
+        <!-- General -->
+        <div class="card">
+            <div class="card__header">
+                <div class="card__title">Основные</div>
+            </div>
+            <div th:each="setting : ${settings}"
+                 th:if="${#lists.contains({'city','timezone','platform_markup_pct','cleaning_cost'}, setting.key)}"
+                 class="form-group">
+                <label class="form-label" th:text="${setting.description}"></label>
+                <input class="form-input form-input--sm"
+                       th:name="${setting.key}"
+                       th:value="${setting.value}"
+                       th:type="${setting.encrypted ? 'password' : 'text'}"
+                       style="max-width: 400px;">
+            </div>
+        </div>
+
+        <!-- Pricing -->
+        <div class="card">
+            <div class="card__header">
+                <div class="card__title">Ценообразование</div>
+            </div>
+            <div th:each="setting : ${settings}"
+                 th:if="${#lists.contains({'weekday_base_price','weekend_base_price','min_price_floor','max_price_ceiling','auto_price_delta','open_ahead_days','max_min_stay','autopilot_mode'}, setting.key)}"
+                 class="form-group">
+                <label class="form-label" th:text="${setting.description}"></label>
+                <th:block th:if="${setting.key == 'autopilot_mode'}">
+                    <select class="form-input form-input--sm" th:name="${setting.key}" style="max-width: 400px;">
+                        <option value="OFF" th:selected="${setting.value == 'OFF'}">OFF — только рекомендации</option>
+                        <option value="SOFT" th:selected="${setting.value == 'SOFT'}">SOFT — мелкие изменения авто</option>
+                        <option value="FULL" th:selected="${setting.value == 'FULL'}">FULL — полная автоматизация</option>
+                    </select>
+                </th:block>
+                <input th:unless="${setting.key == 'autopilot_mode'}"
+                       class="form-input form-input--sm"
+                       th:name="${setting.key}"
+                       th:value="${setting.value}"
+                       type="text"
+                       style="max-width: 400px;">
+            </div>
+        </div>
+
+        <!-- Integrations -->
+        <div class="card">
+            <div class="card__header">
+                <div class="card__title">Интеграции</div>
+            </div>
+            <div th:each="setting : ${settings}"
+                 th:if="${#lists.contains({'anthropic_api_key','tg_bot_token'}, setting.key)}"
+                 class="form-group">
+                <label class="form-label" th:text="${setting.description}"></label>
+                <input class="form-input form-input--sm"
+                       th:name="${setting.key}"
+                       th:value="${setting.value}"
+                       type="password"
+                       style="max-width: 500px;"
+                       placeholder="••••••••">
+                <div class="form-hint">Значение скрыто. Введите новое для обновления.</div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Сохранить настройки</button>
+    </form>
+
+</div>
+</body>
+</html>
