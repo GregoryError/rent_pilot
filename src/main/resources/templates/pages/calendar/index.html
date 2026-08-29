@@ -6,8 +6,8 @@
     <title>Календарь</title>
     <style>
         .cal-nav { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-6); }
-        .cal-nav a { color: var(--text-secondary); font-size: var(--text-lg); text-decoration: none; padding: var(--sp-2); }
-        .cal-nav a:hover { color: var(--text-primary); }
+        .cal-nav a { color: var(--text-secondary); font-size: var(--text-lg); text-decoration: none; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-sm); }
+        .cal-nav a:hover { background: var(--bg-hover); color: var(--text-primary); }
         .cal-month { font-size: var(--text-xl); font-weight: var(--weight-semibold); min-width: 250px; text-align: center; }
 
         .cal-grid {
@@ -20,7 +20,7 @@
         }
         .cal-header {
             background: var(--bg-raised);
-            padding: var(--sp-2);
+            padding: var(--sp-3);
             text-align: center;
             font-size: var(--text-xs);
             font-weight: var(--weight-semibold);
@@ -33,61 +33,70 @@
             padding: var(--sp-2) var(--sp-3);
             min-height: 90px;
             position: relative;
-            transition: background var(--duration) var(--ease);
         }
-        .cal-day:hover { background: var(--bg-hover); }
         .cal-day--empty { background: var(--bg-root); }
         .cal-day--today { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
-        .cal-day--past { opacity: 0.7; }
-        .cal-day--weekend .cal-num { color: var(--red); }
-        .cal-day--holiday .cal-num { color: var(--amber); }
+        .cal-day--past { opacity: 0.6; }
 
         .cal-num {
             font-size: var(--text-sm);
             font-weight: var(--weight-semibold);
-            margin-bottom: var(--sp-1);
+            color: var(--text-primary);
         }
-        .cal-price {
-            font-size: var(--text-xs);
+        .cal-num--weekend { color: var(--red); }
+        .cal-num--holiday { color: var(--amber); }
+
+        /* Booked day — solid colored block */
+        .cal-booked {
+            margin-top: 4px;
+            padding: 4px 6px;
+            background: rgba(108,140,255,0.2);
+            border-left: 3px solid var(--accent);
+            border-radius: 4px;
+            font-size: 0.72rem;
+            font-weight: 500;
+            color: var(--accent);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .cal-booked--checkin { border-left-color: var(--green); }
+
+        /* Gap — red warning */
+        .cal-gap {
+            margin-top: 4px;
+            padding: 4px 6px;
+            background: rgba(248,113,113,0.2);
+            border-left: 3px solid var(--red);
+            border-radius: 4px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--red);
+        }
+
+        /* Free day — just price text */
+        .cal-free-price {
+            margin-top: 6px;
+            font-size: 0.75rem;
             color: var(--text-muted);
             font-family: var(--font-mono);
         }
 
-        .cal-booking {
-            font-size: 0.7rem;
-            padding: 3px 6px;
-            border-radius: 4px;
-            margin-top: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            font-weight: 500;
-        }
-        .cal-booking--booked { background: rgba(108,140,255,0.25); color: var(--accent); border-left: 3px solid var(--accent); }
-        .cal-booking--gap { background: rgba(248,113,113,0.25); color: var(--red); border-left: 3px solid var(--red); font-weight: 600; }
-        .cal-booking--checkin { border-left: 3px solid var(--green); }
-
-        .cal-holiday-name {
+        .cal-holiday-label {
             font-size: 0.6rem;
             color: var(--amber);
-            margin-top: 1px;
+            margin-top: 2px;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
         .cal-legend {
-            display: flex;
-            gap: var(--sp-6);
-            margin-top: var(--sp-4);
-            font-size: var(--text-xs);
-            color: var(--text-secondary);
+            display: flex; gap: var(--sp-6); margin-top: var(--sp-5);
+            font-size: var(--text-xs); color: var(--text-secondary);
         }
         .cal-legend span { display: flex; align-items: center; gap: var(--sp-2); }
-        .cal-legend-dot {
-            width: 10px; height: 10px;
-            border-radius: 2px;
-        }
+        .cal-legend-dot { width: 12px; height: 12px; border-radius: 3px; }
     </style>
 </head>
 <body>
@@ -98,7 +107,6 @@
         <p class="page-subtitle" th:if="${property != null}" th:text="${property.name}"></p>
     </div>
 
-    <!-- Navigation -->
     <div class="cal-nav">
         <a th:href="@{/calendar(year=${prevYear},month=${prevMonth})}">◂</a>
         <div class="cal-month" th:text="${monthName}"></div>
@@ -110,16 +118,11 @@
     </div>
 
     <th:block th:if="${property != null}">
-        <!-- Calendar grid -->
         <div class="cal-grid">
-            <!-- Headers -->
-            <div class="cal-header">Пн</div>
-            <div class="cal-header">Вт</div>
-            <div class="cal-header">Ср</div>
-            <div class="cal-header">Чт</div>
-            <div class="cal-header">Пт</div>
-            <div class="cal-header" style="color: var(--red);">Сб</div>
-            <div class="cal-header" style="color: var(--red);">Вс</div>
+            <div class="cal-header">Пн</div><div class="cal-header">Вт</div><div class="cal-header">Ср</div>
+            <div class="cal-header">Чт</div><div class="cal-header">Пт</div>
+            <div class="cal-header" style="color:var(--red)">Сб</div>
+            <div class="cal-header" style="color:var(--red)">Вс</div>
 
             <!-- Empty cells before first day -->
             <th:block th:if="${!#lists.isEmpty(days)}">
@@ -129,36 +132,42 @@
             </th:block>
 
             <!-- Days -->
-            <div th:each="day : ${days}"
-                 class="cal-day"
-                 th:classappend="${day.today() ? ' cal-day--today' : ''} + ${day.past() ? ' cal-day--past' : ''} + ${day.weekend() ? ' cal-day--weekend' : ''} + ${day.holiday() ? ' cal-day--holiday' : ''}">
+            <div th:each="day : ${days}" class="cal-day"
+                 th:classappend="${day.today() ? ' cal-day--today' : ''} + ${day.past() ? ' cal-day--past' : ''}">
 
-                <div class="cal-num" th:text="${day.dayOfMonth()}"></div>
+                <!-- Day number -->
+                <div class="cal-num"
+                     th:classappend="${day.holiday() ? ' cal-num--holiday' : (day.weekend() ? ' cal-num--weekend' : '')}"
+                     th:text="${day.dayOfMonth()}"></div>
 
-                <!-- Holiday name -->
-                <div th:if="${day.holidayName() != null}" class="cal-holiday-name" th:text="${day.holidayName()}" th:title="${day.holidayName()}"></div>
+                <!-- Holiday label -->
+                <div th:if="${day.holidayName() != null}" class="cal-holiday-label" th:text="${day.holidayName()}" th:title="${day.holidayName()}"></div>
 
-                <!-- Booking bar -->
-                <div th:if="${day.status() == 'booked'}" class="cal-booking cal-booking--booked"
-                     th:classappend="${day.checkIn() ? ' cal-booking--checkin' : ''}"
-                     th:text="${day.guestName() ?: day.source()}"
-                     th:title="${(day.guestName() ?: '') + ' | ' + (day.source() ?: '')}">
-                </div>
+                <!-- BOOKED -->
+                <th:block th:if="${day.status() == 'booked'}">
+                    <div class="cal-booked" th:classappend="${day.checkIn() ? ' cal-booked--checkin' : ''}"
+                         th:title="${(day.guestName() ?: 'Гость') + ' | ' + (day.source() ?: '')}">
+                        <span th:text="${day.guestName() ?: day.source() ?: 'Бронь'}"></span>
+                    </div>
+                </th:block>
 
-                <!-- Gap warning -->
-                <div th:if="${day.status() == 'gap'}" class="cal-booking cal-booking--gap">⚠ gap</div>
+                <!-- GAP -->
+                <th:block th:if="${day.status() == 'gap'}">
+                    <div class="cal-gap">⚠ дыра</div>
+                </th:block>
 
-                <!-- Price (only for future free days) -->
-                <div th:if="${day.status() == 'free' && !day.past()}" class="cal-price" th:text="${day.basePrice()} + '₽'"></div>
+                <!-- FREE (future only) -->
+                <th:block th:if="${day.status() == 'free' && !day.past()}">
+                    <div class="cal-free-price" th:text="${day.basePrice()} + ' ₽'"></div>
+                </th:block>
             </div>
         </div>
 
-        <!-- Legend -->
         <div class="cal-legend">
-            <span><div class="cal-legend-dot" style="background: var(--accent);"></div> Бронь</span>
-            <span><div class="cal-legend-dot" style="background: var(--red);"></div> Gap (дыра)</span>
-            <span><div class="cal-legend-dot" style="background: var(--amber);"></div> Праздник</span>
-            <span><div class="cal-legend-dot" style="background: var(--green);"></div> Заезд</span>
+            <span><div class="cal-legend-dot" style="background:rgba(108,140,255,0.3); border-left:3px solid var(--accent);"></div> Бронь</span>
+            <span><div class="cal-legend-dot" style="background:rgba(248,113,113,0.3); border-left:3px solid var(--red);"></div> Gap (дыра)</span>
+            <span><div class="cal-legend-dot" style="background:var(--amber);"></div> Праздник</span>
+            <span><div class="cal-legend-dot" style="background:var(--green);"></div> Заезд</span>
         </div>
     </th:block>
 
