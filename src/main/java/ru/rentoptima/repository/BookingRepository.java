@@ -1,6 +1,7 @@
 package ru.rentoptima.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import ru.rentoptima.entity.Booking;
 import java.math.BigDecimal;
@@ -51,4 +52,8 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Query("SELECT AVG(b.nights) FROM Booking b WHERE b.tenant.id = :tenantId AND b.status = 'BOOKED' AND b.checkIn BETWEEN :from AND :to")
     Double avgNightsInRange(Long tenantId, LocalDate from, LocalDate to);
+
+    @Modifying
+    @Query("DELETE FROM Booking b WHERE b.tenant.id = :tenantId AND b.property.id = :propertyId")
+    long deleteByTenantIdAndPropertyId(Long tenantId, Long propertyId);
 }

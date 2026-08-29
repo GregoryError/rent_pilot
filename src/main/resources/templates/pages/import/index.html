@@ -11,6 +11,7 @@
         <p class="page-subtitle">Загрузка бронирований из XLS-экспорта RealtyCalendar</p>
     </div>
 
+    <!-- Import -->
     <div class="card">
         <div class="card__title" style="margin-bottom: var(--sp-5)">Загрузить XLS</div>
         <form th:action="@{/import}" method="post" enctype="multipart/form-data"
@@ -30,9 +31,29 @@
         </form>
         <div class="form-hint mt-6">
             Экспортируйте файл из RealtyCalendar → Статистика → Бронирования → Экспорт в XLS.
-            Дубликаты автоматически пропускаются. Для завершённых бронирований будут созданы расходы на уборку.
+            Дубликаты автоматически пропускаются. Удалённые и отменённые брони не импортируются.
         </div>
     </div>
+
+    <!-- Clear data -->
+    <div class="card" style="border-color: rgba(248,113,113,0.3);">
+        <div class="card__title" style="margin-bottom: var(--sp-2)">Очистка данных</div>
+        <p class="text-sm muted" style="margin-bottom: var(--sp-5)">
+            Удалит все импортированные бронирования и автоматически созданные расходы на уборку для выбранного объекта. Данные пришедшие по вебхукам тоже будут удалены. Это действие необратимо.
+        </p>
+        <form th:action="@{/import/clear}" method="post"
+              onsubmit="return confirm('Удалить все бронирования и авто-расходы для этого объекта? Это необратимо.')"
+              style="display:flex; gap: var(--sp-4); align-items: flex-end;">
+            <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Объект</label>
+                <select name="propertyId" class="form-input form-input--sm" style="width:300px" required>
+                    <option th:each="prop : ${properties}" th:value="${prop.id}" th:text="${prop.name}"></option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-ghost" style="border-color: var(--red); color: var(--red);">Очистить данные</button>
+        </form>
+    </div>
+
 </div>
 </body>
 </html>

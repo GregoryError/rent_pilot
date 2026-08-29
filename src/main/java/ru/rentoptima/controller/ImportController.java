@@ -41,4 +41,13 @@ public class ImportController {
         redirect.addFlashAttribute("success", msg);
         return "redirect:/import";
     }
+
+    @PostMapping("/clear")
+    public String clearData(@RequestParam Long propertyId, RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        var result = importService.clearImportedData(tenantId, propertyId);
+        redirect.addFlashAttribute("success",
+                String.format("Очищено: %d бронирований, %d авто-расходов", result.deletedBookings(), result.deletedExpenses()));
+        return "redirect:/import";
+    }
 }
