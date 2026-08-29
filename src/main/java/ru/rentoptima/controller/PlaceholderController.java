@@ -35,18 +35,4 @@ public class PlaceholderController {
         });
         return "pages/placeholder";
     }
-
-    @GetMapping("/chat")
-    public String chat(Model model) {
-        model.addAttribute("activePage", "chat");
-        model.addAttribute("pageTitle", "AI Чат");
-        model.addAttribute("pageDesc", "Встроенный чат с AI-аналитиком для нестандартных вопросов.");
-        model.addAttribute("planned", new String[]{
-                "Anthropic API интеграция",
-                "Контекст объекта и статистики в каждом запросе",
-                "Советы по улучшению квартиры",
-                "Объяснение решений системы"
-        });
-        return "pages/placeholder";
-    }
 }

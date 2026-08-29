@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Отзыв</title>
+    <style>
+        :root { --accent: #2563eb; --bg: #fafaf9; --surface: #fff; --border: #e5e5e3; --text: #1c1c1a; --muted: #78776f; --green: #16a34a; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); max-width: 480px; margin: 0 auto; padding: 24px 16px; }
+        h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 4px; }
+        .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 28px; }
+        .progress { height: 3px; background: var(--border); border-radius: 2px; margin-bottom: 28px; }
+        .progress-bar { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+
+        .step { display: none; }
+        .step.active { display: block; }
+        .step-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 16px; }
+
+        /* Scale selector */
+        .scale { display: flex; gap: 6px; margin-bottom: 24px; }
+        .scale-btn {
+            flex: 1; aspect-ratio: 1; display: flex; align-items: center; justify-content: center;
+            background: var(--surface); border: 2px solid var(--border); border-radius: 10px;
+            font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.15s;
+            color: var(--text);
+        }
+        .scale-btn:hover { border-color: var(--accent); }
+        .scale-btn.selected { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .scale-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--muted); margin-top: -18px; margin-bottom: 20px; }
+
+        textarea, input[type=text] {
+            width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 10px;
+            font-size: 0.95rem; font-family: inherit; resize: none; outline: none; background: var(--surface);
+        }
+        textarea:focus, input:focus { border-color: var(--accent); }
+        textarea { min-height: 80px; margin-bottom: 20px; }
+        input[type=text] { margin-bottom: 16px; }
+
+        .btn {
+            display: block; width: 100%; padding: 14px; background: var(--accent); color: #fff;
+            border: none; border-radius: 10px; font-size: 1rem; font-weight: 600;
+            cursor: pointer; margin-top: 8px;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-skip { background: transparent; color: var(--muted); border: 2px solid var(--border); margin-top: 8px; }
+
+        .done { text-align: center; padding: 60px 0; }
+        .done-icon { font-size: 3rem; margin-bottom: 12px; }
+        .done-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 8px; }
+        .done-text { color: var(--muted); font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <h1>Ваш отзыв</h1>
+    <div class="subtitle">Поможет нам стать лучше</div>
+    <div class="progress"><div class="progress-bar" id="progressBar" style="width: 0%"></div></div>
+
+    <!-- Step 1: Cleanliness -->
+    <div class="step active" id="step1">
+        <div class="step-title">Чистота квартиры</div>
+        <div class="scale" id="scale-clean"></div>
+        <div class="scale-labels"><span>Плохо</span><span>Отлично</span></div>
+        <button class="btn" onclick="nextStep(2)" id="btn1" disabled>Далее</button>
+    </div>
+
+    <!-- Step 2: Instructions -->
+    <div class="step" id="step2">
+        <div class="step-title">Понятность инструкций по заселению</div>
+        <div class="scale" id="scale-instr"></div>
+        <div class="scale-labels"><span>Непонятно</span><span>Всё ясно</span></div>
+        <button class="btn" onclick="nextStep(3)" id="btn2" disabled>Далее</button>
+    </div>
+
+    <!-- Step 3: Overall -->
+    <div class="step" id="step3">
+        <div class="step-title">Общее впечатление</div>
+        <div class="scale" id="scale-overall"></div>
+        <div class="scale-labels"><span>Плохо</span><span>Отлично</span></div>
+        <button class="btn" onclick="nextStep(4)" id="btn3" disabled>Далее</button>
+    </div>
+
+    <!-- Step 4: Text feedback -->
+    <div class="step" id="step4">
+        <div class="step-title">Что понравилось?</div>
+        <textarea id="liked" placeholder="Необязательно"></textarea>
+        <div class="step-title">Что можно улучшить?</div>
+        <textarea id="improve" placeholder="Необязательно"></textarea>
+        <button class="btn" onclick="nextStep(5)">Далее</button>
+        <button class="btn btn-skip" onclick="nextStep(5)">Пропустить</button>
+    </div>
+
+    <!-- Step 5: Name (optional) -->
+    <div class="step" id="step5">
+        <div class="step-title">Как вас зовут?</div>
+        <input type="text" id="guestName" placeholder="Необязательно">
+        <button class="btn" onclick="finish()">Отправить отзыв</button>
+        <button class="btn btn-skip" onclick="finish()">Отправить анонимно</button>
+    </div>
+
+    <!-- Done -->
+    <div class="step" id="stepDone">
+        <div class="done">
+            <div class="done-icon">✓</div>
+            <div class="done-title">Спасибо за отзыв!</div>
+            <div class="done-text">Ваше мнение поможет нам улучшить сервис</div>
+        </div>
+    </div>
+
+    <script th:inline="javascript">
+        const propertyCode = /*[[${property.feedbackCode}]]*/ '';
+        const sessionId = /*[[${sessionId}]]*/ '';
+        const totalSteps = 5;
+        let currentStep = 1;
+        let data = { cleanliness: 0, instructions: 0, overall: 0 };
+
+        // Build scale buttons
+        ['scale-clean', 'scale-instr', 'scale-overall'].forEach((id, idx) => {
+            const container = document.getElementById(id);
+            const field = ['cleanliness', 'instructions', 'overall'][idx];
+            const stepNum = idx + 1;
+            for (let i = 1; i <= 10; i++) {
+                const btn = document.createElement('div');
+                btn.className = 'scale-btn';
+                btn.textContent = i;
+                btn.onclick = () => {
+                    container.querySelectorAll('.scale-btn').forEach(b => b.classList.remove('selected'));
+                    btn.classList.add('selected');
+                    data[field] = i;
+                    document.getElementById('btn' + stepNum).disabled = false;
+                    saveProgress();
+                };
+                container.appendChild(btn);
+            }
+        });
+
+        function nextStep(n) {
+            document.getElementById('step' + currentStep).classList.remove('active');
+            document.getElementById('step' + (n <= totalSteps ? n : 'Done')).classList.add('active');
+            currentStep = n;
+            document.getElementById('progressBar').style.width = ((n - 1) / totalSteps * 100) + '%';
+            saveProgress();
+        }
+
+        function finish() {
+            data.guestName = document.getElementById('guestName').value;
+            data.liked = document.getElementById('liked').value;
+            data.improve = document.getElementById('improve').value;
+            data.completed = true;
+            saveProgress();
+            document.getElementById('step5').classList.remove('active');
+            document.getElementById('stepDone').classList.add('active');
+            document.getElementById('progressBar').style.width = '100%';
+        }
+
+        function saveProgress() {
+            fetch('/api/feedback/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    propertyCode,
+                    sessionId,
+                    guestName: document.getElementById('guestName')?.value || null,
+                    ...data
+                })
+            }).catch(() => {});
+        }
+    </script>
+</body>
+</html>
