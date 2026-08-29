@@ -17,14 +17,17 @@ public class WebhookController {
 
     @PostMapping("/rc")
     public ResponseEntity<String> handleRcWebhook(@RequestBody JsonNode payload) {
-        log.info("RC webhook received: {}", payload.has("event") ? payload.get("event").asText() : "unknown");
-        log.debug("RC webhook payload: {}", payload);
+        String action = payload.has("action") ? payload.get("action").asText() : "unknown";
+        String status = payload.has("status") ? payload.get("status").asText() : "unknown";
+        log.info("RC webhook received: action={}, status={}", action, status);
+
         try {
             webhookService.processRcEvent(payload);
-            return ResponseEntity.ok("OK");
         } catch (Exception e) {
-            log.error("Error processing RC webhook", e);
-            return ResponseEntity.ok("OK"); // Always return 200 to avoid retries
+            log.error("Error processing RC webhook: {}", e.getMessage(), e);
         }
+
+        // Always return 200 to prevent RC from retrying
+        return ResponseEntity.ok("OK");
     }
 }
