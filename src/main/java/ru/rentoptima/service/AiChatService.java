@@ -90,62 +90,39 @@ public class AiChatService {
         }
 
         return String.format("""
-                        Ты — AI-аналитик системы оптимизации посуточной аренды RentOptima.
-                        Ты помогаешь хозяину квартиры в городе %s принимать решения по ценообразованию,
-                        управлению бронированиями и улучшению бизнеса.
-                                        
-                        Отвечай на русском языке. Будь конкретен, давай цифры и рекомендации.
-                        Если данных недостаточно — скажи об этом.
-                                        
-                        === ДАННЫЕ КВАРТИРЫ ===
-                        Город: %s
-                        Базовая цена будни: %s ₽
-                        Базовая цена выходные: %s ₽
-                        Стоимость уборки: %s ₽
-                        Наценка площадок: %s%%
-                        Режим автопилота: %s
-                                        
-                        === KPI ТЕКУЩИЙ МЕСЯЦ ===
-                        Доход: %s ₽
-                        Бронирований: %d
-                        Выездов (уборок): %d
-                        Средняя длительность: %s ночей
-                        Заполняемость: %s%%
-                        Расход на уборку: %s ₽
-                        Net RevPAR: %s ₽
-                                        
-                        === BOOKING PACE (следующий месяц) ===
-                        Месяц: %s
-                        Текущая загрузка: %s%%
-                        Историческая норма: %s%%
-                        Статус: %s
-                                        
-                        === НЕДАВНИЕ БРОНИРОВАНИЯ (±30 дней) === private JsonNode buildRequest(String systemPrompt, String userMessage, List<Map<String, String>> history) {
-                                                                                ObjectNode root = objectMapper.createObjectNode();
-                                                                                root.put("model", "claude-sonnet-4-6");
-                                                                                root.put("max_tokens", 2000);
-                                                                                root.put("system", systemPrompt);
-                                                                        
-                                                                                ArrayNode messages = root.putArray("messages");
-                                                                        
-                                                                                // Add conversation history
-                                                                                if (history != null) {
-                                                                                    for (Map<String, String> msg : history) {
-                                                                                        ObjectNode m = messages.addObject();
-                                                                                        m.put("role", msg.get("role"));
-                                                                                        m.put("content", msg.get("content"));
-                                                                                    }
-                                                                                }
-                                                                        
-                                                                                // Add current message
-                                                                                ObjectNode userMsg = messages.addObject();
-                                                                                userMsg.put("role", "user");
-                                                                                userMsg.put("content", userMessage);
-                                                                        
-                                                                                return root;
-                                                                            }
-                        %s
-                        """,
+                Ты — AI-аналитик системы оптимизации посуточной аренды RentOptima.
+                Ты помогаешь хозяину квартиры в городе %s принимать решения по ценообразованию,
+                управлению бронированиями и улучшению бизнеса.
+                
+                Отвечай на русском языке. Будь конкретен, давай цифры и рекомендации.
+                Если данных недостаточно — скажи об этом.
+                
+                === ДАННЫЕ КВАРТИРЫ ===
+                Город: %s
+                Базовая цена будни: %s ₽
+                Базовая цена выходные: %s ₽
+                Стоимость уборки: %s ₽
+                Наценка площадок: %s%%
+                Режим автопилота: %s
+                
+                === KPI ТЕКУЩИЙ МЕСЯЦ ===
+                Доход: %s ₽
+                Бронирований: %d
+                Выездов (уборок): %d
+                Средняя длительность: %s ночей
+                Заполняемость: %s%%
+                Расход на уборку: %s ₽
+                Net RevPAR: %s ₽
+                
+                === BOOKING PACE (следующий месяц) ===
+                Месяц: %s
+                Текущая загрузка: %s%%
+                Историческая норма: %s%%
+                Статус: %s
+                
+                === НЕДАВНИЕ БРОНИРОВАНИЯ (±30 дней) ===
+                %s
+                """,
                 s.getOrDefault("city", "Выборг"),
                 s.getOrDefault("city", "Выборг"),
                 s.getOrDefault("weekday_base_price", "3200"),
@@ -161,7 +138,30 @@ public class AiChatService {
         );
     }
 
+    private JsonNode buildRequest(String systemPrompt, String userMessage, List<Map<String, String>> history) {
+        ObjectNode root = objectMapper.createObjectNode();
+        root.put("model", "claude-sonnet-4-6");
+        root.put("max_tokens", 2000);
+        root.put("system", systemPrompt);
 
+        ArrayNode messages = root.putArray("messages");
+
+        // Add conversation history
+        if (history != null) {
+            for (Map<String, String> msg : history) {
+                ObjectNode m = messages.addObject();
+                m.put("role", msg.get("role"));
+                m.put("content", msg.get("content"));
+            }
+        }
+
+        // Add current message
+        ObjectNode userMsg = messages.addObject();
+        userMsg.put("role", "user");
+        userMsg.put("content", userMessage);
+
+        return root;
+    }
 
     public record ChatResponse(String content, int tokens) {}
 }
