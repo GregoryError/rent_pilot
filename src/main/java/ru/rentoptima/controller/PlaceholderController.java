@@ -7,20 +7,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class PlaceholderController {
 
-    @GetMapping("/calendar")
-    public String calendar(Model model) {
-        model.addAttribute("activePage", "calendar");
-        model.addAttribute("pageTitle", "Календарь");
-        model.addAttribute("pageDesc", "Визуализация шахматки с overlay рекомендаций и управление датами.");
-        model.addAttribute("planned", new String[]{
-                "Календарная сетка с ценами и мин. сроками",
-                "Интеграция с RealtyCalendar (чтение/запись)",
-                "Рекомендации по ценам прямо на календаре",
-                "Gap Management — подсветка «дыр» между бронями"
-        });
-        return "pages/placeholder";
-    }
-
     @GetMapping("/pricing")
     public String pricing(Model model) {
         model.addAttribute("activePage", "pricing");
