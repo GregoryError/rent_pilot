@@ -55,5 +55,5 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     @Modifying
     @Query("DELETE FROM Booking b WHERE b.tenant.id = :tenantId AND b.property.id = :propertyId")
-    long deleteByTenantIdAndPropertyId(Long tenantId, Long propertyId);
+    int deleteByTenantIdAndPropertyId(Long tenantId, Long propertyId);
 }

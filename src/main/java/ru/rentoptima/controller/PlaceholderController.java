@@ -7,21 +7,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class PlaceholderController {
 
-    @GetMapping("/pricing")
-    public String pricing(Model model) {
-        model.addAttribute("activePage", "pricing");
-        model.addAttribute("pageTitle", "Ценообразование");
-        model.addAttribute("pageDesc", "Динамическое ценообразование с учётом внешних факторов.");
-        model.addAttribute("planned", new String[]{
-                "Pricing Engine с настраиваемыми весами факторов",
-                "Мониторинг конкурентов (Avito, Cian)",
-                "Календарь событий Выборга",
-                "Производственный календарь РФ",
-                "Режимы автопилота (OFF / SOFT / FULL)"
-        });
-        return "pages/placeholder";
-    }
-
     @GetMapping("/feedback")
     public String feedback(Model model) {
         model.addAttribute("activePage", "feedback");
