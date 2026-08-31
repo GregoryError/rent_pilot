@@ -43,3 +43,7 @@ logging:
   level:
     ru.rentoptima: DEBUG
     org.springframework.security: INFO
+
+app:
+  admin:
+    password: ${APP_ADMIN_PASSWORD}

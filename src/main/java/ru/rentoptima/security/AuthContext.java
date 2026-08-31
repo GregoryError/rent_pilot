@@ -1,5 +1,6 @@
 package ru.rentoptima.security;
 
+import jakarta.annotation.PostConstruct;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
@@ -22,4 +23,5 @@ public final class AuthContext {
     public static Long userId() {
         return current().getUserId();
     }
+
 }
