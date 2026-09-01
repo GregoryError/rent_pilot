@@ -8,3 +8,5 @@ target/
 
 # Maven wrapper jar will be downloaded at build time
 !.mvn/wrapper/maven-wrapper.properties
+.DS_Store
+**/.DS_Store
