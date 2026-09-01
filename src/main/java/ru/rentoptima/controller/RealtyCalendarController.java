@@ -35,6 +35,7 @@ public class RealtyCalendarController {
         if (endDate.isBefore(beginDate)) {
             throw new ResponseStatusException(BAD_REQUEST, "Дата окончания раньше даты начала");
         }
+
         return realtyCalendarClient.getSpecialPrices(rcObjectId(propertyId), beginDate, endDate);
     }
 

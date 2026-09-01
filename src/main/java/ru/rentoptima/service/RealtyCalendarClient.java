@@ -2,7 +2,9 @@ package ru.rentoptima.service;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -25,6 +27,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RealtyCalendarClient {
 
+    private final Logger log;
+
     private final RestClient.Builder restClientBuilder;
 
     @Value("${app.realty-calendar.base-url:https://realtycalendar.ru}")
@@ -41,8 +45,17 @@ public class RealtyCalendarClient {
 
     private volatile String authToken;
 
-    public JsonNode getSpecialPrices(String rcObjectId, LocalDate beginDate, LocalDate endDate) {
-        return client().get()
+    public JsonNode getSpecialPrices(
+            String rcObjectId,
+            LocalDate beginDate,
+            LocalDate endDate
+    ) {
+        log.info(
+                "RC GET special_prices: objectId={}, beginDate={}, endDate={}",
+                rcObjectId, beginDate, endDate
+        );
+
+        JsonNode response = client().get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/v2/apartments/{id}/special_prices")
                         .queryParam("begin_date", beginDate)
@@ -52,17 +65,85 @@ public class RealtyCalendarClient {
                 .header("X-Locale", locale)
                 .retrieve()
                 .body(JsonNode.class);
+
+        if (response == null) {
+            log.warn("RC GET special_prices: response is NULL");
+        } else {
+            try {
+                log.info(
+                        "RC GET special_prices RESPONSE:\n{}",
+                        new ObjectMapper()
+                                .writerWithDefaultPrettyPrinter()
+                                .writeValueAsString(response)
+                );
+            } catch (Exception e) {
+                log.warn(
+                        "RC GET special_prices: failed to pretty-print response: {}",
+                        e.getMessage()
+                );
+                log.info("RC GET special_prices RESPONSE RAW: {}", response);
+            }
+        }
+
+        return response;
     }
 
-    public void saveSpecialPrices(String rcObjectId, List<SpecialPrice> items) {
-        client().post()
-                .uri("/v2/apartments/{id}/special_prices", rcObjectId)
-                .contentType(MediaType.APPLICATION_JSON)
-                .header("X-User-Token", token())
-                .header("X-Locale", locale)
-                .body(Map.of("items", items))
-                .retrieve()
-                .toBodilessEntity();
+    public void saveSpecialPrices(
+            String rcObjectId,
+            List<SpecialPrice> items
+    ) {
+        Map<String, Object> body = Map.of("items", items);
+
+        log.info(
+                "RC POST special_prices: objectId={}, items={}",
+                rcObjectId,
+                items.size()
+        );
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.findAndRegisterModules();
+
+            log.info(
+                    "RC POST special_prices REQUEST JSON:\n{}",
+                    mapper.writerWithDefaultPrettyPrinter()
+                            .writeValueAsString(body)
+            );
+        } catch (Exception e) {
+            log.warn(
+                    "RC POST special_prices: failed to serialize request: {}",
+                    e.getMessage()
+            );
+            log.info("RC POST special_prices REQUEST OBJECT: {}", body);
+        }
+
+        try {
+            client().post()
+                    .uri("/v2/apartments/{id}/special_prices", rcObjectId)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .header("X-User-Token", token())
+                    .header("X-Locale", locale)
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+
+            log.info(
+                    "RC POST special_prices SUCCESS: objectId={}, items={}",
+                    rcObjectId,
+                    items.size()
+            );
+
+        } catch (Exception e) {
+            log.error(
+                    "RC POST special_prices FAILED: objectId={}, items={}, error={}",
+                    rcObjectId,
+                    items.size(),
+                    e.getMessage(),
+                    e
+            );
+
+            throw e;
+        }
     }
 
     private RestClient client() {
