@@ -68,6 +68,8 @@ public class PricingEngine {
         List<PricingRecommendation> recs = calculateRecommendations(property, from, to);
 
 
+        log.info("========== RC DIAGNOSTIC GET START ==========");
+
         try {
             JsonNode existing = rcClient.getSpecialPrices(
                     property.getRcObjectId(),
@@ -76,21 +78,18 @@ public class PricingEngine {
             );
 
             log.info(
-                    "RC DIAGNOSTIC existing special prices for {}:\n{}",
-                    property.getName(),
-                    existing == null
-                            ? "NULL"
-                            : existing.toPrettyString()
+                    "RC DIAGNOSTIC GET RESULT:\n{}",
+                    existing == null ? "NULL" : existing.toPrettyString()
             );
 
         } catch (Exception e) {
             log.error(
-                    "RC DIAGNOSTIC GET failed for property {}: {}",
-                    property.getName(),
-                    e.getMessage(),
+                    "RC DIAGNOSTIC GET ERROR",
                     e
             );
         }
+
+        log.info("========== RC DIAGNOSTIC GET END ==========");
 
 
 
