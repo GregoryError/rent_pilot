@@ -36,7 +36,7 @@ public class PricingEngine {
     /** Run every hour */
 //    @Scheduled(fixedDelay = 3600000)
 
-    @Scheduled(fixedDelay = 120000)
+    @Scheduled(fixedDelay = 220000)
     public void runAutopilot() {
         List<Property> properties = propertyRepo.findAll().stream()
                 .filter(p -> p.getActive() && p.getRcObjectId() != null && !p.getRcObjectId().isBlank())
@@ -108,10 +108,37 @@ public class PricingEngine {
 
             items.add(new RealtyCalendarClient.SpecialPrice(
                     rec.date(),
-                    rec.recommendedPrice(),
-                    rec.recommendedMinStay(),
-                    false,  // not closed
-                    null, null, null
+
+                    new RealtyCalendarClient.ValueWrapper(
+                            new RealtyCalendarClient.DiagnosticValue(
+                                    rec.recommendedPrice()
+                            )
+                    ),
+
+                    new RealtyCalendarClient.ValueWrapper(
+                            new RealtyCalendarClient.DiagnosticValue(
+                                    rec.recommendedMinStay()
+                            )
+                    ),
+
+                    new RealtyCalendarClient.ValueWrapper(
+                            new RealtyCalendarClient.DiagnosticValue(
+                                    "no"
+                            )
+                    ),
+
+                    null,
+
+                    null,
+
+                    new RealtyCalendarClient.Rates(
+                            false,
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of()
+                    )
             ));
         }
 

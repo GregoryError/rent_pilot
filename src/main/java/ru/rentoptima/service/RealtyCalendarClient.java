@@ -184,14 +184,48 @@ public class RealtyCalendarClient {
     public record SpecialPrice(
             @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
             LocalDate date,
-            BigDecimal amount,
+
+            ValueWrapper amount,
+
             @JsonProperty("min_stay_through")
-            Integer minStayThrough,
-            Boolean closed,
+            ValueWrapper minStayThrough,
+
+            ValueWrapper closed,
+
             @JsonProperty("closed_on_arrivial")
-            Boolean closedOnArrival,
+            ValueWrapper closedOnArrival,
+
             @JsonProperty("closed_on_departure")
-            Boolean closedOnDeparture,
-            Map<String, List<Long>> rates
+            ValueWrapper closedOnDeparture,
+
+            Rates rates
+    ) {}
+
+    public record ValueWrapper(
+            DiagnosticValue actual
+    ) {}
+
+    public record DiagnosticValue(
+            Object value
+    ) {}
+
+    public record Rates(
+            @JsonProperty("use_rates_restrictions")
+            Boolean useRatesRestrictions,
+
+            @JsonProperty("booking_rate_ids")
+            List<Long> bookingRateIds,
+
+            @JsonProperty("ostrovok_rate_ids")
+            List<Long> ostrovokRateIds,
+
+            @JsonProperty("expedia_rate_ids")
+            List<Long> expediaRateIds,
+
+            @JsonProperty("bronevik_rate_ids")
+            List<Long> bronevikRateIds,
+
+            @JsonProperty("hotels101_rate_ids")
+            List<Long> hotels101RateIds
     ) {}
 }
