@@ -26,7 +26,6 @@ public class SecurityConfig {
                         .requestMatchers("/housekeeper/**").permitAll()
                         .requestMatchers("/api/webhooks/**").permitAll()
                         .requestMatchers("/api/feedback/**").permitAll()
-                        .requestMatchers("/api/realty-calendar/**").permitAll()
                         .requestMatchers("/css/**", "/js/**", "/img/**", "/favicon.ico").permitAll()
                         .requestMatchers("/login", "/error").permitAll()
                         // Everything else requires auth
