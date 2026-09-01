@@ -45,6 +45,8 @@ logging:
     org.springframework.security: INFO
 
 app:
+  admin:
+    password: ${APP_ADMIN_PASSWORD}
   realty-calendar:
     username: ${RC_USERNAME}
     password: ${RC_PASSWORD}
