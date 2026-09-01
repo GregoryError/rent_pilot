@@ -1,5 +1,6 @@
 package ru.rentoptima.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -65,6 +66,33 @@ public class PricingEngine {
         );
 
         List<PricingRecommendation> recs = calculateRecommendations(property, from, to);
+
+
+        try {
+            JsonNode existing = rcClient.getSpecialPrices(
+                    property.getRcObjectId(),
+                    from,
+                    to
+            );
+
+            log.info(
+                    "RC DIAGNOSTIC existing special prices for {}:\n{}",
+                    property.getName(),
+                    existing == null
+                            ? "NULL"
+                            : existing.toPrettyString()
+            );
+
+        } catch (Exception e) {
+            log.error(
+                    "RC DIAGNOSTIC GET failed for property {}: {}",
+                    property.getName(),
+                    e.getMessage(),
+                    e
+            );
+        }
+
+
 
         // Build RC special prices payload
         List<RealtyCalendarClient.SpecialPrice> items = new ArrayList<>();
