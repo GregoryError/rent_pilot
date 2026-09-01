@@ -33,7 +33,9 @@ public class PricingEngine {
     private final BookingStatsService statsService;
 
     /** Run every hour */
-    @Scheduled(fixedDelay = 3600000)
+//    @Scheduled(fixedDelay = 3600000)
+
+    @Scheduled(fixedDelay = 120000)
     public void runAutopilot() {
         List<Property> properties = propertyRepo.findAll().stream()
                 .filter(p -> p.getActive() && p.getRcObjectId() != null && !p.getRcObjectId().isBlank())
