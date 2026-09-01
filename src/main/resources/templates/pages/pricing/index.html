@@ -8,17 +8,17 @@
 
     <div class="page-header">
         <h1 class="page-title">Ценообразование</h1>
-        <p class="page-subtitle">Мониторинг конкурентов и управление ценами</p>
+        <p class="page-subtitle">Рекомендации движка, мониторинг конкурентов</p>
     </div>
 
-    <!-- Current settings -->
+    <!-- KPI -->
     <div class="kpi-row">
         <div class="kpi">
-            <div class="kpi__label">Будни</div>
+            <div class="kpi__label">Будни (база)</div>
             <div class="kpi__value" th:text="${settings['weekday_base_price']} + ' ₽'"></div>
         </div>
         <div class="kpi">
-            <div class="kpi__label">Выходные</div>
+            <div class="kpi__label">Выходные (база)</div>
             <div class="kpi__value" th:text="${settings['weekend_base_price']} + ' ₽'"></div>
         </div>
         <div class="kpi">
@@ -26,8 +26,54 @@
             <div class="kpi__value" th:text="${avgCompetitorPrice != null ? avgCompetitorPrice + ' ₽' : '—'}"></div>
         </div>
         <div class="kpi">
-            <div class="kpi__label">Наценка площадок</div>
-            <div class="kpi__value" th:text="${settings['platform_markup_pct']} + '%'"></div>
+            <div class="kpi__label">Автопилот</div>
+            <div class="kpi__value" style="font-size: var(--text-lg)" th:text="${settings['autopilot_mode']}"></div>
+        </div>
+    </div>
+
+    <!-- Pricing recommendations -->
+    <div class="card">
+        <div class="card__header">
+            <div class="card__title">Рекомендации движка — следующие 60 дней</div>
+            <span class="text-sm muted">Обновляется каждый час</span>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Дата</th>
+                        <th>День</th>
+                        <th class="text-right">База</th>
+                        <th class="text-right">Рекомендация</th>
+                        <th class="text-right">Δ</th>
+                        <th>Мин. срок</th>
+                        <th>Причина</th>
+                        <th>Уверенность</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="rec : ${recommendations}"
+                        th:if="${rec.status().name() != 'BOOKED'}"
+                        th:classappend="${rec.status().name() == 'GAP' ? 'style=background:rgba(248,113,113,0.05)' : ''}">
+                        <td class="mono" th:text="${rec.date()}"></td>
+                        <td class="text-sm muted" th:text="${#temporals.format(rec.date(), 'EEE', new java.util.Locale('ru'))}"></td>
+                        <td class="text-right mono muted" th:text="${rec.currentPrice()} + ' ₽'"></td>
+                        <td class="text-right mono" style="font-weight:600" th:text="${rec.recommendedPrice()} + ' ₽'"></td>
+                        <td class="text-right mono"
+                            th:style="${rec.priceDelta() < 0 ? 'color:var(--red)' : (rec.priceDelta() > 0 ? 'color:var(--green)' : 'color:var(--text-muted)')}"
+                            th:text="${rec.priceDelta() > 0 ? '+' : ''} + ${rec.priceDelta()} + ' ₽'"></td>
+                        <td class="text-sm" th:text="${rec.recommendedMinStay()} + ' н.'"></td>
+                        <td class="text-sm muted" th:text="${rec.reason()}"></td>
+                        <td>
+                            <div style="display:flex; align-items:center; gap: var(--sp-2);">
+                                <div style="height:4px; border-radius:2px; background:var(--accent); opacity:0.8;"
+                                     th:style="'width:' + ${rec.confidence()} + 'px; height:4px; border-radius:2px; background:var(--accent);'"></div>
+                                <span class="text-sm muted" th:text="${rec.confidence()} + '%'"></span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -36,17 +82,11 @@
         <div class="card__header">
             <div class="card__title">Цены конкурентов</div>
         </div>
-
         <th:block th:if="${!latestPrices.isEmpty()}">
             <div class="table-wrap" style="margin-bottom: var(--sp-6);">
                 <table>
                     <thead>
-                        <tr>
-                            <th>Конкурент</th>
-                            <th>Площадка</th>
-                            <th class="text-right">Цена</th>
-                            <th>Обновлено</th>
-                        </tr>
+                        <tr><th>Конкурент</th><th>Площадка</th><th class="text-right">Цена</th><th>Обновлено</th></tr>
                     </thead>
                     <tbody>
                         <tr th:each="cp : ${latestPrices}">
@@ -60,79 +100,61 @@
             </div>
         </th:block>
         <div th:if="${latestPrices.isEmpty()}" class="muted text-sm" style="margin-bottom: var(--sp-4);">
-            Нет данных. Добавьте конкурентов и нажмите «Обновить цену».
+            Нет данных. Добавьте конкурентов ниже и нажмите «Обновить цену».
         </div>
     </div>
 
     <!-- Manage competitors -->
     <div class="card">
         <div class="card__header">
-            <div class="card__title">Управление конкурентами</div>
+            <div class="card__title">Конкуренты</div>
             <button class="btn btn-primary" onclick="document.getElementById('add-comp').style.display='block'">+ Добавить</button>
         </div>
-
-        <!-- Add form -->
-        <div id="add-comp" style="display:none; margin-bottom: var(--sp-6); padding-bottom: var(--sp-5); border-bottom: 1px solid var(--border-subtle);">
+        <div id="add-comp" style="display:none; margin-bottom: var(--sp-5); padding-bottom: var(--sp-5); border-bottom: 1px solid var(--border-subtle);">
             <form th:action="@{/pricing/competitors/add}" method="post"
                   style="display:flex; flex-wrap:wrap; gap: var(--sp-4); align-items:flex-end;">
                 <div class="form-group" style="margin-bottom:0">
                     <label class="form-label">Название</label>
-                    <input type="text" name="name" class="form-input form-input--sm" style="width:200px"
-                           placeholder="Квартира на Крепостной" required>
+                    <input type="text" name="name" class="form-input form-input--sm" style="width:200px" placeholder="Квартира на Крепостной" required>
                 </div>
                 <div class="form-group" style="margin-bottom:0">
-                    <label class="form-label">URL объявления</label>
-                    <input type="url" name="url" class="form-input form-input--sm" style="width:350px"
-                           placeholder="https://avito.ru/..." required>
+                    <label class="form-label">URL</label>
+                    <input type="url" name="url" class="form-input form-input--sm" style="width:350px" placeholder="https://avito.ru/..." required>
                 </div>
                 <div class="form-group" style="margin-bottom:0">
                     <label class="form-label">Площадка</label>
                     <select name="platform" class="form-input form-input--sm" style="width:140px">
                         <option value="">Авто</option>
                         <option value="avito">Avito</option>
-                        <option value="cian">CIAN</option>
                         <option value="sutochno">Суточно</option>
+                        <option value="cian">CIAN</option>
                         <option value="ostrovok">Ostrovok</option>
-                        <option value="other">Другое</option>
                     </select>
                 </div>
                 <button type="submit" class="btn btn-primary">Добавить</button>
             </form>
         </div>
-
-        <!-- Listings table -->
         <div class="table-wrap">
             <table>
-                <thead>
-                    <tr>
-                        <th>Конкурент</th>
-                        <th>Площадка</th>
-                        <th>URL</th>
-                        <th>Последний парсинг</th>
-                        <th></th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Конкурент</th><th>Площадка</th><th>URL</th><th>Последний парсинг</th><th></th></tr></thead>
                 <tbody>
                     <tr th:each="l : ${listings}">
                         <td th:text="${l.competitorName}"></td>
                         <td><span class="tag tag--muted" th:text="${l.platform}"></span></td>
-                        <td class="text-sm">
-                            <a th:href="${l.url}" target="_blank" style="color:var(--accent)">Ссылка ↗</a>
-                        </td>
-                        <td class="text-sm muted"
-                            th:text="${l.lastScrapedAt != null ? #temporals.format(l.lastScrapedAt, 'dd.MM HH:mm') : 'Не парсился'}"></td>
+                        <td class="text-sm"><a th:href="${l.url}" target="_blank" style="color:var(--accent)">Ссылка ↗</a></td>
+                        <td class="text-sm muted" th:text="${l.lastScrapedAt != null ? #temporals.format(l.lastScrapedAt, 'dd.MM HH:mm') : 'Не парсился'}"></td>
                         <td style="text-align:right; white-space:nowrap;">
                             <form th:action="@{'/pricing/competitors/' + ${l.id} + '/scrape'}" method="post" style="display:inline">
                                 <button type="submit" class="btn btn-ghost" style="padding:var(--sp-1) var(--sp-3); font-size:var(--text-xs);">Обновить</button>
                             </form>
                             <form th:action="@{'/pricing/competitors/' + ${l.id} + '/delete'}" method="post" style="display:inline"
-                                  onsubmit="return confirm('Удалить конкурента?')">
+                                  onsubmit="return confirm('Удалить?')">
                                 <button type="submit" class="btn btn-ghost" style="padding:var(--sp-1) var(--sp-3); font-size:var(--text-xs); color:var(--red);">✕</button>
                             </form>
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(listings)}">
-                        <td colspan="5" class="muted" style="text-align:center;">Нет конкурентов. Добавьте ссылки на объявления.</td>
+                        <td colspan="5" class="muted" style="text-align:center;">Нет конкурентов.</td>
                     </tr>
                 </tbody>
             </table>

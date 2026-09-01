@@ -41,5 +41,4 @@ public class AppUserDetailsService implements UserDetailsService {
         userRepository.save(admin);
     }
 
-
 }

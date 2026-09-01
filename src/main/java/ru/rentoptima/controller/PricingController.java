@@ -10,7 +10,9 @@ import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.CompetitorService;
 import ru.rentoptima.service.SettingsService;
 
-@Controller
+import ru.rentoptima.service.PricingEngine;
+
+import java.util.List;
 @RequestMapping("/pricing")
 @RequiredArgsConstructor
 public class PricingController {
@@ -18,6 +20,7 @@ public class PricingController {
     private final CompetitorService competitorService;
     private final PropertyRepository propertyRepo;
     private final SettingsService settings;
+    private final PricingEngine pricingEngine;
 
     @GetMapping
     public String pricing(Model model) {
@@ -28,12 +31,19 @@ public class PricingController {
         var avgPrice = competitorService.getAverageCompetitorPrice(tenantId);
         var properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
 
+        // Pricing recommendations for first property
+        List<PricingEngine.PricingRecommendation> recommendations = List.of();
+        if (!properties.isEmpty()) {
+            recommendations = pricingEngine.getRecommendations(tenantId, properties.get(0).getId());
+        }
+
         model.addAttribute("activePage", "pricing");
         model.addAttribute("settings", settingsMap);
         model.addAttribute("listings", listings);
         model.addAttribute("latestPrices", latestPrices);
         model.addAttribute("avgCompetitorPrice", avgPrice);
         model.addAttribute("properties", properties);
+        model.addAttribute("recommendations", recommendations);
 
         return "pages/pricing/index";
     }

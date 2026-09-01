@@ -45,10 +45,7 @@ logging:
     org.springframework.security: INFO
 
 app:
-  admin:
-    password: ${APP_ADMIN_PASSWORD}
   realty-calendar:
-    # Keep these only in the server environment, never in the browser or database.
     username: ${RC_USERNAME:}
     password: ${RC_PASSWORD:}
     base-url: ${RC_BASE_URL:https://realtycalendar.ru}
