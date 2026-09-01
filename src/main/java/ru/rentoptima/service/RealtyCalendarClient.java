@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.slf4j.Logger;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -23,11 +23,12 @@ import java.util.Map;
  * frontend. It is intentionally kept behind this server-side adapter: browser
  * tokens and RealtyCalendar credentials never reach a RentOptima user browser.
  */
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RealtyCalendarClient {
 
-    private final Logger log;
 
     private final RestClient.Builder restClientBuilder;
 
