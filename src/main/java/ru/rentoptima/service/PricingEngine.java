@@ -114,7 +114,7 @@ public class PricingEngine {
                     rec.recommendedMinStay(),
                     null,
                     null
-            )
+            );
         }
 
         if (items.isEmpty()) return;

@@ -182,8 +182,6 @@ public class RealtyCalendarClient {
 
     private record SignInRequest(String username, String password) { }
 
-    import com.fasterxml.jackson.annotation.JsonInclude;
-
     @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SpecialPrice(
             LocalDate date,
