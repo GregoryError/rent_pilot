@@ -8,10 +8,12 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.entity.Tenant;
 import ru.rentoptima.repository.PropertyRepository;
+import ru.rentoptima.repository.SystemSettingRepository;
 import ru.rentoptima.repository.TenantRepository;
 import ru.rentoptima.security.AuthContext;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 
 @Controller
@@ -21,6 +23,7 @@ public class PropertyController {
 
     private final PropertyRepository propertyRepo;
     private final TenantRepository tenantRepo;
+    private final SystemSettingRepository systemSettingRepository;
 
     @GetMapping
     public String list(Model model) {
@@ -62,7 +65,10 @@ public class PropertyController {
                           @RequestParam(required = false) String city,
                           @RequestParam(required = false) String rcObjectId,
                           RedirectAttributes redirect) {
-        propertyRepo.findById(id).ifPresent(p -> {
+
+        Long tenantId = AuthContext.tenantId();
+
+        propertyRepo.findByIdAndTenantId(id, tenantId).ifPresent(p -> {
             p.setName(name);
             p.setAddress(address);
             p.setCity(city);
@@ -70,17 +76,22 @@ public class PropertyController {
             p.setUpdatedAt(LocalDateTime.now());
             propertyRepo.save(p);
         });
+
         redirect.addFlashAttribute("success", "Объект обновлён");
         return "redirect:/settings/properties";
     }
 
     @PostMapping("/{id}/delete")
     public String delete(@PathVariable Long id, RedirectAttributes redirect) {
-        propertyRepo.findById(id).ifPresent(p -> {
+
+        Long tenantId = AuthContext.tenantId();
+
+        propertyRepo.findByIdAndTenantId(id, tenantId).ifPresent(p -> {
             p.setActive(false);
             p.setUpdatedAt(LocalDateTime.now());
             propertyRepo.save(p);
         });
+
         redirect.addFlashAttribute("success", "Объект удалён");
         return "redirect:/settings/properties";
     }

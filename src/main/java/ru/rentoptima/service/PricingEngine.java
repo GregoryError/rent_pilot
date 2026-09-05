@@ -11,6 +11,8 @@ import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.PropertyRepository;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -33,11 +35,28 @@ public class PricingEngine {
     private final RealtyCalendarClient rcClient;
     private final BookingStatsService statsService;
 
-    /** Run every hour */
-//    @Scheduled(fixedDelay = 3600000)
+    private volatile Instant lastAutopilotRun;
 
-    @Scheduled(fixedDelay = 220000)
+//    @Scheduled(fixedDelay = 120000)
+
+    @Scheduled(fixedDelay = 60*1000*30)
     public void runAutopilot() {
+
+//        int intervalMinutes = settings.getIntValue(
+//                0L,
+//                "autopilot_interval_minutes",
+//                30
+//        );
+//
+//        Instant now = Instant.now();
+//
+//        if (lastAutopilotRun != null &&
+//                Duration.between(lastAutopilotRun, now).toMinutes() < intervalMinutes) {
+//            return;
+//        }
+//
+//        lastAutopilotRun = now;
+
         List<Property> properties = propertyRepo.findAll().stream()
                 .filter(p -> p.getActive() && p.getRcObjectId() != null && !p.getRcObjectId().isBlank())
                 .toList();

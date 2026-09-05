@@ -4,6 +4,8 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 @Entity
@@ -22,4 +24,7 @@ public class Tenant extends BaseEntity {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
+
+    @Column(name = "autopilot_last_run_at")
+    private Instant autopilotLastRunAt;
 }

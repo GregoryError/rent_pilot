@@ -14,4 +14,6 @@ public interface PropertyRepository extends JpaRepository<Property, Long> {
     Optional<Property> findByHousekeeperCode(String code);
 
     Optional<Property> findByRcObjectId(String rcObjectId);
+
+    Optional<Property> findByIdAndTenantId(Long id, Long tenantId);
 }
