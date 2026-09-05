@@ -72,10 +72,10 @@ public class RealtyCalendarClient {
                     .retrieve()
                     .body(JsonNode.class);
 
-            log.info(
-                    "RC GET special_prices RESPONSE: {}",
-                    response
-            );
+//            log.info(
+//                    "RC GET special_prices RESPONSE: {}",
+//                    response
+//            );
 
             return response;
 
