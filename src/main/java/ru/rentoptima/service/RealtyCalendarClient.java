@@ -204,10 +204,10 @@ public class RealtyCalendarClient {
                     items.size()
             );
 
-            log.debug(
-                    "RC POST special_prices BODY: {}",
-                    json
-            );
+//            log.debug(
+//                    "RC POST special_prices BODY: {}",
+//                    json
+//            );
 
             client().post()
                     .uri(
