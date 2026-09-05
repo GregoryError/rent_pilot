@@ -106,40 +106,15 @@ public class PricingEngine {
                 continue;
             }
 
-            items.add(new RealtyCalendarClient.SpecialPrice(
+            new RealtyCalendarClient.SpecialPrice(
                     rec.date(),
-
-                    new RealtyCalendarClient.ValueWrapper(
-                            new RealtyCalendarClient.DiagnosticValue(
-                                    rec.recommendedPrice()
-                            )
-                    ),
-
-                    new RealtyCalendarClient.ValueWrapper(
-                            new RealtyCalendarClient.DiagnosticValue(
-                                    rec.recommendedMinStay()
-                            )
-                    ),
-
-                    new RealtyCalendarClient.ValueWrapper(
-                            new RealtyCalendarClient.DiagnosticValue(
-                                    "no"
-                            )
-                    ),
-
+                    rec.recommendedPrice().intValue(),
+                    false,
                     null,
-
+                    rec.recommendedMinStay(),
                     null,
-
-                    new RealtyCalendarClient.Rates(
-                            false,
-                            List.of(),
-                            List.of(),
-                            List.of(),
-                            List.of(),
-                            List.of()
-                    )
-            ));
+                    null
+            )
         }
 
         if (items.isEmpty()) return;
