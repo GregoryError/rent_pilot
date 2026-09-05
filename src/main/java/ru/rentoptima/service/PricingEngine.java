@@ -35,7 +35,8 @@ public class PricingEngine {
     /**
      * Автопилот запускается каждый час.
      */
-    @Scheduled(fixedDelay = 3600000)
+//    @Scheduled(fixedDelay = 3600000)
+    @Scheduled(fixedDelay = (60*1000)*3)
     public void runAutopilot() {
 
         List<Property> properties = propertyRepo.findAll().stream()
