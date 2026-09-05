@@ -1,10 +1,10 @@
 package ru.rentoptima.service;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,22 +15,14 @@ import org.springframework.web.client.RestClient;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
-
-/**
- * Private API used by the RealtyCalendar chessmate frontend.
- *
- * The endpoint contract was captured from the currently deployed chessmate
- * frontend. It is intentionally kept behind this server-side adapter: browser
- * tokens and RealtyCalendar credentials never reach a RentOptima user browser.
- */
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class RealtyCalendarClient {
-
 
     private final RestClient.Builder restClientBuilder;
 
@@ -48,105 +40,89 @@ public class RealtyCalendarClient {
 
     private volatile String authToken;
 
-    public JsonNode getSpecialPrices(
-            String rcObjectId,
-            LocalDate beginDate,
-            LocalDate endDate
-    ) {
-        log.info(
-                "RC GET special_prices: objectId={}, beginDate={}, endDate={}",
-                rcObjectId, beginDate, endDate
-        );
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-        JsonNode response = client().get()
+    public JsonNode getSpecialPrices(String rcObjectId, LocalDate beginDate, LocalDate endDate) {
+        return client().get()
                 .uri(uriBuilder -> uriBuilder
                         .path("/v2/apartments/{id}/special_prices")
-                        .queryParam("begin_date", beginDate)
-                        .queryParam("end_date", endDate)
+                        .queryParam("begin_date", beginDate.format(DATE_FMT))
+                        .queryParam("end_date", endDate.format(DATE_FMT))
                         .build(rcObjectId))
                 .header("X-User-Token", token())
                 .header("X-Locale", locale)
                 .retrieve()
                 .body(JsonNode.class);
-
-        if (response == null) {
-            log.warn("RC GET special_prices: response is NULL");
-        } else {
-            try {
-                log.info(
-                        "RC GET special_prices RESPONSE:\n{}",
-                        new ObjectMapper()
-                                .writerWithDefaultPrettyPrinter()
-                                .writeValueAsString(response)
-                );
-            } catch (Exception e) {
-                log.warn(
-                        "RC GET special_prices: failed to pretty-print response: {}",
-                        e.getMessage()
-                );
-                log.info("RC GET special_prices RESPONSE RAW: {}", response);
-            }
-        }
-
-        return response;
     }
 
-    public void saveSpecialPrices(
-            String rcObjectId,
-            List<SpecialPrice> items
-    ) {
-        Map<String, Object> body = Map.of("items", items);
-
-        log.info(
-                "RC POST special_prices: objectId={}, items={}",
-                rcObjectId,
-                items.size()
-        );
-
+    public void saveSpecialPrices(String rcObjectId, List<SpecialPrice> items) {
+        // Build raw JSON manually to match exact RC format
+        // RC expects each field as {"actual": {"value": X}} hash
         try {
             ObjectMapper mapper = new ObjectMapper();
-            mapper.findAndRegisterModules();
+            mapper.registerModule(new JavaTimeModule());
 
-            log.info(
-                    "RC POST special_prices REQUEST JSON:\n{}",
-                    mapper.writerWithDefaultPrettyPrinter()
-                            .writeValueAsString(body)
-            );
-        } catch (Exception e) {
-            log.warn(
-                    "RC POST special_prices: failed to serialize request: {}",
-                    e.getMessage()
-            );
-            log.info("RC POST special_prices REQUEST OBJECT: {}", body);
-        }
+            var itemsList = items.stream().map(sp -> {
+                var item = mapper.createObjectNode();
+                item.put("date", sp.date().format(DATE_FMT));
+                item.set("amount", wrapValue(mapper, sp.amount()));
+                item.set("min_stay_through", wrapValue(mapper, sp.minStayThrough()));
+                item.set("closed", wrapValue(mapper, false));
+                item.set("closed_on_arrivial", wrapValue(mapper, false));
+                item.set("closed_on_departure", wrapValue(mapper, false));
+                // rates — empty object, not null
+                var rates = mapper.createObjectNode();
+                rates.put("use_rates_restrictions", false);
+                rates.set("booking_rate_ids", mapper.createArrayNode());
+                rates.set("ostrovok_rate_ids", mapper.createArrayNode());
+                rates.set("expedia_rate_ids", mapper.createArrayNode());
+                rates.set("bronevik_rate_ids", mapper.createArrayNode());
+                rates.set("hotels101_rate_ids", mapper.createArrayNode());
+                item.set("rates", rates);
+                return item;
+            }).toList();
 
-        try {
+            var root = mapper.createObjectNode();
+            var arr = mapper.createArrayNode();
+            itemsList.forEach(arr::add);
+            root.set("items", arr);
+
+            String json = mapper.writeValueAsString(root);
+            log.debug("RC POST special_prices: {}", json.substring(0, Math.min(500, json.length())));
+
             client().post()
                     .uri("/v2/apartments/{id}/special_prices", rcObjectId)
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("X-User-Token", token())
                     .header("X-Locale", locale)
-                    .body(body)
+                    .body(json)
                     .retrieve()
                     .toBodilessEntity();
 
-            log.info(
-                    "RC POST special_prices SUCCESS: objectId={}, items={}",
-                    rcObjectId,
-                    items.size()
-            );
+            log.info("RC POST special_prices SUCCESS: {} items for {}", items.size(), rcObjectId);
 
         } catch (Exception e) {
-            log.error(
-                    "RC POST special_prices FAILED: objectId={}, items={}, error={}",
-                    rcObjectId,
-                    items.size(),
-                    e.getMessage(),
-                    e
-            );
-
-            throw e;
+            log.error("RC POST special_prices FAILED for {}: {}", rcObjectId, e.getMessage());
+            throw new RuntimeException(e);
         }
+    }
+
+    private com.fasterxml.jackson.databind.node.ObjectNode wrapValue(ObjectMapper mapper, Object value) {
+        var wrapper = mapper.createObjectNode();
+        var actual = mapper.createObjectNode();
+        if (value instanceof BigDecimal bd) {
+            actual.put("value", bd.intValue());
+        } else if (value instanceof Integer i) {
+            actual.put("value", i);
+        } else if (value instanceof Boolean b) {
+            actual.put("value", b);
+        } else if (value instanceof String s) {
+            actual.put("value", s);
+        } else {
+            actual.putNull("value");
+        }
+        wrapper.set("actual", actual);
+        return wrapper;
     }
 
     private RestClient client() {
@@ -160,67 +136,31 @@ public class RealtyCalendarClient {
         synchronized (this) {
             if (authToken != null) return authToken;
             if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
-                throw new IllegalStateException("Не настроены RC_USERNAME и RC_PASSWORD для интеграции с RealtyCalendar");
+                throw new IllegalStateException("RC_USERNAME и RC_PASSWORD не настроены");
             }
 
             JsonNode response = client().post()
                     .uri("/v2/sign_in")
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("X-Locale", locale)
-                    .body(new SignInRequest(username, password))
+                    .body(Map.of("username", username, "password", password))
                     .retrieve()
                     .body(JsonNode.class);
 
             String receivedToken = response == null ? null : response.path("auth_token").asText(null);
             if (!StringUtils.hasText(receivedToken)) {
-                throw new IllegalStateException("RealtyCalendar не вернул токен авторизации");
+                throw new IllegalStateException("RealtyCalendar не вернул auth_token");
             }
             authToken = receivedToken;
+            log.info("RC auth token obtained successfully");
             return receivedToken;
         }
     }
 
-    private record SignInRequest(String username, String password) { }
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
+    // Simplified SpecialPrice — just data, no JSON annotations needed
     public record SpecialPrice(
             LocalDate date,
-            Integer amount,
-            Boolean closed,
-            Object rates,
-            @JsonProperty("min_stay_through")
-            Integer minStayThrough,
-            @JsonProperty("closed_on_arrivial")
-            Object closedOnArrival,
-            @JsonProperty("closed_on_departure")
-            Object closedOnDeparture
-    ) {}
-
-    public record ValueWrapper(
-            DiagnosticValue actual
-    ) {}
-
-    public record DiagnosticValue(
-            Object value
-    ) {}
-
-    public record Rates(
-            @JsonProperty("use_rates_restrictions")
-            Boolean useRatesRestrictions,
-
-            @JsonProperty("booking_rate_ids")
-            List<Long> bookingRateIds,
-
-            @JsonProperty("ostrovok_rate_ids")
-            List<Long> ostrovokRateIds,
-
-            @JsonProperty("expedia_rate_ids")
-            List<Long> expediaRateIds,
-
-            @JsonProperty("bronevik_rate_ids")
-            List<Long> bronevikRateIds,
-
-            @JsonProperty("hotels101_rate_ids")
-            List<Long> hotels101RateIds
+            BigDecimal amount,
+            Integer minStayThrough
     ) {}
 }

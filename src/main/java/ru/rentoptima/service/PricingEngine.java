@@ -1,6 +1,5 @@
 package ru.rentoptima.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -11,18 +10,11 @@ import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.PropertyRepository;
 
 import java.math.BigDecimal;
-import java.time.Duration;
-import java.time.Instant;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-/**
- * Pricing Engine — core of the automation system.
- *
- * Runs hourly, calculates recommended price + min_stay for each future date,
- * and (in SOFT/FULL autopilot mode) pushes changes to RealtyCalendar.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -35,39 +27,22 @@ public class PricingEngine {
     private final RealtyCalendarClient rcClient;
     private final BookingStatsService statsService;
 
-    private volatile Instant lastAutopilotRun;
-
-//    @Scheduled(fixedDelay = 120000)
-
-    @Scheduled(fixedDelay = 60*1000*30)
+    @Scheduled(fixedDelay = 3600000) // every hour
     public void runAutopilot() {
-
-//        int intervalMinutes = settings.getIntValue(
-//                0L,
-//                "autopilot_interval_minutes",
-//                30
-//        );
-//
-//        Instant now = Instant.now();
-//
-//        if (lastAutopilotRun != null &&
-//                Duration.between(lastAutopilotRun, now).toMinutes() < intervalMinutes) {
-//            return;
-//        }
-//
-//        lastAutopilotRun = now;
-
         List<Property> properties = propertyRepo.findAll().stream()
-                .filter(p -> p.getActive() && p.getRcObjectId() != null && !p.getRcObjectId().isBlank())
+                .filter(p -> p.getActive()
+                        && p.getRcObjectId() != null
+                        && !p.getRcObjectId().isBlank())
                 .toList();
 
         for (Property property : properties) {
             try {
-                String mode = settings.getValue(property.getTenant().getId(), "autopilot_mode");
-                if ("OFF".equals(mode) || mode == null) continue;
+                Long tenantId = property.getTenant().getId();
+                String mode = settings.getValue(tenantId, "autopilot_mode");
+                if (mode == null || "OFF".equals(mode)) continue;
                 runForProperty(property, mode);
             } catch (Exception e) {
-                log.error("Autopilot error for property {}: {}", property.getId(), e.getMessage());
+                log.error("Autopilot error for property {}: {}", property.getName(), e.getMessage());
             }
         }
     }
@@ -79,67 +54,38 @@ public class PricingEngine {
 
     private void runForProperty(Property property, String mode) {
         Long tenantId = property.getTenant().getId();
+        int openAheadDays = settings.getIntValue(tenantId, "open_ahead_days", 30);
+        int autoDelta = settings.getIntValue(tenantId, "auto_price_delta", 50);
+
         LocalDate from = LocalDate.now();
-        LocalDate to = LocalDate.now().plusDays(
-                settings.getIntValue(tenantId, "open_ahead_days", 30)
-        );
+        LocalDate to = from.plusDays(openAheadDays);
 
         List<PricingRecommendation> recs = calculateRecommendations(property, from, to);
 
-
-        log.info("========== RC DIAGNOSTIC GET START ==========");
-
-        try {
-            JsonNode existing = rcClient.getSpecialPrices(
-                    property.getRcObjectId(),
-                    from,
-                    to
-            );
-
-            log.info(
-                    "RC DIAGNOSTIC GET RESULT:\n{}",
-                    existing == null ? "NULL" : existing.toPrettyString()
-            );
-
-        } catch (Exception e) {
-            log.error(
-                    "RC DIAGNOSTIC GET ERROR",
-                    e
-            );
-        }
-
-        log.info("========== RC DIAGNOSTIC GET END ==========");
-
-
-
-        // Build RC special prices payload
         List<RealtyCalendarClient.SpecialPrice> items = new ArrayList<>();
-        int autoDelta = settings.getIntValue(tenantId, "auto_price_delta", 50);
 
         for (PricingRecommendation rec : recs) {
             if (rec.status() == DayStatus.BOOKED) continue;
 
-            // In SOFT mode — only apply small changes
+            // SOFT: skip changes larger than autoDelta
             if ("SOFT".equals(mode) && Math.abs(rec.priceDelta()) > autoDelta) {
-                log.debug("SOFT: skip large change for {} (delta={})", rec.date(), rec.priceDelta());
+                log.debug("SOFT: skip large change for {} (delta={}₽)", rec.date(), rec.priceDelta());
                 continue;
             }
 
-            new RealtyCalendarClient.SpecialPrice(
+            items.add(new RealtyCalendarClient.SpecialPrice(
                     rec.date(),
-                    rec.recommendedPrice().intValue(),
-                    false,
-                    null,
-                    rec.recommendedMinStay(),
-                    null,
-                    null
-            );
+                    rec.recommendedPrice(),
+                    rec.recommendedMinStay()
+            ));
         }
 
-        if (items.isEmpty()) return;
+        if (items.isEmpty()) {
+            log.info("Autopilot [{}]: no items to push for {}", mode, property.getName());
+            return;
+        }
 
-        log.info("Autopilot [{}] pushing {} price updates for property {}",
-                mode, items.size(), property.getName());
+        log.info("Autopilot [{}]: pushing {} price updates for {}", mode, items.size(), property.getName());
         rcClient.saveSpecialPrices(property.getRcObjectId(), items);
     }
 
@@ -147,14 +93,17 @@ public class PricingEngine {
         Long tenantId = property.getTenant().getId();
         Map<String, String> s = settings.getSettingsMap(tenantId);
 
-        int weekdayPrice = Integer.parseInt(s.getOrDefault("weekday_base_price", "3200"));
-        int weekendPrice = Integer.parseInt(s.getOrDefault("weekend_base_price", "4200"));
-        int floorPrice   = Integer.parseInt(s.getOrDefault("min_price_floor", "2500"));
-        int ceilPrice    = Integer.parseInt(s.getOrDefault("max_price_ceiling", "6000"));
-        int maxMinStay   = Integer.parseInt(s.getOrDefault("max_min_stay", "10"));
+        int weekdayBase  = parseInt(s, "weekday_base_price", 3200);
+        int weekendBase  = parseInt(s, "weekend_base_price", 4200);
+        int floorPrice   = parseInt(s, "min_price_floor", 2500);
+        int ceilPrice    = parseInt(s, "max_price_ceiling", 6000);
+        int maxMinStay   = parseInt(s, "max_min_stay", 10);
+        int cleaningCost = parseInt(s, "cleaning_cost", 1400);
+        double markupPct = Double.parseDouble(s.getOrDefault("platform_markup_pct", "18")) / 100.0;
 
         List<Booking> bookings = bookingRepo.findActiveInRange(tenantId, from, to);
-        var gaps = statsService.detectGaps(tenantId, from, to);
+        List<BookingStatsService.GapInfo> gaps = statsService.detectGaps(tenantId, from, to);
+
         Set<LocalDate> gapDates = new HashSet<>();
         for (var gap : gaps) {
             for (LocalDate d = gap.from(); !d.isAfter(gap.to().minusDays(1)); d = d.plusDays(1)) {
@@ -169,79 +118,84 @@ public class PricingEngine {
             final LocalDate d = date;
             long daysAhead = ChronoUnit.DAYS.between(today, d);
 
-            // Check if booked
+            // Skip booked days
             boolean isBooked = bookings.stream().anyMatch(b ->
                     !d.isBefore(b.getCheckIn()) && d.isBefore(b.getCheckOut()));
             if (isBooked) {
-                result.add(new PricingRecommendation(d, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0, DayStatus.BOOKED, "Забронировано", 100));
+                result.add(new PricingRecommendation(
+                        d, BigDecimal.ZERO, BigDecimal.ZERO, 0, 0,
+                        BigDecimal.ZERO, DayStatus.BOOKED, "Забронировано", 100));
                 continue;
             }
 
-            boolean isWeekend = d.getDayOfWeek().getValue() >= 5; // Fri-Sat
+            boolean isWeekend = d.getDayOfWeek().getValue() >= 5; // Fri=5, Sat=6
             boolean isHoliday = prodCalendar.isHoliday(d);
             boolean isGap = gapDates.contains(d);
 
-            // Base price
-            int basePrice = (isWeekend || isHoliday) ? weekendPrice : weekdayPrice;
+            int basePrice = (isWeekend || isHoliday) ? weekendBase : weekdayBase;
 
-            // Price modifiers based on days ahead
-            double priceMultiplier = 1.0;
-            String reason;
+            double multiplier;
             int minStay;
+            String reason;
             int confidence;
 
             if (daysAhead > 30) {
-                // Far future: high min stay (soft lock), normal price
-                minStay = maxMinStay;
-                priceMultiplier = 1.0;
-                reason = "Открытие дат за " + daysAhead + " дней";
-                confidence = 60;
+                multiplier = 1.0; minStay = maxMinStay;
+                reason = "Далеко (" + daysAhead + " дн.) — soft lock";
+                confidence = 55;
             } else if (daysAhead > 14) {
-                minStay = isWeekend ? 2 : 5;
-                priceMultiplier = 1.0;
+                multiplier = 1.0; minStay = isWeekend ? 2 : 5;
                 reason = "Стандартный период";
-                confidence = 70;
+                confidence = 65;
             } else if (daysAhead > 7) {
-                minStay = isWeekend ? 1 : 3;
-                priceMultiplier = 0.97; // slight discount
-                reason = "Приближаются даты, снижаем мин. срок";
-                confidence = 75;
+                multiplier = 0.97; minStay = isWeekend ? 1 : 3;
+                reason = "2 недели — снижаем мин. срок";
+                confidence = 72;
             } else if (daysAhead > 3) {
-                minStay = isWeekend ? 1 : 2;
-                priceMultiplier = 0.93;
-                reason = "7 дней до заезда — снижаем цену";
+                multiplier = 0.93; minStay = isWeekend ? 1 : 2;
+                reason = "Неделя — снижаем цену и мин. срок";
                 confidence = 80;
             } else {
-                minStay = 1;
-                priceMultiplier = 0.87;
-                reason = "3 дня до заезда — минимальный срок и цена";
-                confidence = 85;
+                multiplier = 0.87; minStay = 1;
+                reason = "3 дня — минимум";
+                confidence = 88;
             }
 
-            // Gap: further discount to fill the gap
             if (isGap) {
-                priceMultiplier *= 0.90;
-                minStay = 1;
-                reason = "Gap (дыра) — агрессивная скидка";
-                confidence = 90;
+                multiplier *= 0.90; minStay = 1;
+                reason = "Gap — агрессивная скидка";
+                confidence = 92;
             }
 
-            // Holiday premium
             if (isHoliday) {
-                priceMultiplier *= 1.10;
+                multiplier *= 1.10;
                 reason += " + праздник";
             }
 
-            int recommended = (int) Math.round(basePrice * priceMultiplier);
-            recommended = Math.max(floorPrice, Math.min(ceilPrice, recommended));
-            int delta = recommended - basePrice;
+            // RC price — what we set in RC (without platform markup)
+            int rcPrice = (int) Math.round(basePrice * multiplier);
+            rcPrice = Math.max(floorPrice, Math.min(ceilPrice, rcPrice));
+
+            // Guest price = RC price * (1 + markup)
+            // Net profit = guest price / (1 + markup) - cleaning/nights (for 1 night)
+            // For profitability: minimum viable RC price where net > 0
+            BigDecimal guestPrice = BigDecimal.valueOf(rcPrice)
+                    .multiply(BigDecimal.valueOf(1 + markupPct))
+                    .setScale(0, RoundingMode.HALF_UP);
+
+            // Net per night (assuming 1 night for conservatism)
+            BigDecimal netPerNight = BigDecimal.valueOf(rcPrice)
+                    .subtract(BigDecimal.valueOf(cleaningCost));
+
+            int delta = rcPrice - basePrice;
 
             result.add(new PricingRecommendation(
                     d,
                     BigDecimal.valueOf(basePrice),
-                    BigDecimal.valueOf(recommended),
+                    BigDecimal.valueOf(rcPrice),
                     delta,
                     minStay,
+                    netPerNight,
                     isGap ? DayStatus.GAP : DayStatus.FREE,
                     reason,
                     confidence
@@ -249,6 +203,11 @@ public class PricingEngine {
         }
 
         return result;
+    }
+
+    private int parseInt(Map<String, String> map, String key, int def) {
+        try { return Integer.parseInt(map.getOrDefault(key, String.valueOf(def))); }
+        catch (NumberFormatException e) { return def; }
     }
 
     public enum DayStatus { FREE, BOOKED, GAP }
@@ -259,6 +218,7 @@ public class PricingEngine {
             BigDecimal recommendedPrice,
             int priceDelta,
             int recommendedMinStay,
+            BigDecimal netPerNight,      // RC price minus cleaning cost
             DayStatus status,
             String reason,
             int confidence

@@ -47,6 +47,7 @@
                         <th class="text-right">Рекомендация</th>
                         <th class="text-right">Δ</th>
                         <th>Мин. срок</th>
+                        <th class="text-right">Net/ночь</th>
                         <th>Причина</th>
                         <th>Уверенность</th>
                     </tr>
@@ -63,6 +64,9 @@
                             th:style="${rec.priceDelta() < 0 ? 'color:var(--red)' : (rec.priceDelta() > 0 ? 'color:var(--green)' : 'color:var(--text-muted)')}"
                             th:text="${rec.priceDelta() > 0 ? '+' : ''} + ${rec.priceDelta()} + ' ₽'"></td>
                         <td class="text-sm" th:text="${rec.recommendedMinStay()} + ' н.'"></td>
+                        <td class="text-right mono text-sm"
+                            th:style="${rec.netPerNight() != null && rec.netPerNight().compareTo(T(java.math.BigDecimal).ZERO) < 0 ? 'color:var(--red)' : 'color:var(--green)'}"
+                            th:text="${rec.netPerNight() != null ? rec.netPerNight() + ' ₽' : '—'}"></td>
                         <td class="text-sm muted" th:text="${rec.reason()}"></td>
                         <td>
                             <div style="display:flex; align-items:center; gap: var(--sp-2);">
