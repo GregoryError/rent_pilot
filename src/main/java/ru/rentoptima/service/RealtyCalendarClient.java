@@ -71,45 +71,23 @@ public class RealtyCalendarClient {
         JsonNode response =
                 client()
                         .get()
-                        .uri(uriBuilder ->
-                                uriBuilder
-                                        .path(
-                                                "/v2/apartments/{id}/special_prices"
-                                        )
-                                        .queryParam(
-                                                "begin_date",
-                                                beginDate.format(DATE_FMT)
-                                        )
-                                        .queryParam(
-                                                "end_date",
-                                                endDate.format(DATE_FMT)
-                                        )
-                                        .build(rcObjectId)
-                        )
-                        .header(
-                                "X-User-Token",
-                                token()
-                        )
-                        .header(
-                                "X-Locale",
-                                locale
-                        )
+                        .uri(uriBuilder -> uriBuilder
+                                .path("/v2/apartments/{id}/special_prices")
+                                .queryParam("begin_date", beginDate.format(DATE_FMT))
+                                .queryParam("end_date", endDate.format(DATE_FMT))
+                                .build(rcObjectId))
+                        .header("X-User-Token", token())
+                        .header("X-Locale", locale)
                         .retrieve()
                         .body(JsonNode.class);
 
         if (response == null) {
-
             throw new IllegalStateException(
                     "RealtyCalendar returned empty response"
             );
         }
 
-        log.debug(
-                "RC GET special_prices SUCCESS: object={}, {} - {}",
-                rcObjectId,
-                beginDate,
-                endDate
-        );
+        log.info("RC GET special_prices RESPONSE: {}", response);
 
         return response;
     }
