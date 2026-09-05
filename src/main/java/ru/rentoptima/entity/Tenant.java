@@ -24,7 +24,5 @@ public class Tenant extends BaseEntity {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
-
-    @Column(name = "autopilot_last_run_at")
-    private Instant autopilotLastRunAt;
+    
 }
