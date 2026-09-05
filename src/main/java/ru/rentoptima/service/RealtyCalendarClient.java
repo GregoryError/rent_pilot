@@ -1,6 +1,7 @@
 package ru.rentoptima.service;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -181,24 +182,20 @@ public class RealtyCalendarClient {
 
     private record SignInRequest(String username, String password) { }
 
+    import com.fasterxml.jackson.annotation.JsonInclude;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public record SpecialPrice(
-            @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd")
             LocalDate date,
-
-            ValueWrapper amount,
-
+            Integer amount,
+            Boolean closed,
+            Object rates,
             @JsonProperty("min_stay_through")
-            ValueWrapper minStayThrough,
-
-            ValueWrapper closed,
-
+            Integer minStayThrough,
             @JsonProperty("closed_on_arrivial")
-            ValueWrapper closedOnArrival,
-
+            Object closedOnArrival,
             @JsonProperty("closed_on_departure")
-            ValueWrapper closedOnDeparture,
-
-            Rates rates
+            Object closedOnDeparture
     ) {}
 
     public record ValueWrapper(
