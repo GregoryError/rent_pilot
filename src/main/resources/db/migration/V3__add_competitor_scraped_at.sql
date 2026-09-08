@@ -1,8 +1,1 @@
 ALTER TABLE competitor_listings ADD COLUMN IF NOT EXISTS last_scraped_at TIMESTAMP;
--- Add autopilot interval setting
-INSERT INTO system_settings (tenant_id, key, value, description)
-VALUES (1, 'autopilot_interval_minutes', '60', 'Интервал автопилота в минутах')
-ON CONFLICT (tenant_id, key) DO NOTHING;
-
--- Add competitor scraped_at column
-ALTER TABLE competitor_listings ADD COLUMN IF NOT EXISTS last_scraped_at TIMESTAMP;
