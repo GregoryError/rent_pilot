@@ -15,6 +15,7 @@ import ru.rentoptima.service.PricingEngine;
 import java.util.List;
 @RequestMapping("/pricing")
 @RequiredArgsConstructor
+@Controller
 public class PricingController {
 
     private final CompetitorService competitorService;
