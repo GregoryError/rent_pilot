@@ -13,8 +13,6 @@ import ru.rentoptima.service.SettingsService;
 import ru.rentoptima.service.PricingEngine;
 
 import java.util.List;
-
-@Controller
 @RequestMapping("/pricing")
 @RequiredArgsConstructor
 public class PricingController {

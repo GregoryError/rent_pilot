@@ -10,9 +10,11 @@ import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.PropertyRepository;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 /**
  * Pricing Engine — window-based pricing algorithm.
@@ -32,6 +34,7 @@ public class PricingEngine {
     private final ProductionCalendarService prodCalendar;
     private final RealtyCalendarClient rcClient;
     private final BookingStatsService statsService;
+    private final RcSyncService rcSyncService;
 
     // Called by AutopilotSchedulerService
     public void runForProperty(Property property, String mode) {
@@ -88,9 +91,7 @@ public class PricingEngine {
     /** Sync bookings from RC GET response into our DB */
     private void syncBookingsFromRc(Property property, List<RcBooking> rcBookings) {
         if (rcBookings.isEmpty()) return;
-        // Delegate to WebhookService-like logic via a simple upsert
-        // Just log for now — full sync implementation below
-        log.debug("RC calendar has {} bookings for {}", rcBookings.size(), property.getName());
+        rcSyncService.syncBookings(property, rcBookings);
     }
 
     public List<PricingRecommendation> getRecommendations(Long tenantId, Long propertyId) {

@@ -40,7 +40,7 @@
                 <div class="card__title">Ценообразование</div>
             </div>
             <div th:each="setting : ${settings}"
-                 th:if="${#lists.contains({'weekday_base_price','weekend_base_price','min_price_floor','max_price_ceiling','auto_price_delta','open_ahead_days','max_min_stay','autopilot_mode'}, setting.key)}"
+                 th:if="${#lists.contains({'weekday_base_price','weekend_base_price','min_price_floor','max_price_ceiling','auto_price_delta','open_ahead_days','max_min_stay','autopilot_mode','autopilot_interval_minutes'}, setting.key)}"
                  class="form-group">
                 <label class="form-label" th:text="${setting.description}"></label>
                 <th:block th:if="${setting.key == 'autopilot_mode'}">
@@ -50,7 +50,20 @@
                         <option value="FULL" th:selected="${setting.value == 'FULL'}">FULL — полная автоматизация</option>
                     </select>
                 </th:block>
-                <input th:unless="${setting.key == 'autopilot_mode'}"
+                <th:block th:if="${setting.key == 'autopilot_interval_minutes'}">
+                    <select class="form-input form-input--sm" th:name="${setting.key}" style="max-width: 400px;">
+                        <option value="10" th:selected="${setting.value == '10'}">10 минут</option>
+                        <option value="30" th:selected="${setting.value == '30'}">30 минут</option>
+                        <option value="60" th:selected="${setting.value == '60'}">1 час</option>
+                        <option value="180" th:selected="${setting.value == '180'}">3 часа</option>
+                        <option value="360" th:selected="${setting.value == '360'}">6 часов</option>
+                        <option value="720" th:selected="${setting.value == '720'}">12 часов</option>
+                        <option value="1440" th:selected="${setting.value == '1440'}">24 часа</option>
+                        <option value="4320" th:selected="${setting.value == '4320'}">3 дня</option>
+                        <option value="10080" th:selected="${setting.value == '10080'}">1 неделя</option>
+                    </select>
+                </th:block>
+                <input th:unless="${setting.key == 'autopilot_mode' || setting.key == 'autopilot_interval_minutes'}"
                        class="form-input form-input--sm"
                        th:name="${setting.key}"
                        th:value="${setting.value}"

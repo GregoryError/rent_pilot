@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.service.AutopilotSchedulerService;
 import ru.rentoptima.service.SettingsService;
 
 import java.util.Map;
@@ -19,6 +20,7 @@ import java.util.Map;
 public class SettingsController {
 
     private final SettingsService settingsService;
+    private final AutopilotSchedulerService autopilotScheduler;
 
     @GetMapping
     public String settings(Model model) {
@@ -29,11 +31,13 @@ public class SettingsController {
     }
 
     @PostMapping
-    public String updateSettings(@RequestParam Map<String, String> params, RedirectAttributes redirect) {
+    public String updateSettings(@RequestParam Map<String, String> params,
+                                  RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        // Filter out Spring internal params
         params.entrySet().removeIf(e -> e.getKey().startsWith("_"));
         settingsService.updateSettings(tenantId, params);
+        // Reschedule autopilot if interval or mode changed
+        autopilotScheduler.onSettingsChanged(tenantId);
         redirect.addFlashAttribute("success", "Настройки сохранены");
         return "redirect:/settings";
     }

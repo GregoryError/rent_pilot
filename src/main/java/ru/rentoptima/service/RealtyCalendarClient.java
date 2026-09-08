@@ -1,8 +1,10 @@
 package ru.rentoptima.service;
 
-
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,182 +40,58 @@ public class RealtyCalendarClient {
 
     private volatile String authToken;
 
-    private static final DateTimeFormatter DATE_FMT =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    public JsonNode getSpecialPrices(
-            String rcObjectId,
-            LocalDate beginDate,
-            LocalDate endDate
-    ) {
-        try {
-            log.debug(
-                    "RC GET special_prices: object={}, {} - {}",
-                    rcObjectId,
-                    beginDate,
-                    endDate
-            );
-
-            JsonNode response = client().get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/v2/apartments/{id}/special_prices")
-                            .queryParam(
-                                    "begin_date",
-                                    beginDate.format(DATE_FMT)
-                            )
-                            .queryParam(
-                                    "end_date",
-                                    endDate.format(DATE_FMT)
-                            )
-                            .build(rcObjectId)
-                    )
-                    .header("X-User-Token", token())
-                    .header("X-Locale", locale)
-                    .retrieve()
-                    .body(JsonNode.class);
-
-//            log.info(
-//                    "RC GET special_prices RESPONSE: {}",
-//                    response
-//            );
-
-            return response;
-
-        } catch (Exception e) {
-            log.error(
-                    "RC GET special_prices FAILED for {}: {}",
-                    rcObjectId,
-                    e.getMessage(),
-                    e
-            );
-
-            throw new RuntimeException(e);
-        }
+    public JsonNode getSpecialPrices(String rcObjectId, LocalDate beginDate, LocalDate endDate) {
+        return client().get()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/v2/apartments/{id}/special_prices")
+                        .queryParam("begin_date", beginDate.format(DATE_FMT))
+                        .queryParam("end_date", endDate.format(DATE_FMT))
+                        .build(rcObjectId))
+                .header("X-User-Token", token())
+                .header("X-Locale", locale)
+                .retrieve()
+                .body(JsonNode.class);
     }
 
-    /**
-     * Создание/изменение special prices в RealtyCalendar.
-     *
-     * Формат payload повторяет запрос, который делает
-     * веб-интерфейс RealtyCalendar.
-     */
-    public void saveSpecialPrices(
-            String rcObjectId,
-            List<SpecialPrice> items
-    ) {
-        if (items == null || items.isEmpty()) {
-            return;
-        }
-
+    public void saveSpecialPrices(String rcObjectId, List<SpecialPrice> items) {
+        // Build raw JSON manually to match exact RC format
+        // RC expects each field as {"actual": {"value": X}} hash
         try {
             ObjectMapper mapper = new ObjectMapper();
+            mapper.registerModule(new JavaTimeModule());
+
+            var itemsList = items.stream().map(sp -> {
+                var item = mapper.createObjectNode();
+                item.put("date", sp.date().format(DATE_FMT));
+                item.set("amount", wrapValue(mapper, sp.amount()));
+                item.set("min_stay_through", wrapValue(mapper, sp.minStayThrough()));
+                item.set("closed", wrapValue(mapper, false));
+                item.set("closed_on_arrivial", wrapValue(mapper, false));
+                item.set("closed_on_departure", wrapValue(mapper, false));
+                // rates — empty object, not null
+                var rates = mapper.createObjectNode();
+                rates.put("use_rates_restrictions", false);
+                rates.set("booking_rate_ids", mapper.createArrayNode());
+                rates.set("ostrovok_rate_ids", mapper.createArrayNode());
+                rates.set("expedia_rate_ids", mapper.createArrayNode());
+                rates.set("bronevik_rate_ids", mapper.createArrayNode());
+                rates.set("hotels101_rate_ids", mapper.createArrayNode());
+                item.set("rates", rates);
+                return item;
+            }).toList();
 
             var root = mapper.createObjectNode();
-            var itemsArray = mapper.createArrayNode();
-
-            for (SpecialPrice sp : items) {
-
-                var item = mapper.createObjectNode();
-
-                // date
-                item.put(
-                        "date",
-                        sp.date().format(DATE_FMT)
-                );
-
-                // amount
-                var amount = mapper.createObjectNode();
-                amount.put("value", toInt(sp.amount()));
-                amount.put("source", "special_price");
-                item.set("amount", amount);
-
-                // min_stay_through
-                var minStay = mapper.createObjectNode();
-                minStay.put(
-                        "value",
-                        sp.minStayThrough() != null
-                                ? sp.minStayThrough()
-                                : 1
-                );
-                minStay.put("source", "default");
-                item.set("min_stay_through", minStay);
-
-                // closed
-                var closed = mapper.createObjectNode();
-                closed.put("value", "no");
-                closed.put("source", "default");
-                item.set("closed", closed);
-
-                // closed_on_arrivial
-                //
-                // В RC именно такая опечатка:
-                // "arrivial", а не "arrival".
-                var closedOnArrival = mapper.createObjectNode();
-                closedOnArrival.put("value", "no");
-                closedOnArrival.put("source", "default");
-                item.set(
-                        "closed_on_arrivial",
-                        closedOnArrival
-                );
-
-                // closed_on_departure
-                var closedOnDeparture = mapper.createObjectNode();
-                closedOnDeparture.put("value", "no");
-                closedOnDeparture.put("source", "default");
-                item.set(
-                        "closed_on_departure",
-                        closedOnDeparture
-                );
-
-                // rates
-                var rates = mapper.createObjectNode();
-                rates.put(
-                        "use_rates_restrictions",
-                        false
-                );
-                item.set("rates", rates);
-
-                // pricing_rules_excluded
-                var pricingRulesExcluded =
-                        mapper.createObjectNode();
-
-                pricingRulesExcluded.put(
-                        "value",
-                        "no"
-                );
-                pricingRulesExcluded.put(
-                        "source",
-                        "special_price"
-                );
-
-                item.set(
-                        "pricing_rules_excluded",
-                        pricingRulesExcluded
-                );
-
-                itemsArray.add(item);
-            }
-
-            root.set("items", itemsArray);
+            var arr = mapper.createArrayNode();
+            itemsList.forEach(arr::add);
+            root.set("items", arr);
 
             String json = mapper.writeValueAsString(root);
-
-            log.info(
-                    "RC POST special_prices: object={}, items={}",
-                    rcObjectId,
-                    items.size()
-            );
-
-//            log.debug(
-//                    "RC POST special_prices BODY: {}",
-//                    json
-//            );
+            log.debug("RC POST special_prices: {}", json.substring(0, Math.min(500, json.length())));
 
             client().post()
-                    .uri(
-                            "/v2/apartments/{id}/special_prices",
-                            rcObjectId
-                    )
+                    .uri("/v2/apartments/{id}/special_prices", rcObjectId)
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("X-User-Token", token())
                     .header("X-Locale", locale)
@@ -221,98 +99,65 @@ public class RealtyCalendarClient {
                     .retrieve()
                     .toBodilessEntity();
 
-            log.info(
-                    "RC POST special_prices SUCCESS: {} items for {}",
-                    items.size(),
-                    rcObjectId
-            );
+            log.info("RC POST special_prices SUCCESS: {} items for {}", items.size(), rcObjectId);
 
         } catch (Exception e) {
-
-            log.error(
-                    "RC POST special_prices FAILED for {}: {}",
-                    rcObjectId,
-                    e.getMessage(),
-                    e
-            );
-
+            log.error("RC POST special_prices FAILED for {}: {}", rcObjectId, e.getMessage());
             throw new RuntimeException(e);
         }
     }
 
-    private int toInt(BigDecimal value) {
-        if (value == null) {
-            return 0;
+    private com.fasterxml.jackson.databind.node.ObjectNode wrapValue(ObjectMapper mapper, Object value) {
+        var wrapper = mapper.createObjectNode();
+        var actual = mapper.createObjectNode();
+        if (value instanceof BigDecimal bd) {
+            actual.put("value", bd.intValue());
+        } else if (value instanceof Integer i) {
+            actual.put("value", i);
+        } else if (value instanceof Boolean b) {
+            actual.put("value", b);
+        } else if (value instanceof String s) {
+            actual.put("value", s);
+        } else {
+            actual.putNull("value");
         }
-
-        return value.intValue();
+        wrapper.set("actual", actual);
+        return wrapper;
     }
 
     private RestClient client() {
-        return restClientBuilder
-                .baseUrl(baseUrl)
-                .build();
+        return restClientBuilder.baseUrl(baseUrl).build();
     }
 
     private String token() {
-
         String existing = authToken;
-
-        if (existing != null) {
-            return existing;
-        }
+        if (existing != null) return existing;
 
         synchronized (this) {
-
-            if (authToken != null) {
-                return authToken;
-            }
-
-            if (!StringUtils.hasText(username)
-                    || !StringUtils.hasText(password)) {
-
-                throw new IllegalStateException(
-                        "RC_USERNAME и RC_PASSWORD не настроены"
-                );
+            if (authToken != null) return authToken;
+            if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
+                throw new IllegalStateException("RC_USERNAME и RC_PASSWORD не настроены");
             }
 
             JsonNode response = client().post()
                     .uri("/v2/sign_in")
                     .contentType(MediaType.APPLICATION_JSON)
                     .header("X-Locale", locale)
-                    .body(
-                            Map.of(
-                                    "username",
-                                    username,
-                                    "password",
-                                    password
-                            )
-                    )
+                    .body(Map.of("username", username, "password", password))
                     .retrieve()
                     .body(JsonNode.class);
 
-            String receivedToken =
-                    response == null
-                            ? null
-                            : response.path("auth_token")
-                            .asText(null);
-
+            String receivedToken = response == null ? null : response.path("auth_token").asText(null);
             if (!StringUtils.hasText(receivedToken)) {
-                throw new IllegalStateException(
-                        "RealtyCalendar не вернул auth_token"
-                );
+                throw new IllegalStateException("RealtyCalendar не вернул auth_token");
             }
-
             authToken = receivedToken;
-
-            log.info(
-                    "RC auth token obtained successfully"
-            );
-
+            log.info("RC auth token obtained successfully");
             return receivedToken;
         }
     }
 
+    // Simplified SpecialPrice — just data, no JSON annotations needed
     public record SpecialPrice(
             LocalDate date,
             BigDecimal amount,
