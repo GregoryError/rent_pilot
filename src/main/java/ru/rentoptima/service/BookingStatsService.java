@@ -52,7 +52,7 @@ public class BookingStatsService {
 
     /** Detect gaps (single free days between bookings) */
     public List<GapInfo> detectGaps(Long tenantId, LocalDate from, LocalDate to) {
-        List<Booking> bookings = bookingRepo.findActiveInRange(tenantId, from, to);
+        List<Booking> bookings = bookingRepo.findActiveInRangeForTenant(tenantId, from, to);
         List<GapInfo> gaps = new ArrayList<>();
 
         for (int i = 0; i < bookings.size() - 1; i++) {
@@ -118,7 +118,7 @@ public class BookingStatsService {
         LocalDate now = LocalDate.now();
 
         // Upcoming checkouts (next 2 days)
-        List<Booking> checkouts = bookingRepo.findActiveInRange(tenantId, now, now.plusDays(2));
+        List<Booking> checkouts = bookingRepo.findActiveInRangeForTenant(tenantId, now, now.plusDays(2));
         for (Booking b : checkouts) {
             if (b.getCheckOut().equals(now) || b.getCheckOut().equals(now.plusDays(1))) {
                 items.add(new ActionItem(

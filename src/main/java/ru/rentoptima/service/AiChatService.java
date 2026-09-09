@@ -81,7 +81,7 @@ public class AiChatService {
         var pace = statsService.getBookingPace(tenantId);
 
         // Recent bookings
-        List<Booking> recent = bookingRepo.findActiveInRange(tenantId, now.minusDays(30), now.plusDays(30));
+        List<Booking> recent = bookingRepo.findActiveInRangeForTenant(tenantId, now.minusDays(30), now.plusDays(30));
         StringBuilder recentStr = new StringBuilder();
         for (Booking b : recent) {
             recentStr.append(String.format("  %s → %s | %s | %s | %s₽\n",

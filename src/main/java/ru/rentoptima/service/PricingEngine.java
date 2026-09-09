@@ -123,7 +123,7 @@ public class PricingEngine {
         int openAheadDays = parseInt(s, "open_ahead_days", 80);
         double markupPct = parseDouble(s, "platform_markup_pct", 18.0) / 100.0;
 
-        List<Booking> bookings = bookingRepo.findActiveInRange(tenantId, from, to);
+        List<Booking> bookings = bookingRepo.findActiveInRange(tenantId, property.getId(), from, to);
         Set<LocalDate> bookedDates = buildBookedDates(bookings, from, to);
 
         // Find all free windows
@@ -173,43 +173,42 @@ public class PricingEngine {
             int confidence;
 
             if (daysAhead > 60) {
-                // Far future: try to sell full window, soft lock if no window context
+                // Very far: sell full window or maxMinStay, premium price
                 minStay = Math.min(windowLen, maxMinStay);
-                priceMultiplier = 1.05; // slight premium — early bookers pay full price
-                reason = "Далеко (" + daysAhead + "д), окно=" + windowLen + "н";
+                priceMultiplier = 1.05;
+                reason = "Далеко (" + daysAhead + "д) — полное окно (" + windowLen + "н)";
                 confidence = 50;
+            } else if (daysAhead > 45) {
+                minStay = Math.min(windowLen, Math.max(7, maxMinStay - 1));
+                priceMultiplier = 1.02;
+                reason = "45-60 дней, окно=" + windowLen + "н";
+                confidence = 55;
             } else if (daysAhead > 30) {
-                // 30-60 days: still trying to sell long stays
-                minStay = Math.min(windowLen, Math.max(3, maxMinStay - 2));
+                minStay = Math.min(windowLen, Math.max(5, windowLen * 2 / 3));
                 priceMultiplier = 1.0;
-                reason = "30-60 дней, окно=" + windowLen + "н";
-                confidence = 60;
+                reason = "30-45 дней";
+                confidence = 62;
             } else if (daysAhead > 21) {
-                // 21-30 days
-                minStay = Math.min(windowLen, Math.max(2, windowLen / 2));
+                minStay = Math.min(windowLen, Math.max(4, windowLen / 2));
                 priceMultiplier = 1.0;
                 reason = "21-30 дней";
-                confidence = 65;
+                confidence = 67;
             } else if (daysAhead > 14) {
-                // 14-21 days: open shorter stays
-                minStay = Math.min(windowLen, Math.max(2, windowLen / 3));
+                minStay = Math.min(windowLen, Math.max(3, windowLen / 3));
                 priceMultiplier = 0.98;
                 reason = "14-21 день";
-                confidence = 70;
+                confidence = 72;
             } else if (daysAhead > 7) {
-                // 7-14 days: fill mode
-                minStay = windowLen >= 3 ? 2 : 1;
+                minStay = windowLen >= 4 ? 3 : (windowLen >= 2 ? 2 : 1);
                 priceMultiplier = 0.95;
                 reason = "7-14 дней — снижаем условия";
-                confidence = 75;
+                confidence = 77;
             } else if (daysAhead > 3) {
-                // 3-7 days: last chance for 2-night
                 minStay = windowLen >= 2 ? 2 : 1;
                 priceMultiplier = 0.90;
                 reason = "3-7 дней — открываем 2 ночи";
-                confidence = 82;
+                confidence = 83;
             } else {
-                // 0-3 days: last chance, 1 night
                 minStay = 1;
                 priceMultiplier = 0.85;
                 reason = "< 3 дня — последний шанс";

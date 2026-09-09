@@ -50,7 +50,7 @@ public class CalendarController {
         // Build calendar grid
         List<CalendarDay> days = new ArrayList<>();
         if (property != null) {
-            List<Booking> bookings = bookingRepo.findActiveInRange(tenantId, from, to);
+            List<Booking> bookings = bookingRepo.findActiveInRangeForTenant(tenantId, from, to);
             Map<LocalDate, String> holidays = prodCalendar.getHolidaysInRange(from, to);
             List<BookingStatsService.GapInfo> gaps = statsService.detectGaps(tenantId, from, to);
             Set<LocalDate> gapDates = new HashSet<>();
