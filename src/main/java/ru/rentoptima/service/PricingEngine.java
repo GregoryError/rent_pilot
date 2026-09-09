@@ -14,6 +14,7 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -35,6 +36,7 @@ public class PricingEngine {
     private final RealtyCalendarClient rcClient;
     private final BookingStatsService statsService;
     private final RcSyncService rcSyncService;
+    private final AiPricingAdvisor aiAdvisor;
 
     // Called by AutopilotSchedulerService
     public void runForProperty(Property property, String mode) {
@@ -61,6 +63,15 @@ public class PricingEngine {
         List<PricingRecommendation> recs = calculateRecommendations(property, from, to);
 
         // 4. Build RC payload
+        // AI adjustments (graceful fallback if unavailable)
+        Map<LocalDate, Double> aiAdjustments = Map.of();
+        try {
+            aiAdjustments = aiAdvisor.getAdjustments(property, recs);
+        } catch (Exception e) {
+            log.warn("AI pricing skipped: {}", e.getMessage());
+        }
+        final Map<LocalDate, Double> adjustments = aiAdjustments;
+
         List<RealtyCalendarClient.SpecialPrice> items = new ArrayList<>();
         for (PricingRecommendation rec : recs) {
             if (rec.status() == DayStatus.BOOKED) continue;
@@ -72,9 +83,21 @@ public class PricingEngine {
                 log.debug("SOFT: skip large change {} (delta={})", rec.date(), rec.priceDelta());
                 continue;
             }
+            // Apply AI multiplier if present
+            BigDecimal finalPrice = rec.recommendedPrice();
+            if (adjustments.containsKey(rec.date())) {
+                double multiplier = adjustments.get(rec.date());
+                int floorPrice = settings.getIntValue(tenantId, "min_price_floor", 2500);
+                int ceilPrice  = settings.getIntValue(tenantId, "max_price_ceiling", 10000);
+                int adjusted = (int) Math.round(finalPrice.doubleValue() * multiplier);
+                adjusted = Math.max(floorPrice, Math.min(ceilPrice, adjusted));
+                finalPrice = BigDecimal.valueOf(adjusted);
+                log.debug("AI adjusted {} from {} to {} (×{})", rec.date(), rec.recommendedPrice(), finalPrice, multiplier);
+            }
+
             items.add(new RealtyCalendarClient.SpecialPrice(
                     rec.date(),
-                    rec.recommendedPrice(),
+                    finalPrice,
                     rec.recommendedMinStay()
             ));
         }
