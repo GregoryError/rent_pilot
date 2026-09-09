@@ -323,9 +323,8 @@ public class PricingEngine {
 
     /**
      * Load RC calendar state via /v2/event_calendars/ endpoint.
-     * Format: flat per-day objects with price, min_stay_through, closed fields.
-     * NOTE: events array is always empty — RC does not expose bookings via API.
-     * Bookings arrive only via webhooks.
+     * Bookings appear as special_prices with closed=true AND is_restriction=true.
+     * Manually blocked dates also have closed=true but typically is_restriction=false.
      */
     private CalendarState loadCalendarState(String rcObjectId, LocalDate from, LocalDate to) {
         JsonNode response = rcClient.getEventCalendars(rcObjectId, from, to);
@@ -336,23 +335,19 @@ public class PricingEngine {
         }
 
         Set<LocalDate> closedDates = new HashSet<>();
+        List<RcBooking> rcBookings = new ArrayList<>();
 
         JsonNode items = response.get("items");
         if (items.isArray() && items.size() > 0) {
             JsonNode apartmentData = items.get(0);
-
-            // Parse special_prices (flat format: price, min_stay_through, closed)
             JsonNode specialPrices = apartmentData.path("special_prices");
+
             if (specialPrices.isArray()) {
                 for (JsonNode sp : specialPrices) {
                     boolean isDeleted = sp.path("is_delete").asBoolean(false);
                     if (isDeleted) continue;
 
-                    // closed field: null = open, true/"yes" = closed
-                    JsonNode closedNode = sp.path("closed");
-                    boolean isClosed = !closedNode.isNull()
-                            && (closedNode.asBoolean(false) || "yes".equals(closedNode.asText("")));
-
+                    boolean isClosed = sp.path("closed").asBoolean(false);
                     if (!isClosed) continue;
 
                     String beginStr = sp.path("begin_date").asText(null);
@@ -362,19 +357,31 @@ public class PricingEngine {
                     try {
                         LocalDate start = LocalDate.parse(beginStr);
                         LocalDate end = LocalDate.parse(endStr);
+                        boolean isRestriction = sp.path("is_restriction").asBoolean(false);
+                        long rcId = sp.path("id").asLong(0);
+                        double price = sp.path("price").asDouble(0);
+
+                        if (isRestriction) {
+                            // This is a booking — add as RcBooking for sync
+                            rcBookings.add(new RcBooking(rcId, start, end,
+                                    null, null, price, 0));
+                            log.debug("RC booking found: id={}, {}→{}", rcId, start, end);
+                        }
+
+                        // All closed dates block pricing
                         for (LocalDate d = start; d.isBefore(end); d = d.plusDays(1)) {
                             closedDates.add(d);
                         }
                     } catch (Exception e) {
-                        log.warn("Cannot parse closed date range: {}-{}", beginStr, endStr);
+                        log.warn("Cannot parse special_price date range: {}", e.getMessage());
                     }
                 }
             }
         }
 
-        // Bookings come via webhooks only — events always empty in RC API
-        log.info("RC calendar loaded: {} closed dates for {}", closedDates.size(), rcObjectId);
-        return new CalendarState(closedDates, List.of());
+        log.info("RC calendar: {} bookings, {} closed dates for {}",
+                rcBookings.size(), closedDates.size(), rcObjectId);
+        return new CalendarState(closedDates, rcBookings);
     }
 
     private int parseInt(Map<String, String> map, String key, int def) {
