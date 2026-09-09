@@ -322,64 +322,87 @@ public class PricingEngine {
     }
 
     /**
-     * Load RC calendar state via /v2/event_calendars/ endpoint.
-     * Bookings appear as special_prices with closed=true AND is_restriction=true.
-     * Manually blocked dates also have closed=true but typically is_restriction=false.
+     * Load RC calendar state via /v2/event_calendars/.
+     *
+     * Response structure:
+     *   items[0].events[]         — real bookings: status=booked, is_delete=false
+     *   items[0].special_prices[] — price overrides; closed=true means blocked date
+     *
+     * We build:
+     *   bookedDates  — from events (skip pricing, skip writing)
+     *   closedDates  — from special_prices with closed=true (skip writing)
+     *   rcBookings   — from events (sync to our DB)
      */
     private CalendarState loadCalendarState(String rcObjectId, LocalDate from, LocalDate to) {
-        JsonNode response = rcClient.getEventCalendars(rcObjectId, from, to);
+        JsonNode response = rcClient.getCalendar(rcObjectId, from, to);
 
-        if (response == null || !response.has("items") || !response.get("items").isArray()) {
-            log.warn("RC event_calendars returned empty/invalid response for {}", rcObjectId);
+        if (response == null || !response.has("items") || !response.get("items").isArray()
+                || response.get("items").isEmpty()) {
+            log.warn("RC getCalendar returned empty for {}", rcObjectId);
             return new CalendarState(Set.of(), List.of());
         }
 
+        JsonNode apt = response.get("items").get(0);
         Set<LocalDate> closedDates = new HashSet<>();
         List<RcBooking> rcBookings = new ArrayList<>();
 
-        JsonNode items = response.get("items");
-        if (items.isArray() && items.size() > 0) {
-            JsonNode apartmentData = items.get(0);
-            JsonNode specialPrices = apartmentData.path("special_prices");
+        // --- Parse events (real bookings) ---
+        JsonNode events = apt.path("events");
+        if (events.isArray()) {
+            for (JsonNode ev : events) {
+                if (ev.path("is_delete").asBoolean(false)) continue;
+                if (!"booked".equals(ev.path("status").asText(""))) continue;
 
-            if (specialPrices.isArray()) {
-                for (JsonNode sp : specialPrices) {
-                    boolean isDeleted = sp.path("is_delete").asBoolean(false);
-                    if (isDeleted) continue;
+                String beginStr = ev.path("begin_date").asText(null);
+                String endStr = ev.path("end_date").asText(null);
+                if (beginStr == null || endStr == null) continue;
 
-                    boolean isClosed = sp.path("closed").asBoolean(false);
-                    if (!isClosed) continue;
+                try {
+                    LocalDate start = LocalDate.parse(beginStr);
+                    LocalDate end = LocalDate.parse(endStr);
+                    long rcId = ev.path("id").asLong(0);
+                    String guest = ev.path("client").path("fio").asText(null);
+                    String phone = ev.path("client").path("phone").asText(null);
+                    double amount = ev.path("amount").asDouble(0);
+                    int sourceId = ev.path("source_id").asInt(0);
 
-                    String beginStr = sp.path("begin_date").asText(null);
-                    String endStr = sp.path("end_date").asText(null);
-                    if (beginStr == null || endStr == null) continue;
-
-                    try {
-                        LocalDate start = LocalDate.parse(beginStr);
-                        LocalDate end = LocalDate.parse(endStr);
-                        boolean isRestriction = sp.path("is_restriction").asBoolean(false);
-                        long rcId = sp.path("id").asLong(0);
-                        double price = sp.path("price").asDouble(0);
-
-                        if (isRestriction) {
-                            // This is a booking — add as RcBooking for sync
-                            rcBookings.add(new RcBooking(rcId, start, end,
-                                    null, null, price, 0));
-                            log.debug("RC booking found: id={}, {}→{}", rcId, start, end);
-                        }
-
-                        // All closed dates block pricing
-                        for (LocalDate d = start; d.isBefore(end); d = d.plusDays(1)) {
-                            closedDates.add(d);
-                        }
-                    } catch (Exception e) {
-                        log.warn("Cannot parse special_price date range: {}", e.getMessage());
+                    // Add all booked dates to closed set — autopilot must not touch them
+                    for (LocalDate d = start; d.isBefore(end); d = d.plusDays(1)) {
+                        closedDates.add(d);
                     }
+                    rcBookings.add(new RcBooking(rcId, start, end, guest, phone, amount, sourceId));
+                    log.debug("RC event: id={} {}→{} guest={}", rcId, start, end, guest);
+                } catch (Exception e) {
+                    log.warn("Cannot parse RC event: {}", e.getMessage());
                 }
             }
         }
 
-        log.info("RC calendar: {} bookings, {} closed dates for {}",
+        // --- Parse special_prices (closed dates, manual blocks) ---
+        JsonNode specialPrices = apt.path("special_prices");
+        if (specialPrices.isArray()) {
+            for (JsonNode sp : specialPrices) {
+                if (sp.path("is_delete").asBoolean(false)) continue;
+                boolean isClosed = sp.path("closed").asBoolean(false);
+                if (!isClosed) continue;
+
+                String beginStr = sp.path("begin_date").asText(null);
+                String endStr = sp.path("end_date").asText(null);
+                if (beginStr == null || endStr == null) continue;
+
+                try {
+                    LocalDate start = LocalDate.parse(beginStr);
+                    LocalDate end = LocalDate.parse(endStr);
+                    for (LocalDate d = start; d.isBefore(end); d = d.plusDays(1)) {
+                        closedDates.add(d);
+                    }
+                } catch (Exception e) {
+                    log.warn("Cannot parse RC special_price closed range: {}", e.getMessage());
+                }
+            }
+        }
+
+        log.info("RC calendar: {} booked events, {} total closed dates for {}",
                 rcBookings.size(), closedDates.size(), rcObjectId);
         return new CalendarState(closedDates, rcBookings);
     }

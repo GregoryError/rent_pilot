@@ -1,10 +1,7 @@
 package ru.rentoptima.service;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -42,20 +39,13 @@ public class RealtyCalendarClient {
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 
-    public JsonNode getSpecialPrices(String rcObjectId, LocalDate beginDate, LocalDate endDate) {
-        return client().get()
-                .uri(uriBuilder -> uriBuilder
-                        .path("/v2/apartments/{id}/special_prices")
-                        .queryParam("begin_date", beginDate.format(DATE_FMT))
-                        .queryParam("end_date", endDate.format(DATE_FMT))
-                        .build(rcObjectId))
-                .header("X-User-Token", token())
-                .header("X-Locale", locale)
-                .retrieve()
-                .body(JsonNode.class);
-    }
-
-    public JsonNode getEventCalendars(String rcObjectId, LocalDate beginDate, LocalDate endDate) {
+    /**
+     * GET /v2/event_calendars/ — main endpoint for reading calendar state.
+     * Returns:
+     *   items[0].events[]         — actual bookings (status=booked)
+     *   items[0].special_prices[] — price overrides, closed dates, restrictions
+     */
+    public JsonNode getCalendar(String rcObjectId, LocalDate beginDate, LocalDate endDate) {
         try {
             return client().get()
                     .uri(uriBuilder -> uriBuilder
@@ -69,35 +59,19 @@ public class RealtyCalendarClient {
                     .retrieve()
                     .body(JsonNode.class);
         } catch (Exception e) {
-            log.warn("RC event_calendars failed: {}", e.getMessage());
+            log.error("RC getCalendar failed: {}", e.getMessage());
             return null;
         }
     }
 
-    public JsonNode getEvents(String rcObjectId, LocalDate beginDate, LocalDate endDate) {
-        try {
-            return client().get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/v2/apartments/{id}/events")
-                            .queryParam("begin_date", beginDate.format(DATE_FMT))
-                            .queryParam("end_date", endDate.format(DATE_FMT))
-                            .build(rcObjectId))
-                    .header("X-User-Token", token())
-                    .header("X-Locale", locale)
-                    .retrieve()
-                    .body(JsonNode.class);
-        } catch (Exception e) {
-            log.warn("RC events endpoint not available: {}", e.getMessage());
-            return null;
-        }
-    }
-
+    /**
+     * POST /v2/apartments/{id}/special_prices — write prices/restrictions.
+     * Each item wraps values in {"actual": {"value": X}} format.
+     */
     public void saveSpecialPrices(String rcObjectId, List<SpecialPrice> items) {
-        // Build raw JSON manually to match exact RC format
-        // RC expects each field as {"actual": {"value": X}} hash
         try {
             ObjectMapper mapper = new ObjectMapper();
-            mapper.registerModule(new JavaTimeModule());
+            mapper.findAndRegisterModules();
 
             var itemsList = items.stream().map(sp -> {
                 var item = mapper.createObjectNode();
@@ -107,7 +81,6 @@ public class RealtyCalendarClient {
                 item.set("closed", wrapValue(mapper, false));
                 item.set("closed_on_arrivial", wrapValue(mapper, false));
                 item.set("closed_on_departure", wrapValue(mapper, false));
-                // rates — empty object, not null
                 var rates = mapper.createObjectNode();
                 rates.put("use_rates_restrictions", false);
                 rates.set("booking_rate_ids", mapper.createArrayNode());
@@ -137,9 +110,12 @@ public class RealtyCalendarClient {
                     .toBodilessEntity();
 
             log.info("RC POST special_prices SUCCESS: {} items for {}", items.size(), rcObjectId);
-
         } catch (Exception e) {
             log.error("RC POST special_prices FAILED for {}: {}", rcObjectId, e.getMessage());
+            // Reset token on auth errors
+            if (e.getMessage() != null && (e.getMessage().contains("401") || e.getMessage().contains("403"))) {
+                authToken = null;
+            }
             throw new RuntimeException(e);
         }
     }
@@ -147,17 +123,11 @@ public class RealtyCalendarClient {
     private com.fasterxml.jackson.databind.node.ObjectNode wrapValue(ObjectMapper mapper, Object value) {
         var wrapper = mapper.createObjectNode();
         var actual = mapper.createObjectNode();
-        if (value instanceof BigDecimal bd) {
-            actual.put("value", bd.intValue());
-        } else if (value instanceof Integer i) {
-            actual.put("value", i);
-        } else if (value instanceof Boolean b) {
-            actual.put("value", b);
-        } else if (value instanceof String s) {
-            actual.put("value", s);
-        } else {
-            actual.putNull("value");
-        }
+        if (value instanceof BigDecimal bd) actual.put("value", bd.intValue());
+        else if (value instanceof Integer i) actual.put("value", i);
+        else if (value instanceof Boolean b) actual.put("value", b);
+        else if (value instanceof String s) actual.put("value", s);
+        else actual.putNull("value");
         wrapper.set("actual", actual);
         return wrapper;
     }
@@ -167,15 +137,12 @@ public class RealtyCalendarClient {
     }
 
     private String token() {
-        String existing = authToken;
-        if (existing != null) return existing;
-
+        if (authToken != null) return authToken;
         synchronized (this) {
             if (authToken != null) return authToken;
             if (!StringUtils.hasText(username) || !StringUtils.hasText(password)) {
                 throw new IllegalStateException("RC_USERNAME и RC_PASSWORD не настроены");
             }
-
             JsonNode response = client().post()
                     .uri("/v2/sign_in")
                     .contentType(MediaType.APPLICATION_JSON)
@@ -183,21 +150,15 @@ public class RealtyCalendarClient {
                     .body(Map.of("username", username, "password", password))
                     .retrieve()
                     .body(JsonNode.class);
-
-            String receivedToken = response == null ? null : response.path("auth_token").asText(null);
-            if (!StringUtils.hasText(receivedToken)) {
+            String received = response == null ? null : response.path("auth_token").asText(null);
+            if (!StringUtils.hasText(received)) {
                 throw new IllegalStateException("RealtyCalendar не вернул auth_token");
             }
-            authToken = receivedToken;
-            log.info("RC auth token obtained successfully");
-            return receivedToken;
+            authToken = received;
+            log.info("RC auth token obtained");
+            return authToken;
         }
     }
 
-    // Simplified SpecialPrice — just data, no JSON annotations needed
-    public record SpecialPrice(
-            LocalDate date,
-            BigDecimal amount,
-            Integer minStayThrough
-    ) {}
+    public record SpecialPrice(LocalDate date, BigDecimal amount, Integer minStayThrough) {}
 }
