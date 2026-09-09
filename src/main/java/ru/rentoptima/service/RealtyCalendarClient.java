@@ -55,6 +55,43 @@ public class RealtyCalendarClient {
                 .body(JsonNode.class);
     }
 
+    public JsonNode getEventCalendars(String rcObjectId, LocalDate beginDate, LocalDate endDate) {
+        try {
+            return client().get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/v2/event_calendars/")
+                            .queryParam("begin_date", beginDate.format(DATE_FMT))
+                            .queryParam("end_date", endDate.format(DATE_FMT))
+                            .queryParam("apartment_ids[]", rcObjectId)
+                            .build())
+                    .header("X-User-Token", token())
+                    .header("X-Locale", locale)
+                    .retrieve()
+                    .body(JsonNode.class);
+        } catch (Exception e) {
+            log.warn("RC event_calendars failed: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    public JsonNode getEvents(String rcObjectId, LocalDate beginDate, LocalDate endDate) {
+        try {
+            return client().get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/v2/apartments/{id}/events")
+                            .queryParam("begin_date", beginDate.format(DATE_FMT))
+                            .queryParam("end_date", endDate.format(DATE_FMT))
+                            .build(rcObjectId))
+                    .header("X-User-Token", token())
+                    .header("X-Locale", locale)
+                    .retrieve()
+                    .body(JsonNode.class);
+        } catch (Exception e) {
+            log.warn("RC events endpoint not available: {}", e.getMessage());
+            return null;
+        }
+    }
+
     public void saveSpecialPrices(String rcObjectId, List<SpecialPrice> items) {
         // Build raw JSON manually to match exact RC format
         // RC expects each field as {"actual": {"value": X}} hash
