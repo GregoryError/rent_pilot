@@ -497,6 +497,34 @@ public class PricingEngine {
                 );
 
         /*
+         * Строим множество забронированных дат для быстрого поиска.
+         */
+        Set<LocalDate> bookedDates = new HashSet<>();
+        for (Booking b : bookings) {
+            for (LocalDate d = b.getCheckIn(); d.isBefore(b.getCheckOut()); d = d.plusDays(1)) {
+                if (!d.isBefore(from) && !d.isAfter(to)) bookedDates.add(d);
+            }
+        }
+
+        /*
+         * Находим свободные окна между бронями.
+         * Ключевая идея: цена и min_stay задаются с учётом длины окна.
+         */
+        List<int[]> windows = new ArrayList<>(); // pairs [startEpoch, endEpoch] inclusive
+        LocalDate winStart = null;
+        for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+            if (!bookedDates.contains(d)) {
+                if (winStart == null) winStart = d;
+            } else if (winStart != null) {
+                windows.add(new int[]{(int) winStart.toEpochDay(), (int) d.minusDays(1).toEpochDay()});
+                winStart = null;
+            }
+        }
+        if (winStart != null) {
+            windows.add(new int[]{(int) winStart.toEpochDay(), (int) to.toEpochDay()});
+        }
+
+        /*
          * Получаем gap-информацию.
          */
         List<BookingStatsService.GapInfo> gaps =
@@ -539,18 +567,9 @@ public class PricingEngine {
                     );
 
             /*
-             * -----------------------------------------------------
-             * Проверка локальной брони
-             * -----------------------------------------------------
+             * Проверка локальной брони.
              */
-
-            boolean isBooked =
-                    bookings.stream().anyMatch(b ->
-                            !d.isBefore(b.getCheckIn())
-                                    && d.isBefore(b.getCheckOut())
-                    );
-
-            if (isBooked) {
+            if (bookedDates.contains(d)) {
 
                 result.add(
                         new PricingRecommendation(
@@ -569,6 +588,18 @@ public class PricingEngine {
                 continue;
             }
 
+            /*
+             * Находим окно, к которому принадлежит эта дата.
+             */
+            int dayEpoch = (int) d.toEpochDay();
+            int windowLen = 1;
+            for (int[] w : windows) {
+                if (dayEpoch >= w[0] && dayEpoch <= w[1]) {
+                    windowLen = w[1] - w[0] + 1;
+                    break;
+                }
+            }
+
             boolean isWeekend =
                     d.getDayOfWeek().getValue() >= 5;
 
@@ -576,84 +607,75 @@ public class PricingEngine {
                     prodCalendar.isHoliday(d);
 
             boolean isGap =
-                    gapDates.contains(d);
+                    gapDates.contains(d) || windowLen <= 2;
 
             int basePrice =
                     (isWeekend || isHoliday)
                             ? weekendBase
                             : weekdayBase;
 
+            /*
+             * Плавная ступенчатая лестница по расстоянию до даты.
+             * min_stay ограничивается длиной окна.
+             */
             double multiplier;
             int minStay;
             String reason;
             int confidence;
 
-            if (daysAhead > 30) {
-
-                multiplier = 1.0;
-                minStay = maxMinStay;
-
-                reason =
-                        "Далеко (" +
-                                daysAhead +
-                                " дн.) — soft lock";
-
+            if (daysAhead > 60) {
+                minStay = Math.min(windowLen, maxMinStay);
+                multiplier = 1.05;
+                reason = "Далеко (" + daysAhead + "д) — окно " + windowLen + "н";
+                confidence = 50;
+            } else if (daysAhead > 45) {
+                minStay = Math.min(windowLen, Math.max(7, maxMinStay - 1));
+                multiplier = 1.02;
+                reason = "45-60 дней, окно " + windowLen + "н";
                 confidence = 55;
-
-            } else if (daysAhead > 14) {
-
+            } else if (daysAhead > 30) {
+                minStay = Math.min(windowLen, Math.max(5, windowLen * 2 / 3));
                 multiplier = 1.0;
-                minStay = isWeekend ? 2 : 5;
-
-                reason =
-                        "Стандартный период";
-
-                confidence = 65;
-
-            } else if (daysAhead > 7) {
-
-                multiplier = 0.97;
-                minStay = isWeekend ? 1 : 3;
-
-                reason =
-                        "2 недели — снижаем мин. срок";
-
+                reason = "30-45 дней";
+                confidence = 62;
+            } else if (daysAhead > 21) {
+                minStay = Math.min(windowLen, Math.max(4, windowLen / 2));
+                multiplier = 1.0;
+                reason = "21-30 дней";
+                confidence = 67;
+            } else if (daysAhead > 14) {
+                minStay = Math.min(windowLen, Math.max(3, windowLen / 3));
+                multiplier = 0.98;
+                reason = "14-21 день";
                 confidence = 72;
-
+            } else if (daysAhead > 7) {
+                minStay = windowLen >= 4 ? 3 : (windowLen >= 2 ? 2 : 1);
+                multiplier = 0.95;
+                reason = "7-14 дней — снижаем условия";
+                confidence = 77;
             } else if (daysAhead > 3) {
-
-                multiplier = 0.93;
-                minStay = isWeekend ? 1 : 2;
-
-                reason =
-                        "Неделя — снижаем цену " +
-                                "и мин. срок";
-
-                confidence = 80;
-
+                minStay = windowLen >= 2 ? 2 : 1;
+                multiplier = 0.90;
+                reason = "3-7 дней — 2 ночи";
+                confidence = 83;
             } else {
-
-                multiplier = 0.87;
                 minStay = 1;
-
-                reason =
-                        "3 дня — минимум";
-
-                confidence = 88;
+                multiplier = 0.85;
+                reason = "< 3 дней — последний шанс";
+                confidence = 90;
             }
 
             /*
-             * Gap.
+             * Gap: короткое окно между бронями.
              */
             if (isGap) {
 
-                multiplier *= 0.90;
+                multiplier *= 0.88;
                 minStay = 1;
 
-                reason =
-                        "Gap — агрессивная скидка";
+                reason = "Gap (окно " + windowLen + "н) — скидка";
 
-                confidence = 92;
+                confidence = 88;
             }
 
             /*
@@ -661,10 +683,23 @@ public class PricingEngine {
              */
             if (isHoliday) {
 
-                multiplier *= 1.10;
+                multiplier *= 1.12;
 
                 reason += " + праздник";
             }
+
+            /*
+             * Длинное окно — можем позволить премию.
+             */
+            if (windowLen >= 7 && daysAhead > 14 && !isGap) {
+                multiplier *= 1.05;
+                reason += " (длинное окно)";
+            }
+
+            /*
+             * min_stay не может превышать длину окна.
+             */
+            minStay = Math.max(1, Math.min(minStay, windowLen));
 
             /*
              * Цена RC.
@@ -682,22 +717,6 @@ public class PricingEngine {
                                     rcPrice
                             )
                     );
-
-            /*
-             * Цена гостя.
-             */
-            BigDecimal guestPrice =
-                    BigDecimal
-                            .valueOf(rcPrice)
-                            .multiply(
-                                    BigDecimal.valueOf(
-                                            1 + markupPct
-                                    )
-                            )
-                            .setScale(
-                                    0,
-                                    RoundingMode.HALF_UP
-                            );
 
             /*
              * Чистый доход за ночь.
