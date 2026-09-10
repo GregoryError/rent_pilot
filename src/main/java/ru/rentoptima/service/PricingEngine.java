@@ -491,6 +491,7 @@ public class PricingEngine {
         List<Booking> bookings =
                 bookingRepo.findActiveInRange(
                         tenantId,
+                        property.getId(),
                         from,
                         to
                 );
