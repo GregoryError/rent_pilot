@@ -49,9 +49,10 @@ public class CalendarController {
         List<Property> properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
         Property property = properties.isEmpty() ? null : properties.get(0);
 
-        // Trigger RC sync for wider range covering current view
+        // Trigger RC sync for wider range covering current view + get real RC prices
+        Map<LocalDate, Integer> rcPrices = Map.of();
         if (property != null && property.getRcObjectId() != null && !property.getRcObjectId().isBlank()) {
-            pricingEngine.triggerRcSync(property, from.minusDays(7), to.plusDays(30));
+            rcPrices = pricingEngine.triggerRcSyncWithPrices(property, from.minusDays(7), to.plusDays(30));
         }
 
         // Build calendar grid
@@ -84,6 +85,8 @@ public class CalendarController {
                 boolean isToday = d.equals(now);
                 boolean isPast = d.isBefore(now);
                 int basePrice = (isWeekend || isHoliday) ? weekendPrice : weekdayPrice;
+                // Prefer real RC price when available
+                int displayPrice = rcPrices.getOrDefault(d, basePrice);
 
                 String status;
                 String guestName = null;
@@ -107,7 +110,7 @@ public class CalendarController {
 
                 days.add(new CalendarDay(
                         d, d.getDayOfMonth(), d.getDayOfWeek().getValue(),
-                        status, guestName, source, basePrice,
+                        status, guestName, source, displayPrice,
                         isWeekend, isHoliday, isGap, isToday, isPast,
                         isCheckIn, isCheckOut,
                         holidays.getOrDefault(d, null)
