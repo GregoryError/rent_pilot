@@ -785,13 +785,26 @@ public class PricingEngine {
     }
 
     /**
+     * Публичный триггер синхронизации из RC для одного объекта.
+     * Используется при переходе на страницу календаря.
+     */
+    public void triggerRcSync(Property property, LocalDate from, LocalDate to) {
+        try {
+            syncRcBookings(property, from, to);
+        } catch (Exception e) {
+            log.warn("Manual RC sync failed for {}: {}", property.getName(), e.getMessage());
+        }
+    }
+
+    /**
      * Загружает бронирования из RC event_calendars и синхронизирует их с БД.
+     * Фильтрует технические блокировки (amount=0 + client=null).
      */
     private void syncRcBookings(Property property, LocalDate from, LocalDate to) {
         JsonNode response = rcClient.getEventCalendars(property.getRcObjectId(), from, to);
         if (response == null || !response.has("items") || !response.get("items").isArray()
                 || response.get("items").isEmpty()) {
-            log.debug("RC event_calendars empty for {}", property.getName());
+            log.info("RC event_calendars empty for {} in {}-{}", property.getName(), from, to);
             return;
         }
 
@@ -799,10 +812,22 @@ public class PricingEngine {
         JsonNode events = apt.path("events");
         if (!events.isArray()) return;
 
+        log.info("RC event_calendars returned {} raw events for {}", events.size(), property.getName());
+
         List<RcBooking> rcBookings = new ArrayList<>();
+        int skippedTech = 0, skippedDeleted = 0;
+
         for (JsonNode ev : events) {
-            if (ev.path("is_delete").asBoolean(false)) continue;
+            if (ev.path("is_delete").asBoolean(false)) { skippedDeleted++; continue; }
             if (!"booked".equals(ev.path("status").asText(""))) continue;
+
+            // Skip technical blocks: amount=0 AND no client fio
+            double amount = ev.path("amount").asDouble(0);
+            String guest = ev.path("client").path("fio").asText(null);
+            if (amount == 0.0 && (guest == null || guest.isBlank())) {
+                skippedTech++;
+                continue;
+            }
 
             String beginStr = ev.path("begin_date").asText(null);
             String endStr = ev.path("end_date").asText(null);
@@ -812,9 +837,7 @@ public class PricingEngine {
                 LocalDate start = LocalDate.parse(beginStr);
                 LocalDate end = LocalDate.parse(endStr);
                 long rcId = ev.path("id").asLong(0);
-                String guest = ev.path("client").path("fio").asText(null);
                 String phone = ev.path("client").path("phone").asText(null);
-                double amount = ev.path("amount").asDouble(0);
                 int sourceId = ev.path("source_id").asInt(0);
 
                 rcBookings.add(new RcBooking(rcId, start, end, guest, phone, amount, sourceId));
@@ -822,6 +845,9 @@ public class PricingEngine {
                 log.warn("Cannot parse RC event: {}", e.getMessage());
             }
         }
+
+        log.info("RC sync {}: {} valid bookings (skipped {} deleted, {} tech blocks)",
+                property.getName(), rcBookings.size(), skippedDeleted, skippedTech);
 
         if (!rcBookings.isEmpty()) {
             rcSyncService.syncBookings(property, rcBookings);

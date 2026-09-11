@@ -12,6 +12,7 @@ import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.BookingStatsService;
+import ru.rentoptima.service.PricingEngine;
 import ru.rentoptima.service.ProductionCalendarService;
 import ru.rentoptima.service.SettingsService;
 
@@ -29,6 +30,7 @@ public class CalendarController {
     private final BookingStatsService statsService;
     private final ProductionCalendarService prodCalendar;
     private final SettingsService settings;
+    private final PricingEngine pricingEngine;
 
     @GetMapping
     public String calendar(@RequestParam(required = false) Integer year,
@@ -46,6 +48,11 @@ public class CalendarController {
         // Get first property (for now single-property)
         List<Property> properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
         Property property = properties.isEmpty() ? null : properties.get(0);
+
+        // Trigger RC sync for wider range covering current view
+        if (property != null && property.getRcObjectId() != null && !property.getRcObjectId().isBlank()) {
+            pricingEngine.triggerRcSync(property, from.minusDays(7), to.plusDays(30));
+        }
 
         // Build calendar grid
         List<CalendarDay> days = new ArrayList<>();
