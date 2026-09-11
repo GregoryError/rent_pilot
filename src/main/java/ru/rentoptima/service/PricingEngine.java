@@ -76,7 +76,7 @@ public class PricingEngine {
 
     /**
      * Расчёт рекомендаций для страницы админки.
-     *
+     * <p>
      * ВАЖНО:
      * tenantId здесь пока используется только для контекста.
      * Поиск Property желательно позже сделать
@@ -99,16 +99,16 @@ public class PricingEngine {
 
     /**
      * Основной цикл автопилота для одного объекта.
-     *
+     * <p>
      * Перед изменением цен:
-     *
+     * <p>
      * 1. Получаем актуальное состояние календаря RC.
      * 2. Определяем закрытые вручную даты.
      * 3. Рассчитываем наши рекомендации.
      * 4. Исключаем:
-     *      - локальные брони;
-     *      - закрытые в RC даты;
-     *      - большие изменения в SOFT.
+     * - локальные брони;
+     * - закрытые в RC даты;
+     * - большие изменения в SOFT.
      * 5. Отправляем только разрешённые даты.
      */
     public void runForProperty(
@@ -309,10 +309,10 @@ public class PricingEngine {
 
     /**
      * Получает календарь RC и извлекает закрытые даты.
-     *
+     * <p>
      * ВАЖНО:
      * Здесь мы НЕ создаём Booking.
-     *
+     * <p>
      * special_prices — это состояние спецусловий календаря,
      * а не надёжный источник бронирований.
      */
@@ -623,58 +623,55 @@ public class PricingEngine {
             String reason;
             int confidence;
 
-            if (daysAhead > 60) {
-                minStay = Math.min(windowLen, maxMinStay);
-                multiplier = 1.05;
-                reason = "Далеко (" + daysAhead + "д) — окно " + windowLen + "н";
-                confidence = 50;
-            } else if (daysAhead > 45) {
-                minStay = Math.min(windowLen, Math.max(7, maxMinStay - 1));
-                multiplier = 1.02;
-                reason = "45-60 дней, окно " + windowLen + "н";
+            // Ценовой мультипликатор — плавная функция от расстояния
+            if (daysAhead > 45) {
+                multiplier = 1.03;
                 confidence = 55;
-            } else if (daysAhead > 30) {
-                minStay = Math.min(windowLen, Math.max(5, windowLen * 2 / 3));
-                multiplier = 1.0;
-                reason = "30-45 дней";
-                confidence = 62;
             } else if (daysAhead > 21) {
-                minStay = Math.min(windowLen, Math.max(4, windowLen / 2));
                 multiplier = 1.0;
-                reason = "21-30 дней";
-                confidence = 67;
+                confidence = 65;
             } else if (daysAhead > 14) {
-                minStay = Math.min(windowLen, Math.max(3, windowLen / 3));
                 multiplier = 0.98;
-                reason = "14-21 день";
                 confidence = 72;
             } else if (daysAhead > 7) {
-                minStay = windowLen >= 4 ? 3 : (windowLen >= 2 ? 2 : 1);
                 multiplier = 0.95;
-                reason = "7-14 дней — снижаем условия";
                 confidence = 77;
             } else if (daysAhead > 3) {
-                minStay = windowLen >= 2 ? 2 : 1;
                 multiplier = 0.90;
-                reason = "3-7 дней — 2 ночи";
                 confidence = 83;
             } else {
-                minStay = 1;
                 multiplier = 0.85;
-                reason = "< 3 дней — последний шанс";
                 confidence = 90;
             }
+
+            // Min_stay: линейная формула вместо ступеней.
+            // base=1, slope=0.055 → 30д≈2.6, 45д≈3.5, 60д≈4.3, 90д≈6.0, 120д≈7.6
+            double rawMinStay = 1.0 + 0.055 * daysAhead;
+
+            // Ослабляем сроки на праздничные/дорогие дни:
+            // цена подкручена вверх → берём чуть меньше суток.
+            double priceRelief = 0;
+            if (multiplier > 1.0 || isHoliday) {
+                double effectiveBoost = Math.max(multiplier - 1.0, 0) + (isHoliday ? 0.10 : 0);
+                priceRelief = effectiveBoost * 4.0;
+            }
+
+            minStay = (int) Math.round(rawMinStay - priceRelief);
+            minStay = Math.max(1, Math.min(minStay, Math.min(windowLen, maxMinStay)));
+
+            reason = daysAhead > 30
+                    ? "Далеко (" + daysAhead + "д) — окно " + windowLen + "н, срок " + minStay + "н"
+                    : daysAhead > 7
+                    ? "Средний горизонт — срок " + minStay + "н"
+                    : "Ближний горизонт — срок " + minStay + "н";
 
             /*
              * Gap: короткое окно между бронями.
              */
             if (isGap) {
-
                 multiplier *= 0.88;
                 minStay = 1;
-
                 reason = "Gap (окно " + windowLen + "н) — скидка";
-
                 confidence = 88;
             }
 
@@ -682,9 +679,7 @@ public class PricingEngine {
              * Праздник.
              */
             if (isHoliday) {
-
                 multiplier *= 1.12;
-
                 reason += " + праздник";
             }
 
@@ -839,7 +834,8 @@ public class PricingEngine {
     public record RcSyncResult(
             Map<LocalDate, Integer> prices,
             Map<LocalDate, Integer> minStays
-    ) {}
+    ) {
+    }
 
     /**
      * Публичный триггер синхронизации из RC для одного объекта.
@@ -853,7 +849,9 @@ public class PricingEngine {
         }
     }
 
-    /** Refactored: sync bookings from parsed apt node (reused by both entry points) */
+    /**
+     * Refactored: sync bookings from parsed apt node (reused by both entry points)
+     */
     private void syncRcBookingsFromNode(Property property, JsonNode apt) {
         JsonNode events = apt.path("events");
         if (!events.isArray()) return;
@@ -864,7 +862,10 @@ public class PricingEngine {
         int skippedDeleted = 0;
 
         for (JsonNode ev : events) {
-            if (ev.path("is_delete").asBoolean(false)) { skippedDeleted++; continue; }
+            if (ev.path("is_delete").asBoolean(false)) {
+                skippedDeleted++;
+                continue;
+            }
             if (!"booked".equals(ev.path("status").asText(""))) continue;
 
             String beginStr = ev.path("begin_date").asText(null);
@@ -920,7 +921,10 @@ public class PricingEngine {
         int skippedDeleted = 0;
 
         for (JsonNode ev : events) {
-            if (ev.path("is_delete").asBoolean(false)) { skippedDeleted++; continue; }
+            if (ev.path("is_delete").asBoolean(false)) {
+                skippedDeleted++;
+                continue;
+            }
             if (!"booked".equals(ev.path("status").asText(""))) continue;
 
             String beginStr = ev.path("begin_date").asText(null);
@@ -955,18 +959,21 @@ public class PricingEngine {
         }
     }
 
-    /** Данные брони из RC для передачи в RcSyncService */
+    /**
+     * Данные брони из RC для передачи в RcSyncService
+     */
     public record RcBooking(
             long rcId, LocalDate checkIn, LocalDate checkOut,
             String guestName, String phone, double amount, int sourceId
-    ) {}
+    ) {
+    }
 
     private BigDecimal applyAiAdjustment(PricingRecommendation rec,
-                                          Map<LocalDate, Double> adjustments, Long tenantId) {
+                                         Map<LocalDate, Double> adjustments, Long tenantId) {
         if (!adjustments.containsKey(rec.date())) return rec.recommendedPrice();
         double multiplier = adjustments.get(rec.date());
         int floor = settings.getIntValue(tenantId, "min_price_floor", 2500);
-        int ceil  = settings.getIntValue(tenantId, "max_price_ceiling", 10000);
+        int ceil = settings.getIntValue(tenantId, "max_price_ceiling", 10000);
         int adjusted = (int) Math.round(rec.recommendedPrice().doubleValue() * multiplier);
         adjusted = Math.max(floor, Math.min(ceil, adjusted));
         log.debug("AI adjusted {} from {} to {} (×{})", rec.date(), rec.recommendedPrice(), adjusted, multiplier);
