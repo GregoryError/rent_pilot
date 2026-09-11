@@ -20,19 +20,51 @@ public class BookingStatsService {
 
     /** Core KPIs for a date range */
     public DashboardKpi getKpi(Long tenantId, LocalDate from, LocalDate to) {
-        BigDecimal revenue = bookingRepo.sumRevenueInRange(tenantId, from, to);
-        if (revenue == null) revenue = BigDecimal.ZERO;
-
-        long bookings = bookingRepo.countBookingsInRange(tenantId, from, to);
-        long checkouts = bookingRepo.countCheckoutsInRange(tenantId, from, to);
-        Double avgNights = bookingRepo.avgNightsInRange(tenantId, from, to);
-        Long totalNights = bookingRepo.sumNightsInRange(tenantId, from, to);
+        // Get all bookings that overlap with the range
+        List<Booking> bookings = bookingRepo.findActiveInRangeForTenant(tenantId, from, to);
 
         long daysInPeriod = ChronoUnit.DAYS.between(from, to) + 1;
-        double occupancy = totalNights != null ? (double) totalNights / daysInPeriod * 100 : 0;
+
+        // Count nights that actually fall INTO the range (not total booking length)
+        long nightsInPeriod = 0;
+        long bookingsCount = 0;
+        long checkoutsCount = 0;
+        BigDecimal revenue = BigDecimal.ZERO;
+        double totalNightsForAvg = 0;
+
+        for (Booking b : bookings) {
+            // Skip manual RC closures (amount=0) from revenue but keep for occupancy
+            boolean isManualClosure = b.getAmount() == null
+                    || b.getAmount().compareTo(BigDecimal.ZERO) == 0;
+
+            // Overlap of [checkIn, checkOut) with [from, to+1)
+            LocalDate overlapStart = b.getCheckIn().isBefore(from) ? from : b.getCheckIn();
+            LocalDate overlapEnd = b.getCheckOut().isAfter(to.plusDays(1)) ? to.plusDays(1) : b.getCheckOut();
+            long overlap = ChronoUnit.DAYS.between(overlapStart, overlapEnd);
+            if (overlap <= 0) continue;
+
+            nightsInPeriod += overlap;
+
+            // Count booking if checkIn is within range
+            if (!b.getCheckIn().isBefore(from) && !b.getCheckIn().isAfter(to)) {
+                bookingsCount++;
+                totalNightsForAvg += b.getNights() != null ? b.getNights() : 0;
+                if (!isManualClosure && b.getAmount() != null) {
+                    revenue = revenue.add(b.getAmount());
+                }
+            }
+            // Count checkout if checkOut is within range
+            if (!b.getCheckOut().isBefore(from) && !b.getCheckOut().isAfter(to.plusDays(1))
+                    && !isManualClosure) {
+                checkoutsCount++;
+            }
+        }
+
+        double occupancy = daysInPeriod > 0 ? (double) nightsInPeriod / daysInPeriod * 100 : 0;
+        double avgNights = bookingsCount > 0 ? totalNightsForAvg / bookingsCount : 0;
 
         int cleaningCost = settings.getIntValue(tenantId, "cleaning_cost", 1400);
-        BigDecimal totalCleaning = BigDecimal.valueOf(checkouts * cleaningCost);
+        BigDecimal totalCleaning = BigDecimal.valueOf(checkoutsCount * cleaningCost);
 
         // Net RevPAR: (revenue - cleaning) / days in period
         BigDecimal netRevPar = daysInPeriod > 0
@@ -41,9 +73,9 @@ public class BookingStatsService {
 
         return new DashboardKpi(
                 revenue,
-                bookings,
-                checkouts,
-                avgNights != null ? Math.round(avgNights * 100) / 100.0 : 0,
+                bookingsCount,
+                checkoutsCount,
+                Math.round(avgNights * 100) / 100.0,
                 Math.round(occupancy * 10) / 10.0,
                 totalCleaning,
                 netRevPar

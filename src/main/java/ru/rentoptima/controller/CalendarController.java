@@ -49,10 +49,13 @@ public class CalendarController {
         List<Property> properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
         Property property = properties.isEmpty() ? null : properties.get(0);
 
-        // Trigger RC sync for wider range covering current view + get real RC prices
+        // Trigger RC sync + get real RC prices and min_stays
         Map<LocalDate, Integer> rcPrices = Map.of();
+        Map<LocalDate, Integer> rcMinStays = Map.of();
         if (property != null && property.getRcObjectId() != null && !property.getRcObjectId().isBlank()) {
-            rcPrices = pricingEngine.triggerRcSyncWithPrices(property, from.minusDays(7), to.plusDays(30));
+            var syncResult = pricingEngine.triggerRcSyncWithPrices(property, from.minusDays(7), to.plusDays(30));
+            rcPrices = syncResult.prices();
+            rcMinStays = syncResult.minStays();
         }
 
         // Build calendar grid
@@ -85,8 +88,9 @@ public class CalendarController {
                 boolean isToday = d.equals(now);
                 boolean isPast = d.isBefore(now);
                 int basePrice = (isWeekend || isHoliday) ? weekendPrice : weekdayPrice;
-                // Prefer real RC price when available
+                // Prefer real RC price/min_stay when available
                 int displayPrice = rcPrices.getOrDefault(d, basePrice);
+                int displayMinStay = rcMinStays.getOrDefault(d, 1);
 
                 String status;
                 String guestName = null;
@@ -110,7 +114,7 @@ public class CalendarController {
 
                 days.add(new CalendarDay(
                         d, d.getDayOfMonth(), d.getDayOfWeek().getValue(),
-                        status, guestName, source, displayPrice,
+                        status, guestName, source, displayPrice, displayMinStay,
                         isWeekend, isHoliday, isGap, isToday, isPast,
                         isCheckIn, isCheckOut,
                         holidays.getOrDefault(d, null)
@@ -147,7 +151,7 @@ public class CalendarController {
 
     public record CalendarDay(
             LocalDate date, int dayOfMonth, int dayOfWeek,
-            String status, String guestName, String source, int basePrice,
+            String status, String guestName, String source, int basePrice, int minStay,
             boolean weekend, boolean holiday, boolean gap, boolean today, boolean past,
             boolean checkIn, boolean checkOut, String holidayName
     ) {}

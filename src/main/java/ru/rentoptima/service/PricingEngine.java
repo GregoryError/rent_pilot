@@ -786,53 +786,60 @@ public class PricingEngine {
 
     /**
      * Публичный триггер синхронизации из RC для одного объекта.
-     * Используется при переходе на страницу календаря.
-     * Возвращает map: дата -> цена из RC special_prices (для отображения в календаре).
+     * Возвращает: prices=map дата→цена, minStays=map дата→мин.срок
      */
-    public Map<LocalDate, Integer> triggerRcSyncWithPrices(Property property, LocalDate from, LocalDate to) {
+    public RcSyncResult triggerRcSyncWithPrices(Property property, LocalDate from, LocalDate to) {
         Map<LocalDate, Integer> rcPrices = new HashMap<>();
+        Map<LocalDate, Integer> rcMinStays = new HashMap<>();
         try {
             JsonNode response = rcClient.getEventCalendars(property.getRcObjectId(), from, to);
             if (response == null || !response.has("items") || !response.get("items").isArray()
                     || response.get("items").isEmpty()) {
-                return rcPrices;
+                return new RcSyncResult(rcPrices, rcMinStays);
             }
 
             JsonNode apt = response.get("items").get(0);
 
-            // Sync bookings (same as before, refactored to accept parsed apt node)
+            // Sync bookings
             syncRcBookingsFromNode(property, apt);
 
-            // Parse special_prices for per-date prices
+            // Parse special_prices for per-date price and min_stay
             JsonNode specialPrices = apt.path("special_prices");
             if (specialPrices.isArray()) {
                 for (JsonNode sp : specialPrices) {
                     if (sp.path("is_delete").asBoolean(false)) continue;
-                    double price = sp.path("price").asDouble(0);
-                    if (price <= 0) continue;
 
                     String beginStr = sp.path("begin_date").asText(null);
                     String endStr = sp.path("end_date").asText(null);
                     if (beginStr == null || endStr == null) continue;
 
+                    double price = sp.path("price").asDouble(0);
+                    int minStay = sp.path("min_stay_through").asInt(0);
+
                     try {
                         LocalDate start = LocalDate.parse(beginStr);
                         LocalDate end = LocalDate.parse(endStr);
-                        int priceInt = (int) Math.round(price);
                         for (LocalDate d = start; d.isBefore(end); d = d.plusDays(1)) {
-                            rcPrices.put(d, priceInt);
+                            if (price > 0) rcPrices.put(d, (int) Math.round(price));
+                            if (minStay > 0) rcMinStays.put(d, minStay);
                         }
                     } catch (Exception e) {
                         log.warn("Cannot parse special_price date range: {}", e.getMessage());
                     }
                 }
             }
-            log.info("RC prices for {}: {} dates with special prices", property.getName(), rcPrices.size());
+            log.info("RC state for {}: {} prices, {} min_stays",
+                    property.getName(), rcPrices.size(), rcMinStays.size());
         } catch (Exception e) {
             log.warn("triggerRcSyncWithPrices failed for {}: {}", property.getName(), e.getMessage());
         }
-        return rcPrices;
+        return new RcSyncResult(rcPrices, rcMinStays);
     }
+
+    public record RcSyncResult(
+            Map<LocalDate, Integer> prices,
+            Map<LocalDate, Integer> minStays
+    ) {}
 
     /**
      * Публичный триггер синхронизации из RC для одного объекта.
