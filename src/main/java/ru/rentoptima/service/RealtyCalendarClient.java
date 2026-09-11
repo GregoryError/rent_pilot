@@ -159,7 +159,7 @@ public class RealtyCalendarClient {
                                 ? sp.minStayThrough()
                                 : 1
                 );
-                minStay.put("source", "default");
+                minStay.put("source", "special_price");
                 item.set("min_stay_through", minStay);
 
                 // closed
@@ -228,10 +228,10 @@ public class RealtyCalendarClient {
                     items.size()
             );
 
-            log.debug(
-                    "RC POST special_prices BODY: {}",
-                    json
-            );
+//            log.debug(
+//                    "RC POST special_prices BODY: {}",
+//                    json
+//            );
 
             client().post()
                     .uri(
