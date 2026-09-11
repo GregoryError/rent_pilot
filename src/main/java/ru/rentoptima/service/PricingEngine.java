@@ -653,7 +653,7 @@ public class PricingEngine {
             double priceRelief = 0;
             if (multiplier > 1.0 || isHoliday) {
                 double effectiveBoost = Math.max(multiplier - 1.0, 0) + (isHoliday ? 0.10 : 0);
-                priceRelief = effectiveBoost * 4.0;
+                priceRelief = effectiveBoost * 6.0;
             }
 
             minStay = (int) Math.round(rawMinStay - priceRelief);
