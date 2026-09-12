@@ -29,6 +29,20 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
+/**
+ * Сервис анализа конкурентных цен.
+ *
+ * Поддерживаемые платформы для поискового скрапинга (с реальными ценами по датам):
+ * - Sutochno.ru — цены в выдаче зависят от checkin/checkout
+ * - Ostrovok.ru — цены в выдаче зависят от дат поиска
+ *
+ * Avito НЕ поддерживается для поискового скрапинга:
+ * цены в выдаче Avito — это базовая цена объявления ("от X₽/сут"),
+ * она не меняется от дат. Реальные цены по датам доступны только
+ * в JS-календаре на странице объявления, который Jsoup не рендерит.
+ * Avito-объявления можно добавлять через legacy-подход (competitor_listings),
+ * но извлечённая цена будет базовой, без привязки к конкретной дате.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -43,6 +57,9 @@ public class CompetitorService {
     private final RestTemplate restTemplate = new RestTemplate();
 
     private static final String API_URL = "https://api.anthropic.com/v1/messages";
+
+    /** Платформы, поддерживающие реальные цены по датам в поисковой выдаче. */
+    private static final Set<String> SUPPORTED_SEARCH_PLATFORMS = Set.of("sutochno", "ostrovok");
 
     private static final String[] USER_AGENTS = {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
@@ -78,7 +95,7 @@ public class CompetitorService {
         });
     }
 
-    // ==================== Search-based approach (new) ====================
+    // ==================== Search-based approach (Sutochno, Ostrovok) ====================
 
     public List<CompetitorSearch> getSearches(Long tenantId) {
         return searchRepo.findByTenantIdAndActiveTrue(tenantId);
@@ -88,10 +105,19 @@ public class CompetitorService {
     public CompetitorSearch addSearch(Long tenantId, Long propertyId,
                                      String platform, String searchUrl,
                                      String name, String city) {
+        String normalizedPlatform = platform.toLowerCase();
+
+        if (!SUPPORTED_SEARCH_PLATFORMS.contains(normalizedPlatform)) {
+            throw new IllegalArgumentException(
+                    "Платформа '" + platform + "' не поддерживается для поискового скрапинга. "
+                    + "Поддерживаются: " + SUPPORTED_SEARCH_PLATFORMS + ". "
+                    + "Для Avito используйте добавление конкретных объявлений (legacy).");
+        }
+
         CompetitorSearch search = new CompetitorSearch();
         search.setTenantId(tenantId);
         search.setPropertyId(propertyId);
-        search.setPlatform(platform);
+        search.setPlatform(normalizedPlatform);
         search.setSearchUrl(searchUrl);
         search.setSearchName(name != null ? name : platform + " поиск");
         search.setCity(city);
@@ -111,7 +137,8 @@ public class CompetitorService {
 
     /**
      * Main scheduled scrape: runs every 4 hours.
-     * Scrapes both search-based and legacy single-listing approaches.
+     * Search-based scraping only for Sutochno/Ostrovok (real per-date prices).
+     * Legacy listings still scraped for backward compatibility.
      */
     @Scheduled(fixedDelay = 14400000) // 4 hours
     public void scrapeAll() {
@@ -120,23 +147,31 @@ public class CompetitorService {
     }
 
     /**
-     * Search-based scraping: fetch search results pages and extract
-     * multiple competitor prices per date via AI.
+     * Search-based scraping: fetch search results pages from Sutochno/Ostrovok
+     * and extract multiple competitor prices per date via AI.
+     *
+     * Only platforms in SUPPORTED_SEARCH_PLATFORMS are scraped — their search
+     * results show real prices for the requested dates, not static base prices.
      */
     private void scrapeSearchBased() {
         List<CompetitorSearch> searches = searchRepo.findDueForScraping();
+
+        // Filter to supported platforms only
+        searches = searches.stream()
+                .filter(s -> SUPPORTED_SEARCH_PLATFORMS.contains(s.getPlatform().toLowerCase()))
+                .toList();
+
         if (searches.isEmpty()) return;
 
         String apiKey = findApiKey(searches.stream()
                 .map(CompetitorSearch::getTenantId).distinct().toList());
         if (apiKey == null) return;
 
-        log.info("Scraping {} competitor searches via AI", searches.size());
+        log.info("Scraping {} competitor searches (Sutochno/Ostrovok) via AI", searches.size());
 
         for (CompetitorSearch search : searches) {
             try {
                 scrapeSearch(search, apiKey);
-                // Random delay 4-8 seconds between requests to avoid blocking
                 long delay = 4000 + ThreadLocalRandom.current().nextLong(4000);
                 Thread.sleep(delay);
             } catch (Exception e) {
@@ -147,6 +182,7 @@ public class CompetitorService {
 
     /**
      * Legacy listing scrape for individual pages (kept for backward compatibility).
+     * Works with any platform including Avito, but extracts only the base price.
      */
     private void scrapeLegacyListings() {
         List<CompetitorListing> listings = listingRepo.findAllActive();
@@ -156,7 +192,7 @@ public class CompetitorService {
                 .map(CompetitorListing::getTenantId).distinct().toList());
         if (apiKey == null) return;
 
-        log.info("Scraping {} competitor listings via AI", listings.size());
+        log.info("Scraping {} legacy competitor listings via AI", listings.size());
         for (CompetitorListing listing : listings) {
             try {
                 scrapeOne(listing);
@@ -179,13 +215,18 @@ public class CompetitorService {
             return new SearchScrapeResult(false, 0, "API-ключ не настроен");
         }
 
+        String platform = search.getPlatform().toLowerCase();
+        if (!SUPPORTED_SEARCH_PLATFORMS.contains(platform)) {
+            log.warn("Skipping search scrape for unsupported platform: {}", platform);
+            return new SearchScrapeResult(false, 0,
+                    "Платформа " + platform + " не поддерживает цены по датам в выдаче");
+        }
+
         try {
-            // Step 1: Build the search URL with dates
             LocalDate checkIn = LocalDate.now().plusDays(1);
             LocalDate checkOut = checkIn.plusDays(1);
             String url = buildSearchUrl(search, checkIn, checkOut);
 
-            // Step 2: Fetch the search results page
             String html = fetchPageHtml(url);
             if (html == null || html.length() < 200) {
                 return new SearchScrapeResult(false, 0, "Не удалось загрузить поисковую выдачу");
@@ -193,12 +234,10 @@ public class CompetitorService {
 
             String truncatedHtml = truncateHtml(html, 12000);
 
-            // Step 3: Ask AI to extract prices from search results
             List<ExtractedCompetitorPrice> prices =
                     extractSearchPricesViaAi(apiKey, truncatedHtml, search.getPlatform(),
                             search.getCity(), checkIn);
 
-            // Step 4: Save extracted prices
             int saved = 0;
             LocalDateTime now = LocalDateTime.now();
             for (ExtractedCompetitorPrice ep : prices) {
@@ -216,8 +255,6 @@ public class CompetitorService {
                 saved++;
             }
 
-            // Step 5: Also scrape for multiple check-in dates ahead
-            // to build a price calendar
             saved += scrapeMultipleDates(search, apiKey, now);
 
             search.setLastScrapedAt(now);
@@ -247,7 +284,6 @@ public class CompetitorService {
                 LocalDate checkOut = checkIn.plusDays(1);
                 String url = buildSearchUrl(search, checkIn, checkOut);
 
-                // Random delay between date scrapes
                 long delay = 3000 + ThreadLocalRandom.current().nextLong(5000);
                 Thread.sleep(delay);
 
@@ -299,17 +335,16 @@ public class CompetitorService {
             }
 
             String truncatedHtml = truncateHtml(html, 8000);
-            BigDecimal price = extractPriceViaAi(apiKey, truncatedHtml, listing.getUrl(), listing.getPlatform());
+            BigDecimal price = extractPriceViaAi(apiKey, truncatedHtml,
+                    listing.getUrl(), listing.getPlatform());
 
             if (price != null && price.compareTo(BigDecimal.ZERO) > 0) {
-                // Save to legacy table
                 CompetitorPrice cp = new CompetitorPrice();
                 cp.setListingId(listing.getId());
                 cp.setPrice(price);
                 cp.setScrapedAt(LocalDateTime.now());
                 priceRepo.save(cp);
 
-                // Also save to daily prices table for unified analysis
                 CompetitorDailyPrice dp = new CompetitorDailyPrice();
                 dp.setTenantId(listing.getTenantId());
                 dp.setListingId(listing.getId());
@@ -324,44 +359,39 @@ public class CompetitorService {
                 listing.setLastScrapedAt(LocalDateTime.now());
                 listingRepo.save(listing);
 
-                log.info("AI extracted price for {}: {} rub", listing.getCompetitorName(), price);
+                log.info("AI extracted price for {}: {} rub",
+                        listing.getCompetitorName(), price);
                 return new ScrapeResult(true, price, null);
             }
             return new ScrapeResult(false, null, "AI не смог определить цену");
 
         } catch (Exception e) {
-            log.warn("Scrape error for {}: {}", listing.getCompetitorName(), e.getMessage());
+            log.warn("Scrape error for {}: {}",
+                    listing.getCompetitorName(), e.getMessage());
             return new ScrapeResult(false, null, e.getMessage());
         }
     }
 
-    // ==================== URL building ====================
+    // ==================== URL building (Sutochno + Ostrovok only) ====================
 
-    /**
-     * Builds a search URL for a specific platform with check-in/check-out dates.
-     */
-    private String buildSearchUrl(CompetitorSearch search, LocalDate checkIn, LocalDate checkOut) {
+    private String buildSearchUrl(CompetitorSearch search,
+                                  LocalDate checkIn, LocalDate checkOut) {
         String baseUrl = search.getSearchUrl();
-        String platform = search.getPlatform();
+        String platform = search.getPlatform().toLowerCase();
 
-        return switch (platform.toLowerCase()) {
-            case "avito" -> buildAvitoSearchUrl(baseUrl, checkIn, checkOut);
+        return switch (platform) {
             case "sutochno" -> buildSutochnoSearchUrl(baseUrl, checkIn, checkOut);
             case "ostrovok" -> buildOstrovokSearchUrl(baseUrl, checkIn, checkOut);
-            default -> baseUrl; // Use as-is for unknown platforms
+            default -> {
+                log.warn("No URL builder for platform '{}', using base URL as-is", platform);
+                yield baseUrl;
+            }
         };
     }
 
-    private String buildAvitoSearchUrl(String baseUrl, LocalDate checkIn, LocalDate checkOut) {
-        // Avito daily rental search: base URL is the search category page
-        // e.g. https://www.avito.ru/vyborg/kvartiry/sdam/posutochno
-        String separator = baseUrl.contains("?") ? "&" : "?";
-        return baseUrl + separator + "s_trg=3"; // sort by date
-    }
-
-    private String buildSutochnoSearchUrl(String baseUrl, LocalDate checkIn, LocalDate checkOut) {
-        // Sutochno search with dates
-        // e.g. https://sutochno.ru/vyborg
+    private String buildSutochnoSearchUrl(String baseUrl,
+                                          LocalDate checkIn, LocalDate checkOut) {
+        // https://sutochno.ru/vyborg?checkin=2024-10-15&checkout=2024-10-16
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         String separator = baseUrl.contains("?") ? "&" : "?";
         return baseUrl + separator
@@ -369,7 +399,9 @@ public class CompetitorService {
                 + "&checkout=" + checkOut.format(fmt);
     }
 
-    private String buildOstrovokSearchUrl(String baseUrl, LocalDate checkIn, LocalDate checkOut) {
+    private String buildOstrovokSearchUrl(String baseUrl,
+                                          LocalDate checkIn, LocalDate checkOut) {
+        // https://ostrovok.ru/hotel/russia/vyborg/?dates=15.10.2024-16.10.2024&guests=2
         DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd.MM.yyyy");
         String separator = baseUrl.contains("?") ? "&" : "?";
         return baseUrl + separator
@@ -417,10 +449,12 @@ public class CompetitorService {
 
     /**
      * Extract multiple competitor prices from a search results page.
-     * Returns a list of competitor+price pairs for the given check-in date.
+     * Works correctly for Sutochno/Ostrovok where search results
+     * show real per-date prices (not base prices like Avito).
      */
     private List<ExtractedCompetitorPrice> extractSearchPricesViaAi(
-            String apiKey, String html, String platform, String city, LocalDate checkIn) {
+            String apiKey, String html, String platform,
+            String city, LocalDate checkIn) {
 
         try {
             ObjectNode root = objectMapper.createObjectNode();
@@ -429,6 +463,9 @@ public class CompetitorService {
             root.put("system", String.format("""
                 Ты извлекаешь цены посуточной аренды квартир из HTML поисковой выдачи площадки %s.
                 Город: %s. Дата заезда: %s.
+                
+                ВАЖНО: на этой площадке цены в выдаче — реальные цены на указанную дату,
+                а не базовые/начальные цены. Извлекай их как есть.
                 
                 Найди ВСЕ объявления на странице и для каждого извлеки:
                 - name: краткое название/описание квартиры (адрес, район, комнатность)
@@ -459,8 +496,10 @@ public class CompetitorService {
             headers.set("x-api-key", apiKey);
             headers.set("anthropic-version", "2023-06-01");
 
-            HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(root), headers);
-            ResponseEntity<JsonNode> response = restTemplate.exchange(API_URL, HttpMethod.POST, entity, JsonNode.class);
+            HttpEntity<String> entity = new HttpEntity<>(
+                    objectMapper.writeValueAsString(root), headers);
+            ResponseEntity<JsonNode> response = restTemplate.exchange(
+                    API_URL, HttpMethod.POST, entity, JsonNode.class);
 
             if (response.getBody() == null) return List.of();
 
@@ -473,7 +512,8 @@ public class CompetitorService {
         }
     }
 
-    private List<ExtractedCompetitorPrice> parseSearchPricesResponse(String json, LocalDate checkIn) {
+    private List<ExtractedCompetitorPrice> parseSearchPricesResponse(
+            String json, LocalDate checkIn) {
         List<ExtractedCompetitorPrice> result = new ArrayList<>();
         try {
             String cleaned = json.replaceAll("```json|```", "").trim();
@@ -488,14 +528,15 @@ public class CompetitorService {
                         ? item.get("min_stay").asInt() : null;
                 String url = item.path("url").asText(null);
 
-                // Validate price range
-                if (price >= 500 && price <= 50000 && name != null && !name.isBlank()) {
+                if (price >= 500 && price <= 50000
+                        && name != null && !name.isBlank()) {
                     result.add(new ExtractedCompetitorPrice(
                             name, BigDecimal.valueOf(price), minStay, url, checkIn));
                 }
             }
 
-            log.info("AI extracted {} competitor prices from search", result.size());
+            log.info("AI extracted {} competitor prices from {} search",
+                    result.size(), "search");
         } catch (Exception e) {
             log.warn("Cannot parse search prices response: {}", e.getMessage());
         }
@@ -504,8 +545,10 @@ public class CompetitorService {
 
     /**
      * Legacy: extract single price from a listing page.
+     * Works with any platform including Avito — extracts base price.
      */
-    private BigDecimal extractPriceViaAi(String apiKey, String html, String url, String platform) {
+    private BigDecimal extractPriceViaAi(String apiKey, String html,
+                                         String url, String platform) {
         try {
             ObjectNode root = objectMapper.createObjectNode();
             root.put("model", "claude-sonnet-4-6");
@@ -530,11 +573,14 @@ public class CompetitorService {
             headers.set("x-api-key", apiKey);
             headers.set("anthropic-version", "2023-06-01");
 
-            HttpEntity<String> entity = new HttpEntity<>(objectMapper.writeValueAsString(root), headers);
-            ResponseEntity<JsonNode> response = restTemplate.exchange(API_URL, HttpMethod.POST, entity, JsonNode.class);
+            HttpEntity<String> entity = new HttpEntity<>(
+                    objectMapper.writeValueAsString(root), headers);
+            ResponseEntity<JsonNode> response = restTemplate.exchange(
+                    API_URL, HttpMethod.POST, entity, JsonNode.class);
 
             if (response.getBody() != null && response.getBody().has("content")) {
-                String text = response.getBody().get("content").get(0).path("text").asText().trim();
+                String text = response.getBody()
+                        .get("content").get(0).path("text").asText().trim();
                 String digits = text.replaceAll("[^\\d]", "");
                 if (!digits.isEmpty()) {
                     BigDecimal price = new BigDecimal(digits);
@@ -556,8 +602,8 @@ public class CompetitorService {
      * Get competitor price analysis for a date range.
      * Used by PricingEngine and AiPricingAdvisor.
      */
-    public CompetitorAnalysis analyzeCompetitorPrices(Long tenantId, LocalDate from, LocalDate to) {
-        LocalDateTime since = LocalDateTime.now().minusDays(7); // Only recent data
+    public CompetitorAnalysis analyzeCompetitorPrices(
+            Long tenantId, LocalDate from, LocalDate to) {
 
         List<CompetitorDailyPrice> prices =
                 dailyPriceRepo.findLatestByTenantAndDateRange(tenantId, from, to);
@@ -572,7 +618,6 @@ public class CompetitorService {
             byDate.computeIfAbsent(p.getDate(), k -> new ArrayList<>()).add(p);
         }
 
-        // Average price per date
         Map<LocalDate, BigDecimal> avgByDate = new LinkedHashMap<>();
         Map<LocalDate, BigDecimal> minByDate = new LinkedHashMap<>();
 
@@ -587,7 +632,6 @@ public class CompetitorService {
             minByDate.put(entry.getKey(), BigDecimal.valueOf(Math.round(min)));
         }
 
-        // Detect trends: are competitors lowering or raising prices?
         List<String> trends = detectTrends(byDate);
 
         long competitorCount = prices.stream()
@@ -597,33 +641,40 @@ public class CompetitorService {
         return new CompetitorAnalysis(avgByDate, minByDate, trends, (int) competitorCount);
     }
 
-    private List<String> detectTrends(Map<LocalDate, List<CompetitorDailyPrice>> byDate) {
+    private List<String> detectTrends(
+            Map<LocalDate, List<CompetitorDailyPrice>> byDate) {
         List<String> trends = new ArrayList<>();
 
-        // Find dates where most competitors have similar pricing direction
         List<LocalDate> dates = new ArrayList<>(byDate.keySet());
         dates.sort(Comparator.naturalOrder());
 
         if (dates.size() < 2) return trends;
 
-        // Compare nearby dates for price movement
         for (int i = 1; i < dates.size(); i++) {
             LocalDate prev = dates.get(i - 1);
             LocalDate curr = dates.get(i);
 
-            List<CompetitorDailyPrice> prevPrices = byDate.getOrDefault(prev, List.of());
-            List<CompetitorDailyPrice> currPrices = byDate.getOrDefault(curr, List.of());
+            List<CompetitorDailyPrice> prevPrices =
+                    byDate.getOrDefault(prev, List.of());
+            List<CompetitorDailyPrice> currPrices =
+                    byDate.getOrDefault(curr, List.of());
 
             if (prevPrices.isEmpty() || currPrices.isEmpty()) continue;
 
-            double prevAvg = prevPrices.stream().mapToDouble(p -> p.getPrice().doubleValue()).average().orElse(0);
-            double currAvg = currPrices.stream().mapToDouble(p -> p.getPrice().doubleValue()).average().orElse(0);
+            double prevAvg = prevPrices.stream()
+                    .mapToDouble(p -> p.getPrice().doubleValue())
+                    .average().orElse(0);
+            double currAvg = currPrices.stream()
+                    .mapToDouble(p -> p.getPrice().doubleValue())
+                    .average().orElse(0);
 
             if (currAvg > prevAvg * 1.10) {
-                trends.add(String.format("%s: конкуренты повышают цены (+%.0f%% vs %s)",
+                trends.add(String.format(
+                        "%s: конкуренты повышают цены (+%.0f%% vs %s)",
                         curr, (currAvg / prevAvg - 1) * 100, prev));
             } else if (currAvg < prevAvg * 0.90) {
-                trends.add(String.format("%s: конкуренты снижают цены (%.0f%% vs %s)",
+                trends.add(String.format(
+                        "%s: конкуренты снижают цены (%.0f%% vs %s)",
                         curr, (1 - currAvg / prevAvg) * 100, prev));
             }
         }
@@ -644,10 +695,10 @@ public class CompetitorService {
 
     private String detectPlatform(String url, String platform) {
         if (platform != null && !platform.isBlank()) return platform;
-        if (url.contains("avito")) return "avito";
-        if (url.contains("cian")) return "cian";
         if (url.contains("sutochno")) return "sutochno";
         if (url.contains("ostrovok")) return "ostrovok";
+        if (url.contains("avito")) return "avito";
+        if (url.contains("cian")) return "cian";
         if (url.contains("tvil")) return "tvil";
         return "other";
     }
@@ -662,10 +713,8 @@ public class CompetitorService {
         return priceRepo.avgLatestPrice(tenantId);
     }
 
-    /**
-     * Get daily prices for display in admin panel calendar.
-     */
-    public List<CompetitorDailyPrice> getDailyPrices(Long tenantId, LocalDate from, LocalDate to) {
+    public List<CompetitorDailyPrice> getDailyPrices(
+            Long tenantId, LocalDate from, LocalDate to) {
         return dailyPriceRepo.findLatestByTenantAndDateRange(tenantId, from, to);
     }
 
@@ -673,8 +722,10 @@ public class CompetitorService {
 
     public record ScrapeResult(boolean success, BigDecimal price, String error) {}
     public record SearchScrapeResult(boolean success, int pricesExtracted, String error) {}
-    public record CompetitorPriceView(String name, String platform, BigDecimal price, LocalDateTime scrapedAt) {}
-    public record ExtractedCompetitorPrice(String name, BigDecimal price, Integer minStay, String url, LocalDate date) {}
+    public record CompetitorPriceView(String name, String platform,
+                                      BigDecimal price, LocalDateTime scrapedAt) {}
+    public record ExtractedCompetitorPrice(String name, BigDecimal price,
+                                           Integer minStay, String url, LocalDate date) {}
     public record CompetitorAnalysis(
             Map<LocalDate, BigDecimal> avgPriceByDate,
             Map<LocalDate, BigDecimal> minPriceByDate,
