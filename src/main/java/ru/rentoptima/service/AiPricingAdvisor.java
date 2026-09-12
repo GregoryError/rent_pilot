@@ -12,6 +12,7 @@ import org.springframework.web.client.RestTemplate;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.repository.BookingRepository;
+import ru.rentoptima.service.CompetitorService.CompetitorAnalysis;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -38,10 +39,22 @@ public class AiPricingAdvisor {
     /**
      * Returns map: date → price multiplier.
      * Empty map = no AI adjustments, use algorithm as-is.
+     * Backward-compatible overload without competitor data.
      */
     public Map<LocalDate, Double> getAdjustments(
             Property property,
             List<PricingEngine.PricingRecommendation> recs) {
+        return getAdjustments(property, recs, null);
+    }
+
+    /**
+     * Returns map: date → price multiplier.
+     * Includes competitor analysis when available.
+     */
+    public Map<LocalDate, Double> getAdjustments(
+            Property property,
+            List<PricingEngine.PricingRecommendation> recs,
+            CompetitorAnalysis competitorAnalysis) {
 
         Long tenantId = property.getTenant().getId();
         String apiKey = settings.getValue(tenantId, "anthropic_api_key");
@@ -59,7 +72,7 @@ public class AiPricingAdvisor {
         if (freeDays.isEmpty()) return Map.of();
 
         try {
-            String prompt = buildPrompt(property, tenantId, freeDays);
+            String prompt = buildPrompt(property, tenantId, freeDays, competitorAnalysis);
             String response = callApi(apiKey, prompt);
             return parseResponse(response);
         } catch (Exception e) {
@@ -69,7 +82,8 @@ public class AiPricingAdvisor {
     }
 
     private String buildPrompt(Property property, Long tenantId,
-                               List<PricingEngine.PricingRecommendation> recs) {
+                               List<PricingEngine.PricingRecommendation> recs,
+                               CompetitorAnalysis competitorAnalysis) {
 
         Map<String, String> s = settings.getSettingsMap(tenantId);
         LocalDate now = LocalDate.now();
@@ -105,6 +119,32 @@ public class AiPricingAdvisor {
                 r.date(), r.status(), r.recommendedPrice(),
                 r.recommendedMinStay(), r.reason())));
 
+        // Build competitor analysis section
+        StringBuilder competitorSection = new StringBuilder();
+        if (competitorAnalysis != null && competitorAnalysis.competitorCount() > 0) {
+            competitorSection.append("=== КОНКУРЕНТНЫЙ АНАЛИЗ ===\n");
+            competitorSection.append(String.format(
+                    "Отслеживается конкурентов: %d\n",
+                    competitorAnalysis.competitorCount()));
+            competitorSection.append("\nСредние цены конкурентов по датам:\n");
+            competitorAnalysis.avgPriceByDate().forEach((date, avg) ->
+                    competitorSection.append(String.format(
+                            "  %s: средняя %s₽, минимум %s₽\n",
+                            date,
+                            avg,
+                            competitorAnalysis.minPriceByDate().getOrDefault(date, avg))));
+            if (!competitorAnalysis.trends().isEmpty()) {
+                competitorSection.append("\nТренды конкурентов:\n");
+                competitorAnalysis.trends().forEach(t ->
+                        competitorSection.append("  • ").append(t).append("\n"));
+            }
+            competitorSection.append("\nУЧТИ: если конкуренты массово снижают цены — ");
+            competitorSection.append("это сигнал слабого спроса, возможно стоит снизить и наши.\n");
+            competitorSection.append("Если повышают — можно повысить и наши.\n");
+            competitorSection.append("Сравни наши алгоритмические цены с конкурентными ");
+            competitorSection.append("и скорректируй, если наши сильно выбиваются из рынка.");
+        }
+
         return String.format("""
                 Ты — эксперт по revenue management посуточной аренды квартир.
                 
@@ -127,9 +167,15 @@ public class AiPricingAdvisor {
                 === РЕКОМЕНДАЦИИ АЛГОРИТМА (ближайшие 45 дней) ===
                 %s
                 
+                %s
+                
                 Твоя задача: проанализируй данные и предложи ТОЛЬКО корректировки к ценам
                 алгоритма там, где видишь весомую причину (событие в городе, аномальный
-                спрос, слабый booking pace, исторический паттерн).
+                спрос, слабый booking pace, исторический паттерн, ДАННЫЕ КОНКУРЕНТОВ).
+                
+                Если есть данные конкурентов — обязательно учти их при корректировке.
+                Если средняя цена конкурентов на дату значительно выше/ниже нашей
+                алгоритмической — предложи корректировку в сторону рынка.
                 
                 Не корректируй без причины. Множитель 1.0 = без изменений.
                 Допустимый диапазон множителей: 0.70 – 1.70.
@@ -154,7 +200,8 @@ public class AiPricingAdvisor {
                 pace.currentOccupancy(), pace.historicalAvg(), pace.status(),
                 histOccupancy,
                 recentStr,
-                recsStr
+                recsStr,
+                competitorSection.toString()
         );
     }
 
