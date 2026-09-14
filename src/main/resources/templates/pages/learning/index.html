@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Обучение системы</title>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <style>
+        .learning-summary { border-left: 3px solid var(--amber); padding: 1rem; background: var(--bg-elevated); margin-bottom: 1.5rem; }
+        .insight { border: 1px solid var(--border); padding: 1rem; margin-bottom: 0.75rem; border-radius: 6px; }
+        .insight-header { display: flex; justify-content: space-between; margin-bottom: 0.5rem; }
+        .insight-key { font-family: var(--font-mono); color: var(--text-muted); font-size: 0.8rem; }
+        .confidence-bar { display: inline-block; height: 4px; width: 60px; background: var(--border); border-radius: 2px; overflow: hidden; }
+        .confidence-fill { height: 100%; background: var(--emerald); }
+        .action-buttons { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .btn-danger { background: var(--rose); color: white; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: var(--bg-elevated); padding: 1rem; border-radius: 6px; }
+        .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--text); }
+        .stat-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+    </style>
+</head>
+<body>
+<div th:replace="~{fragments/layout :: layout(~{::main})}">
+<main>
+    <header style="margin-bottom: 1.5rem;">
+        <h1>Обучение системы</h1>
+        <p style="color: var(--text-muted);">
+            Система анализирует свои решения по ценам и учится, какие сочетания
+            цены и минимального срока действительно приводят к бронированию.
+        </p>
+    </header>
+
+    <div th:if="${message}" class="alert" th:text="${message}"
+         style="background: var(--emerald); color: white; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem;"></div>
+
+    <div th:if="${summary}" class="learning-summary">
+        <strong>💡 Последний вывод:</strong>
+        <p style="margin: 0.5rem 0 0;" th:text="${summary}"></p>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" th:text="${stats.decisionsCount()}">0</div>
+            <div class="stat-label">Сырых решений в логе</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" th:text="${stats.insightsCount()}">0</div>
+            <div class="stat-label">Извлечено выводов</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" th:text="${stats.lastRun() ?: '—'}">—</div>
+            <div class="stat-label">Последний анализ</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" th:text="${stats.enabled() ? 'Вкл' : 'Выкл'}">—</div>
+            <div class="stat-label">Обучение</div>
+        </div>
+    </div>
+
+    <section style="margin-bottom: 2rem;">
+        <h2>Действия</h2>
+        <div class="action-buttons">
+            <form th:action="@{/learning/run}" method="post">
+                <button type="submit" class="btn">Запустить анализ сейчас</button>
+            </form>
+            <form th:action="@{/learning/clear-raw}" method="post"
+                  onsubmit="return confirm('Удалить весь сырой лог решений?');">
+                <button type="submit" class="btn btn-danger">Очистить материал</button>
+            </form>
+            <form th:action="@{/learning/forget-insights}" method="post"
+                  onsubmit="return confirm('Забыть все извлечённые выводы?');">
+                <button type="submit" class="btn btn-danger">Забыть выводы</button>
+            </form>
+            <form th:action="@{/learning/reset}" method="post"
+                  onsubmit="return confirm('Полный сброс: удалить и решения, и выводы?');">
+                <button type="submit" class="btn btn-danger">Полный сброс</button>
+            </form>
+        </div>
+    </section>
+
+    <section>
+        <h2>Извлечённые паттерны</h2>
+        <div th:if="${#lists.isEmpty(insights)}" style="color: var(--text-muted);">
+            Пока нет извлечённых паттернов. Запусти анализ, когда накопится
+            достаточно данных (≥20 решений).
+        </div>
+        <div th:each="ins : ${insights}" class="insight">
+            <div class="insight-header">
+                <span class="insight-key" th:text="${ins.patternKey}"></span>
+                <span>
+                    n=<span th:text="${ins.sampleSize}">0</span>,
+                    <span class="confidence-bar">
+                        <span class="confidence-fill"
+                              th:style="'width:' + ${(ins.confidence ?: 0) * 100} + '%'"></span>
+                    </span>
+                    <span th:text="${#numbers.formatDecimal((ins.confidence ?: 0) * 100, 0, 0) + '%'}"></span>
+                </span>
+            </div>
+            <div th:text="${ins.summaryText}"></div>
+            <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-muted);">
+                <span th:if="${ins.conversionRate != null}">
+                    Конверсия: <span th:text="${#numbers.formatDecimal(ins.conversionRate * 100, 0, 1) + '%'}"></span>
+                </span>
+                <span th:if="${ins.avgDaysToBooking != null}">
+                    • Средний срок до брони:
+                    <span th:text="${#numbers.formatDecimal(ins.avgDaysToBooking, 0, 1) + ' дн.'}"></span>
+                </span>
+            </div>
+        </div>
+    </section>
+</main>
+</div>
+</body>
+</html>
