@@ -48,10 +48,10 @@ CREATE INDEX IF NOT EXISTS idx_comp_prices_date
     ON competitor_prices(listing_id, date);
 
 -- Settings for competitor scraping
-INSERT INTO settings (tenant_id, key, value, description)
+INSERT INTO system_settings (tenant_id, key, value, description)
 SELECT 1, 'competitor_search_enabled', 'true', 'Включить поиск конкурентов через поисковую выдачу'
-WHERE NOT EXISTS (SELECT 1 FROM settings WHERE key = 'competitor_search_enabled');
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'competitor_search_enabled');
 
-INSERT INTO settings (tenant_id, key, value, description)
+INSERT INTO system_settings (tenant_id, key, value, description)
 SELECT 1, 'competitor_scrape_delay_ms', '5000', 'Задержка между запросами при парсинге (мс)'
-WHERE NOT EXISTS (SELECT 1 FROM settings WHERE key = 'competitor_scrape_delay_ms');
+WHERE NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'competitor_scrape_delay_ms');
