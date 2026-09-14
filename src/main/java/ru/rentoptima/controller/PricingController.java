@@ -5,6 +5,7 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import ru.rentoptima.entity.Property;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.CompetitorService;
@@ -51,15 +52,24 @@ public class PricingController {
 
     @PostMapping("/competitors/add")
     public String addCompetitor(@RequestParam String name,
-                                 @RequestParam String url,
-                                 @RequestParam(required = false) String platform,
-                                 RedirectAttributes redirect) {
+                                @RequestParam String url,
+                                @RequestParam(required = false) String platform,
+                                @RequestParam(required = false, defaultValue = "listing") String kind,
+                                RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
         var properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
-        Long propertyId = properties.isEmpty() ? null : properties.get(0).getId();
+        Property property = properties.isEmpty() ? null : properties.get(0);
+        Long propertyId = property != null ? property.getId() : null;
+        String city = property != null && property.getCity() != null ? property.getCity() : "";
 
-        competitorService.addListing(tenantId, propertyId, name, url, platform);
-        redirect.addFlashAttribute("success", "Конкурент «" + name + "» добавлен");
+        if ("search".equals(kind)) {
+            String p = competitorService.detectPlatform(url, platform);
+            competitorService.addSearch(tenantId, propertyId, p, url, name, city);
+            redirect.addFlashAttribute("success", "Поиск конкурентов «" + name + "» добавлен");
+        } else {
+            competitorService.addListing(tenantId, propertyId, name, url, platform);
+            redirect.addFlashAttribute("success", "Конкурент «" + name + "» добавлен");
+        }
         return "redirect:/pricing";
     }
 
@@ -85,4 +95,5 @@ public class PricingController {
         }
         return "redirect:/pricing";
     }
+    
 }

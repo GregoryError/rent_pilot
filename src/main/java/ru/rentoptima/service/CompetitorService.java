@@ -693,7 +693,7 @@ public class CompetitorService {
         return null;
     }
 
-    private String detectPlatform(String url, String platform) {
+    public String detectPlatform(String url, String platform) {
         if (platform != null && !platform.isBlank()) return platform;
         if (url.contains("sutochno")) return "sutochno";
         if (url.contains("ostrovok")) return "ostrovok";
