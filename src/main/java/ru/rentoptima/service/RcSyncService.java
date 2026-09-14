@@ -9,6 +9,7 @@ import ru.rentoptima.entity.Property;
 import ru.rentoptima.repository.BookingRepository;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,7 +29,8 @@ public class RcSyncService {
     );
 
     @Transactional
-    public int syncBookings(Property property, List<PricingEngine.RcBooking> rcBookings) {
+    public int syncBookings(Property property, List<PricingEngine.RcBooking> rcBookings,
+                            LocalDate rangeFrom, LocalDate rangeTo) {
         int created = 0, updated = 0, cancelled = 0;
         Long propertyId = property.getId();
 
@@ -99,9 +101,12 @@ public class RcSyncService {
             log.info("Created booking from RC: id={}, {}→{}", rcId, rcB.checkIn(), rcB.checkOut());
         }
 
-        // --- Step 2: Cancel local RC bookings no longer in RC ---
+        // --- Step 2: Cancel local RC bookings no longer in RC, ONLY within queried range ---
         List<Booking> localRcBookings = bookingRepo.findByPropertyIdAndRcBookingIdIsNotNull(propertyId);
         for (Booking b : localRcBookings) {
+            // Only consider bookings whose check_in falls within the queried range
+            if (b.getCheckIn().isBefore(rangeFrom) || b.getCheckIn().isAfter(rangeTo)) continue;
+
             if (!actualRcIds.contains(b.getRcBookingId()) && "BOOKED".equals(b.getStatus())) {
                 b.setStatus("CANCELLED");
                 bookingRepo.save(b);

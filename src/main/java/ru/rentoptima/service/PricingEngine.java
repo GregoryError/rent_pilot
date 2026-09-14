@@ -581,7 +581,7 @@ public class PricingEngine {
             }
 
             JsonNode apt = response.get("items").get(0);
-            syncRcBookingsFromNode(property, apt);
+            syncRcBookingsFromNode(property, apt, from, to);
 
             JsonNode specialPrices = apt.path("special_prices");
             if (specialPrices.isArray()) {
@@ -632,7 +632,8 @@ public class PricingEngine {
         }
     }
 
-    private void syncRcBookingsFromNode(Property property, JsonNode apt) {
+    private void syncRcBookingsFromNode(Property property, JsonNode apt,
+                                        LocalDate rangeFrom, LocalDate rangeTo) {
         JsonNode events = apt.path("events");
         if (!events.isArray()) return;
 
@@ -677,7 +678,7 @@ public class PricingEngine {
                 property.getName(), rcBookings.size(), skippedDeleted);
 
         if (!rcBookings.isEmpty()) {
-            rcSyncService.syncBookings(property, rcBookings);
+            rcSyncService.syncBookings(property, rcBookings, rangeFrom, rangeTo);
         }
     }
 
@@ -737,7 +738,7 @@ public class PricingEngine {
                 property.getName(), rcBookings.size(), skippedDeleted);
 
         if (!rcBookings.isEmpty()) {
-            rcSyncService.syncBookings(property, rcBookings);
+            rcSyncService.syncBookings(property, rcBookings, from, to);
         }
     }
 
