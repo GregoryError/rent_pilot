@@ -12,11 +12,11 @@ public interface CompetitorSearchRepository extends JpaRepository<CompetitorSear
     @Query("SELECT cs FROM CompetitorSearch cs WHERE cs.active = true")
     List<CompetitorSearch> findAllActive();
 
-    @Query("""
-        SELECT cs FROM CompetitorSearch cs
+    @Query(value = """
+        SELECT * FROM competitor_searches cs
         WHERE cs.active = true
-          AND (cs.lastScrapedAt IS NULL
-               OR cs.lastScrapedAt < CURRENT_TIMESTAMP - cs.scrapeIntervalHours * INTERVAL '1 hour')
-    """)
+          AND (cs.last_scraped_at IS NULL
+               OR cs.last_scraped_at < NOW() - (cs.scrape_interval_hours || ' hours')::interval)
+    """, nativeQuery = true)
     List<CompetitorSearch> findDueForScraping();
 }
