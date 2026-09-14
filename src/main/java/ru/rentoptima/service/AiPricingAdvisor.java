@@ -208,7 +208,7 @@ public class AiPricingAdvisor {
     private String callApi(String apiKey, String prompt) throws Exception {
         ObjectNode root = objectMapper.createObjectNode();
         root.put("model", "claude-sonnet-4-6");
-        root.put("max_tokens", 1500);
+        root.put("max_tokens", 2500);
 
         ArrayNode messages = root.putArray("messages");
         ObjectNode msg = messages.addObject();
