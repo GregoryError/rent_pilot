@@ -11,6 +11,8 @@ import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.CompetitorService;
 import ru.rentoptima.service.SettingsService;
 
+
+
 import ru.rentoptima.service.PricingEngine;
 
 import java.util.List;
@@ -58,7 +60,7 @@ public class PricingController {
                                 RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
         var properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
-        Property property = properties.isEmpty() ? null : properties.get(0);
+        var property = properties.isEmpty() ? null : properties.get(0);
         Long propertyId = property != null ? property.getId() : null;
         String city = property != null && property.getCity() != null ? property.getCity() : "";
 
@@ -95,5 +97,5 @@ public class PricingController {
         }
         return "redirect:/pricing";
     }
-    
+
 }
