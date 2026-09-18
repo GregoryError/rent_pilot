@@ -142,6 +142,7 @@ public class PricingLearningService {
         }
     }
 
+    @Transactional
     private String runAnalysis(Long tenantId) throws Exception {
         // 1. Помечаем просроченные pending → MISSED
         int marked = decisionRepo.markMissed(tenantId, LocalDate.now());
