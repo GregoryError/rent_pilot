@@ -38,6 +38,16 @@ public class SettingsService {
         catch (NumberFormatException e) { return defaultValue; }
     }
 
+
+    public double getDoubleValue(Long tenantId, String key, double defaultValue) {
+        try {
+            String val = getValue(tenantId, key);
+            return val != null ? Double.parseDouble(val) : defaultValue;
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
     @Transactional
     public void updateSetting(Long tenantId, String key, String value) {
         repo.findByTenantIdAndKey(tenantId, key).ifPresent(setting -> {
