@@ -1,0 +1,7 @@
+// PATCH for existing FeedbackResponseRepository — add these methods
+
+// import already-present: List, java.time.LocalDateTime, org.springframework.data.jpa.repository.Query
+
+List<FeedbackResponse> findByPropertyIdOrderByCreatedAtDesc(Long propertyId);
+
+List<FeedbackResponse> findByPropertyIdAndShowToHousekeeperTrueOrderByCreatedAtDesc(Long propertyId);
