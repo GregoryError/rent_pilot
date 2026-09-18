@@ -5,20 +5,27 @@
     <title>Доступ горничной</title>
     <link rel="stylesheet" th:href="@{/css/core.css}">
     <style>
-        body { display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        body { display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: var(--bg); }
         .login-card { max-width: 340px; padding: 2rem; text-align: center; }
-        .pin-input { font-size: 2rem; letter-spacing: 0.5rem; text-align: center; width: 100%; padding: 1rem; }
+        .pin-input { font-size: 2rem; letter-spacing: 0.5rem; text-align: center; width: 100%; padding: 1rem; box-sizing: border-box; }
         .error { color: var(--rose); margin-top: 0.5rem; font-size: 0.85rem; }
+        .info { color: var(--text-muted); margin-top: 1rem; font-size: 0.85rem; }
     </style>
 </head>
 <body>
 <div class="login-card card">
-    <h2>PIN горничной</h2>
-    <form th:action="@{'/housekeeper/' + ${code} + '/login'}" method="post">
+    <h2>Доступ горничной</h2>
+
+    <div th:if="${pinNotSet}" class="info">
+        PIN ещё не установлен администратором.
+        Попросите его задать PIN в разделе управления отзывами.
+    </div>
+
+    <form th:unless="${pinNotSet}" th:action="@{'/housekeeper/' + ${code} + '/login'}" method="post">
         <input class="pin-input" type="password" name="pin" placeholder="••••" maxlength="8" autofocus>
         <button type="submit" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">Войти</button>
+        <div class="error" th:if="${error}">Неверный PIN</div>
     </form>
-    <div class="error" th:if="${param.error}">Неверный PIN</div>
 </div>
 </body>
 </html>

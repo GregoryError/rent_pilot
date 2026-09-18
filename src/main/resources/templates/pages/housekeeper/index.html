@@ -2,88 +2,50 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="'Уборки — ' + ${property.name}">Уборки</title>
+    <title>Отзывы гостей</title>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
     <style>
-        :root { --bg: #fafaf9; --surface: #fff; --border: #e5e5e3; --text: #1c1c1a; --muted: #78776f; --accent: #2563eb; --red: #dc2626; --green: #16a34a; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 16px; max-width: 600px; margin: 0 auto; }
-        h1 { font-size: 1.25rem; margin-bottom: 4px; }
-        .subtitle { color: var(--muted); font-size: 0.85rem; margin-bottom: 20px; }
-        .tabs { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
-        .tab { padding: 10px 20px; font-size: 0.9rem; font-weight: 500; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-        .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
-        .date { font-weight: 600; font-size: 0.95rem; }
-        .guest { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
-        .badge { display: inline-block; padding: 2px 8px; border-radius: 100px; font-size: 0.75rem; font-weight: 600; }
-        .badge-checkout { background: #fee2e2; color: var(--red); }
-        .badge-checkin { background: #dcfce7; color: var(--green); }
-        .badge-today { background: #fef3c7; color: #92400e; }
-        .review-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 10px; }
-        .review-date { font-size: 0.8rem; color: var(--muted); }
-        .review-text { font-size: 0.9rem; margin-top: 6px; }
-        .empty { color: var(--muted); text-align: center; padding: 40px 0; font-size: 0.9rem; }
-        .hidden { display: none; }
+        body { max-width: 800px; margin: 0 auto; padding: 2rem 1rem; background: var(--bg); }
+        h1 { margin-bottom: 0.5rem; }
+        .subtitle { color: var(--text-muted); margin-bottom: 2rem; }
+        .feedback-item { border: 1px solid var(--border); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; background: var(--bg-elevated); }
+        .fb-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.5rem; }
+        .guest-name { font-weight: 600; }
+        .date { color: var(--text-muted); font-size: 0.85rem; }
+        .scale-row { display: flex; gap: 0.5rem; margin: 0.25rem 0; font-size: 0.9rem; }
+        .scale-label { color: var(--text-muted); flex: 1; }
+        .scale-value { font-family: var(--font-mono); font-weight: 600; }
+        .text-row { margin: 0.5rem 0; padding-left: 0.75rem; border-left: 2px solid var(--accent); }
+        .text-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; }
+        .text-value { font-size: 0.9rem; }
+        .empty { color: var(--text-muted); text-align: center; padding: 3rem 1rem; }
     </style>
 </head>
 <body>
-    <h1 th:text="${property.name}">Квартира</h1>
-    <div class="subtitle">Расписание уборок</div>
 
-    <div class="tabs">
-        <div class="tab active" onclick="showTab('schedule')">Расписание</div>
-        <div class="tab" onclick="showTab('reviews')">Отзывы</div>
+<h1>Отзывы гостей</h1>
+<div class="subtitle" th:text="${property.name}">Объект</div>
+
+<div th:if="${#lists.isEmpty(feedbacks)}" class="empty">
+    Пока нет отзывов, доступных для просмотра.
+</div>
+
+<div th:each="item : ${feedbacks}" class="feedback-item">
+    <div class="fb-header">
+        <div class="guest-name" th:text="${item.response.guestName ?: 'Гость'}"></div>
+        <div class="date" th:text="${#temporals.format(item.response.createdAt, 'dd.MM.yyyy')}"></div>
     </div>
 
-    <!-- Schedule tab -->
-    <div id="tab-schedule">
-        <th:block th:if="${#lists.isEmpty(bookings)}">
-            <div class="empty">Нет предстоящих уборок</div>
-        </th:block>
-        <th:block th:each="b : ${bookings}">
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; align-items:center">
-                    <div>
-                        <div class="date">
-                            <span th:text="${b.checkOut}"></span>
-                            <span th:if="${b.checkOut.equals(today)}" class="badge badge-today">сегодня</span>
-                        </div>
-                        <div class="guest">
-                            <span class="badge badge-checkout">выезд</span>
-                            <span th:text="${b.guestName ?: 'Гость'}"></span>
-                        </div>
-                    </div>
-                    <div style="text-align:right; font-size:0.8rem; color:var(--muted)">
-                        <div th:text="'Заезд: ' + ${b.checkIn}"></div>
-                        <div th:text="${b.nights} + ' ноч.'"></div>
-                    </div>
-                </div>
-            </div>
-        </th:block>
+    <div th:each="s : ${item.scales}" class="scale-row">
+        <span class="scale-label" th:text="${s.question}"></span>
+        <span class="scale-value" th:text="${s.value} + '/10'"></span>
     </div>
 
-    <!-- Reviews tab -->
-    <div id="tab-reviews" class="hidden">
-        <th:block th:if="${#lists.isEmpty(reviews)}">
-            <div class="empty">Нет отзывов для просмотра</div>
-        </th:block>
-        <th:block th:each="r : ${reviews}">
-            <div class="review-card">
-                <div class="review-date" th:text="${r.createdAt}"></div>
-                <div class="review-text" th:text="${r.guestName ?: 'Гость'}"></div>
-            </div>
-        </th:block>
+    <div th:each="t : ${item.texts}" class="text-row">
+        <div class="text-label" th:text="${t.question}"></div>
+        <div class="text-value" th:text="${t.value}"></div>
     </div>
+</div>
 
-    <script>
-        function showTab(name) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById('tab-schedule').classList.add('hidden');
-            document.getElementById('tab-reviews').classList.add('hidden');
-            document.getElementById('tab-' + name).classList.remove('hidden');
-            event.target.classList.add('active');
-        }
-    </script>
 </body>
 </html>

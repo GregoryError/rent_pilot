@@ -11,6 +11,7 @@ import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.service.CompetitorService.CompetitorAnalysis;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -34,6 +35,7 @@ public class PricingEngine {
     private final AiPricingAdvisor aiAdvisor;
     private final RcSyncService rcSyncService;
     private final CompetitorService competitorService;
+    private final FeedbackAnalyticsService feedbackAnalytics;
 
     /**
      * Автопилот запускается каждый час.
@@ -187,11 +189,25 @@ public class PricingEngine {
         }
         final Map<LocalDate, Double> adjustments = aiAdjustments;
 
+        /*
+         * 5. Рейтинговый множитель (единожды на весь цикл)
+         */
+        double ratingMult = 1.0;
+        try {
+            ratingMult = feedbackAnalytics.priceMultiplier(tenantId, property.getId());
+            if (ratingMult != 1.0) {
+                log.info("Autopilot [{}]: rating multiplier {} for {}",
+                        mode, ratingMult, property.getName());
+            }
+        } catch (Exception e) {
+            log.warn("Rating multiplier calculation failed: {}", e.getMessage());
+        }
+
         List<RealtyCalendarClient.SpecialPrice> items =
                 new ArrayList<>();
 
         /*
-         * 5. Фильтруем даты и применяем корректировки
+         * 6. Фильтруем даты и применяем корректировки
          */
         for (PricingRecommendation rec : recs) {
 
@@ -215,9 +231,7 @@ public class PricingEngine {
             }
 
             /*
-             * Apply competitor-aware price: if we have competitor data
-             * and no AI adjustment for this date, apply a soft competitor
-             * gravity factor to avoid being too far from the market.
+             * Apply AI + competitor gravity + rating multiplier
              */
             BigDecimal finalPrice = applyAiAdjustment(
                     rec, adjustments, tenantId);
@@ -232,6 +246,13 @@ public class PricingEngine {
                         tenantId);
             }
 
+            // Rating-based multiplier
+            if (ratingMult != 1.0) {
+                finalPrice = finalPrice
+                        .multiply(BigDecimal.valueOf(ratingMult))
+                        .setScale(0, RoundingMode.HALF_UP);
+            }
+
             items.add(
                     new RealtyCalendarClient.SpecialPrice(
                             rec.date(),
@@ -242,7 +263,7 @@ public class PricingEngine {
         }
 
         /*
-         * 6. Отправляем цены
+         * 7. Отправляем цены
          */
         if (items.isEmpty()) {
             log.info("Autopilot [{}]: no items to push for {}",
@@ -261,8 +282,6 @@ public class PricingEngine {
 
     /**
      * Мягкое притяжение к рыночной цене конкурентов.
-     * Если наша цена отличается от средней конкурентов более чем на 15%,
-     * подтягиваем на 30% разницы в сторону рынка.
      */
     private BigDecimal applyCompetitorGravity(
             BigDecimal ourPrice,
@@ -276,10 +295,8 @@ public class PricingEngine {
 
         double deviation = (ours - market) / market;
 
-        // Only adjust if we're more than 15% off market
         if (Math.abs(deviation) <= 0.15) return ourPrice;
 
-        // Pull 30% toward market price
         double adjusted = ours + (market - ours) * 0.30;
 
         int floor = settings.getIntValue(tenantId, "min_price_floor", 2500);
@@ -287,8 +304,8 @@ public class PricingEngine {
         int result = (int) Math.round(adjusted);
         result = Math.max(floor, Math.min(ceil, result));
 
-        log.info("Competitor gravity: {}₽ → {}₽ (market avg {}₽, deviation {:.1f}%)",
-                ourPrice, result, competitorAvg, deviation * 100);
+        log.info("Competitor gravity: {}₽ → {}₽ (market avg {}₽, deviation {}%)",
+                ourPrice, result, competitorAvg, Math.round(deviation * 1000) / 10.0);
 
         return BigDecimal.valueOf(result);
     }
@@ -564,7 +581,6 @@ public class PricingEngine {
 
     /**
      * Публичный триггер синхронизации из RC для одного объекта.
-     * Возвращает: prices=map дата→цена, minStays=map дата→мин.срок
      */
     public RcSyncResult triggerRcSyncWithPrices(
             Property property, LocalDate from, LocalDate to) {

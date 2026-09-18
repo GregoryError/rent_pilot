@@ -6,267 +6,267 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.repository.BookingRepository;
-import ru.rentoptima.service.CompetitorService.CompetitorAnalysis;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
- * AI pricing advisor — queries Anthropic API to adjust deterministic
- * pricing recommendations based on external context.
- *
- * Fallback: if API unavailable, returns empty adjustments (algorithm runs as-is).
+ * AI-надстройка над алгоритмическими рекомендациями PricingEngine.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class AiPricingAdvisor {
 
-    private final SettingsService settings;
+    @Value("${anthropic.api.key:}")
+    private String apiKey;
+
+    @Value("${anthropic.api.url:https://api.anthropic.com/v1/messages}")
+    private String apiUrl;
+
+    @Value("${anthropic.model:claude-sonnet-4-5}")
+    private String model;
+
     private final BookingRepository bookingRepo;
     private final BookingStatsService statsService;
-    private final ObjectMapper objectMapper;
+    private final SettingsService settings;
+    private final FeedbackAnalyticsService feedbackAnalytics;
+
     private final RestTemplate restTemplate = new RestTemplate();
-
-    private static final String API_URL = "https://api.anthropic.com/v1/messages";
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /**
-     * Returns map: date → price multiplier.
-     * Empty map = no AI adjustments, use algorithm as-is.
-     * Backward-compatible overload without competitor data.
+     * Возвращает карту date -> multiplier (0.7..1.3) от AI.
+     * При отсутствии ключа или ошибке возвращает пустую карту (fallback на алгоритм).
      */
     public Map<LocalDate, Double> getAdjustments(
             Property property,
-            List<PricingEngine.PricingRecommendation> recs) {
-        return getAdjustments(property, recs, null);
-    }
-
-    /**
-     * Returns map: date → price multiplier.
-     * Includes competitor analysis when available.
-     */
-    public Map<LocalDate, Double> getAdjustments(
-            Property property,
-            List<PricingEngine.PricingRecommendation> recs,
-            CompetitorAnalysis competitorAnalysis) {
-
-        Long tenantId = property.getTenant().getId();
-        String apiKey = settings.getValue(tenantId, "anthropic_api_key");
-
+            List<PricingEngine.PricingRecommendation> algoRecs,
+            CompetitorService.CompetitorAnalysis competitorAnalysis
+    ) {
         if (apiKey == null || apiKey.isBlank()) {
-            log.debug("AI pricing: no API key, skipping");
+            log.debug("AI pricing: no API key, using pure algorithm");
             return Map.of();
         }
 
-        // Only send FREE/GAP days — no point adjusting booked ones
-        List<PricingEngine.PricingRecommendation> freeDays = recs.stream()
-                .filter(r -> r.status() != PricingEngine.DayStatus.BOOKED)
-                .toList();
-
-        if (freeDays.isEmpty()) return Map.of();
-
         try {
-            String prompt = buildPrompt(property, tenantId, freeDays, competitorAnalysis);
-            String response = callApi(apiKey, prompt);
-            return parseResponse(response);
+            String prompt = buildPrompt(property, algoRecs, competitorAnalysis);
+            String response = callApi(prompt);
+            Map<LocalDate, Double> adjustments = parseResponse(response);
+
+            log.info("AI pricing: applied {} adjustments for property {}",
+                    adjustments.size(), property.getName());
+            return adjustments;
+
         } catch (Exception e) {
-            log.warn("AI pricing advisor error (fallback to algorithm): {}", e.getMessage());
-            return Map.of(); // Graceful fallback
+            log.warn("AI pricing failed, using algorithm: {}", e.getMessage());
+            return Map.of();
         }
     }
 
-    private String buildPrompt(Property property, Long tenantId,
-                               List<PricingEngine.PricingRecommendation> recs,
-                               CompetitorAnalysis competitorAnalysis) {
+    private String buildPrompt(
+            Property property,
+            List<PricingEngine.PricingRecommendation> recs,
+            CompetitorService.CompetitorAnalysis competitorAnalysis
+    ) {
+        Long tenantId = property.getTenant().getId();
 
-        Map<String, String> s = settings.getSettingsMap(tenantId);
-        LocalDate now = LocalDate.now();
+        LocalDate today = LocalDate.now();
+        LocalDate weekAgo = today.minusDays(7);
 
-        // Booking pace
-        var pace = statsService.getBookingPace(tenantId);
+        List<Booking> recentBookings = bookingRepo
+                .findActiveInRangeForTenant(tenantId, weekAgo, today.plusDays(60));
 
-        // Historical: same period last year
-        LocalDate histFrom = now.minusYears(1);
-        LocalDate histTo = now.minusYears(1).plusDays(90);
-        long histNights = Optional.ofNullable(
-                bookingRepo.sumNightsInRange(tenantId, histFrom, histTo)).orElse(0L);
-        long histDays = 90;
-        double histOccupancy = (double) histNights / histDays * 100;
+        Double bookingPace = statsService.getBookingPace(tenantId, today.plusDays(30));
+        Double historicalOccupancy = statsService.getHistoricalOccupancy(tenantId);
 
-        // Recent bookings context (last 5 before today)
-        List<Booking> recent = bookingRepo.findActiveInRangeForTenant(
-                tenantId, now.minusDays(60), now);
-        StringBuilder recentStr = new StringBuilder();
-        recent.stream().sorted(Comparator.comparing(Booking::getCheckIn).reversed())
-                .limit(5)
-                .forEach(b -> recentStr.append(String.format(
-                        "  %s–%s, %s н., %s, %s₽\n",
-                        b.getCheckIn(), b.getCheckOut(), b.getNights(),
-                        b.getSource() != null ? b.getSource() : "ручная",
-                        b.getAmount())));
-
-        // Algorithm recommendations summary
-        StringBuilder recsStr = new StringBuilder();
-        recsStr.append("Дата | Статус | Цена алг. | Мин.срок | Причина\n");
-        recs.stream().limit(45).forEach(r -> recsStr.append(String.format(
-                "%s | %s | %s₽ | %d н. | %s\n",
-                r.date(), r.status(), r.recommendedPrice(),
-                r.recommendedMinStay(), r.reason())));
-
-        // Build competitor analysis section
-        StringBuilder competitorSection = new StringBuilder();
-        if (competitorAnalysis != null && competitorAnalysis.competitorCount() > 0) {
-            competitorSection.append("=== КОНКУРЕНТНЫЙ АНАЛИЗ ===\n");
-            competitorSection.append(String.format(
-                    "Отслеживается конкурентов: %d\n",
-                    competitorAnalysis.competitorCount()));
-            competitorSection.append("\nСредние цены конкурентов по датам:\n");
-            competitorAnalysis.avgPriceByDate().forEach((date, avg) ->
-                    competitorSection.append(String.format(
-                            "  %s: средняя %s₽, минимум %s₽\n",
-                            date,
-                            avg,
-                            competitorAnalysis.minPriceByDate().getOrDefault(date, avg))));
-            if (!competitorAnalysis.trends().isEmpty()) {
-                competitorSection.append("\nТренды конкурентов:\n");
-                competitorAnalysis.trends().forEach(t ->
-                        competitorSection.append("  • ").append(t).append("\n"));
-            }
-            competitorSection.append("\nУЧТИ: если конкуренты массово снижают цены — ");
-            competitorSection.append("это сигнал слабого спроса, возможно стоит снизить и наши.\n");
-            competitorSection.append("Если повышают — можно повысить и наши.\n");
-            competitorSection.append("Сравни наши алгоритмические цены с конкурентными ");
-            competitorSection.append("и скорректируй, если наши сильно выбиваются из рынка.");
+        StringBuilder recsBlock = new StringBuilder();
+        for (var r : recs) {
+            if (r.status() == PricingEngine.DayStatus.BOOKED) continue;
+            recsBlock.append(String.format("- %s (%s): %d₽, мин %dн, %s%n",
+                    r.date(),
+                    getDayName(r.date()),
+                    r.recommendedPrice().intValue(),
+                    r.recommendedMinStay(),
+                    r.reason()));
         }
 
-        return String.format("""
-                Ты — эксперт по revenue management посуточной аренды квартир.
-                
-                Объект: %s, г. %s
-                Базовые цены: будни %s₽, выходные %s₽
-                Наценка площадок: %s%%
-                Стоимость уборки: %s₽
-                
-                === BOOKING PACE (следующий месяц) ===
-                Текущая загрузка: %.1f%%
-                Историческая норма: %.1f%%
-                Статус: %s
-                
-                === ИСТОРИЧЕСКИЕ ДАННЫЕ (тот же период год назад, если есть) ===
-                Заполняемость: %.1f%%
-                
-                === НЕДАВНИЕ БРОНИ (последние 5) ===
+        StringBuilder bookingsBlock = new StringBuilder();
+        int shown = 0;
+        for (var b : recentBookings) {
+            if (shown >= 5) break;
+            bookingsBlock.append(String.format(
+                    "- %s → %s (%dн, %s₽, %s)%n",
+                    b.getCheckIn(),
+                    b.getCheckOut(),
+                    b.getNights() != null ? b.getNights() : 0,
+                    b.getAmount() != null ? b.getAmount().toString() : "?",
+                    b.getSource() != null ? b.getSource() : "?"
+            ));
+            shown++;
+        }
+
+        String competitorBlock = buildCompetitorBlock(competitorAnalysis);
+        String ratingBlock = feedbackAnalytics.buildPromptSection(
+                tenantId, property.getId());
+
+        return String.format(
+                """
+                Ты — revenue manager для квартиры посуточной аренды в Выборге, ЛО.
+
+                КОНТЕКСТ:
+                - Объект: %s (%s)
+                - Booking pace 30 дней: %.1f%%
+                - Историческая заполняемость: %.1f%%
+                - Последние 5 бронирований:
                 %s
-                
-                === РЕКОМЕНДАЦИИ АЛГОРИТМА (ближайшие 45 дней) ===
+
+                РЕКОМЕНДАЦИИ АЛГОРИТМА (даты, цены, мин.сроки, причины):
                 %s
-                
                 %s
-                
-                Твоя задача: проанализируй данные и предложи ТОЛЬКО корректировки к ценам
-                алгоритма там, где видишь весомую причину (событие в городе, аномальный
-                спрос, слабый booking pace, исторический паттерн, ДАННЫЕ КОНКУРЕНТОВ).
-                
-                Если есть данные конкурентов — обязательно учти их при корректировке.
-                Если средняя цена конкурентов на дату значительно выше/ниже нашей
-                алгоритмической — предложи корректировку в сторону рынка.
-                
-                Не корректируй без причины. Множитель 1.0 = без изменений.
-                Допустимый диапазон множителей: 0.70 – 1.70.
-                
-                Отвечай СТРОГО в формате JSON (без markdown, без пояснений снаружи):
+                %s
+
+                ТВОЯ ЗАДАЧА:
+                Проанализируй сложившуюся ситуацию и скорректируй цены на конкретные даты,
+                где ты считаешь алгоритм ошибается. Учитывай:
+                - Праздники (1-4 ноября — праздничный кластер)
+                - Сезонность
+                - Скорость набора броней (booking pace)
+                - Ценовое давление конкурентов если данные есть
+                - Средний рейтинг гостей: высокий рейтинг допускает премию к цене, низкий требует скидки
+
+                Отвечай в формате JSON без комментариев вне JSON:
                 {
-                  "adjustments": [
-                    {"date": "YYYY-MM-DD", "price_multiplier": 1.0, "reason": "..."},
-                    ...
-                  ],
-                  "global_comment": "краткий общий вывод"
+                  "adjustments": {
+                    "2026-10-15": 1.05,
+                    "2026-11-03": 1.15
+                  },
+                  "comment": "Краткое объяснение почему так решил"
                 }
-                
-                Если корректировок нет — верни {"adjustments": [], "global_comment": "..."}
+
+                Множители 0.75-1.50. Только даты которые нужно ИЗМЕНИТЬ.
+                Пустой adjustments = алгоритм верен.
                 """,
                 property.getName(),
-                s.getOrDefault("city", "Выборг"),
-                s.getOrDefault("weekday_base_price", "3200"),
-                s.getOrDefault("weekend_base_price", "4200"),
-                s.getOrDefault("platform_markup_pct", "18"),
-                s.getOrDefault("cleaning_cost", "1400"),
-                pace.currentOccupancy(), pace.historicalAvg(), pace.status(),
-                histOccupancy,
-                recentStr,
-                recsStr,
-                competitorSection.toString()
+                property.getAddress() != null ? property.getAddress() : "",
+                bookingPace != null ? bookingPace : 0.0,
+                historicalOccupancy != null ? historicalOccupancy : 0.0,
+                bookingsBlock,
+                recsBlock,
+                competitorBlock,
+                ratingBlock
         );
     }
 
-    private String callApi(String apiKey, String prompt) throws Exception {
-        ObjectNode root = objectMapper.createObjectNode();
-        root.put("model", "claude-sonnet-4-6");
-        root.put("max_tokens", 2500);
+    private String buildCompetitorBlock(
+            CompetitorService.CompetitorAnalysis analysis
+    ) {
+        if (analysis == null || analysis.competitorCount() == 0) {
+            return "\n(Данные конкурентов пока не доступны)\n";
+        }
 
-        ArrayNode messages = root.putArray("messages");
-        ObjectNode msg = messages.addObject();
-        msg.put("role", "user");
-        msg.put("content", prompt);
+        StringBuilder sb = new StringBuilder();
+        sb.append("\n=== КОНКУРЕНТНЫЙ АНАЛИЗ ===\n");
+        sb.append(String.format("Конкурентов: %d%n", analysis.competitorCount()));
 
+        if (analysis.avgPriceByDate() != null && !analysis.avgPriceByDate().isEmpty()) {
+            sb.append("Средние цены конкурентов по датам:\n");
+            analysis.avgPriceByDate().entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .limit(15)
+                    .forEach(e -> sb.append(String.format(
+                            "  %s: %s₽%n",
+                            e.getKey(),
+                            e.getValue().toString())));
+        }
+
+        return sb.toString();
+    }
+
+    private String getDayName(LocalDate date) {
+        return switch (date.getDayOfWeek()) {
+            case MONDAY -> "Пн";
+            case TUESDAY -> "Вт";
+            case WEDNESDAY -> "Ср";
+            case THURSDAY -> "Чт";
+            case FRIDAY -> "Пт";
+            case SATURDAY -> "Сб";
+            case SUNDAY -> "Вс";
+        };
+    }
+
+    private String callApi(String prompt) throws Exception {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("x-api-key", apiKey);
         headers.set("anthropic-version", "2023-06-01");
 
-        HttpEntity<String> entity = new HttpEntity<>(
-                objectMapper.writeValueAsString(root), headers);
-        ResponseEntity<JsonNode> response = restTemplate.exchange(
-                API_URL, HttpMethod.POST, entity, JsonNode.class);
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("model", model);
+        body.put("max_tokens", 2500);
 
-        if (response.getBody() == null) throw new IllegalStateException("Empty API response");
-        return response.getBody().get("content").get(0).path("text").asText();
+        ArrayNode messages = body.putArray("messages");
+        ObjectNode msg = messages.addObject();
+        msg.put("role", "user");
+        msg.put("content", prompt);
+
+        HttpEntity<String> request = new HttpEntity<>(
+                objectMapper.writeValueAsString(body), headers);
+
+        ResponseEntity<JsonNode> response = restTemplate.exchange(
+                apiUrl, HttpMethod.POST, request, JsonNode.class);
+
+        return response.getBody().path("content").get(0).path("text").asText();
     }
 
-    private Map<LocalDate, Double> parseResponse(String json) {
-        Map<LocalDate, Double> result = new HashMap<>();
+    private Map<LocalDate, Double> parseResponse(String jsonText) {
         try {
-            // Strip markdown if present
-            String cleaned = json.replaceAll("```json|```", "").trim();
+            String cleaned = jsonText.replaceAll("```json|```", "").trim();
             JsonNode root = objectMapper.readTree(cleaned);
-            JsonNode adjustments = root.path("adjustments");
 
-            String globalComment = root.path("global_comment").asText("");
-            if (!globalComment.isBlank()) {
-                log.info("AI pricing comment: {}", globalComment);
+            String comment = root.path("comment").asText("");
+            if (!comment.isEmpty()) {
+                log.info("AI pricing comment: {}", comment);
             }
 
-            if (!adjustments.isArray()) return result;
-
-            for (JsonNode adj : adjustments) {
-                String dateStr = adj.path("date").asText(null);
-                double multiplier = adj.path("price_multiplier").asDouble(1.0);
-                String reason = adj.path("reason").asText("");
-
-                if (dateStr == null) continue;
-
-                // Validate multiplier range
-                if (multiplier < 0.75 || multiplier > 1.50) {
-                    log.warn("AI pricing: invalid multiplier {} for {}, clamping", multiplier, dateStr);
-                    multiplier = Math.max(0.75, Math.min(1.50, multiplier));
-                }
-
-                if (Math.abs(multiplier - 1.0) > 0.01) { // Only store non-trivial adjustments
-                    result.put(LocalDate.parse(dateStr), multiplier);
-                    log.info("AI pricing adjustment: {} × {:.2f} — {}", dateStr, multiplier, reason);
-                }
+            Map<LocalDate, Double> result = new HashMap<>();
+            JsonNode adj = root.path("adjustments");
+            if (adj.isObject()) {
+                adj.fields().forEachRemaining(entry -> {
+                    try {
+                        LocalDate date = LocalDate.parse(entry.getKey());
+                        double mult = entry.getValue().asDouble();
+                        if (mult >= 0.7 && mult <= 1.5) {
+                            result.put(date, mult);
+                        } else {
+                            log.warn("AI multiplier out of range: {} for {}",
+                                    mult, date);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Cannot parse AI adjustment for {}: {}",
+                                entry.getKey(), e.getMessage());
+                    }
+                });
             }
-
-            log.info("AI pricing: {} adjustments applied", result.size());
+            return result;
         } catch (Exception e) {
             log.warn("AI pricing: cannot parse response: {}", e.getMessage());
+            return Map.of();
         }
-        return result;
     }
 }

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head><title>Отзывы</title></head>
+<body>
+<div layout:fragment="content">
+    <div class="page-header">
+        <h1 class="page-title">Отзывы гостей</h1>
+        <p class="page-subtitle" th:if="${property}"
+           th:text="${'Объект: ' + property.name}"></p>
+    </div>
+
+    <div th:if="${success}" class="alert alert-success" th:text="${success}"></div>
+    <div th:if="${error}" class="alert alert-danger" th:text="${error}"></div>
+
+    <div th:if="${property == null}" class="card">
+        <p>Нет активных объектов.</p>
+    </div>
+
+    <div th:if="${property != null}">
+
+        <!-- Summary + housekeeper setup -->
+        <div class="grid grid-cols-2" style="gap: var(--sp-4); margin-bottom: var(--sp-5);">
+            <div class="card">
+                <div class="card__title">Средний рейтинг (90 дней)</div>
+                <div style="font-size: var(--text-3xl); font-weight: var(--weight-bold); margin-top: var(--sp-3);"
+                     th:text="${averageRating != null ? #numbers.formatDecimal(averageRating, 1, 2) + '/10' : '—'}"></div>
+            </div>
+
+            <div class="card">
+                <div class="card__title">Ссылка для горничной</div>
+                <div style="margin-top: var(--sp-3);">
+                    <code style="font-size: var(--text-sm); word-break: break-all;"
+                          th:text="${housekeeperUrl}"></code>
+                    <div style="margin-top: var(--sp-3); font-size: var(--text-sm);"
+                         th:text="${hasPin ? '✓ PIN установлен' : '⚠ PIN не установлен — горничная не сможет войти'}"
+                         th:class="${hasPin ? 'text-success' : 'text-warning'}"></div>
+                </div>
+
+                <form th:action="@{/feedback-admin/set-pin}" method="post"
+                      style="margin-top: var(--sp-4); display: flex; gap: var(--sp-2); align-items:flex-end;">
+                    <div class="form-group" style="margin-bottom:0; flex:1">
+                        <label class="form-label">Новый PIN (мин. 4 символа)</label>
+                        <input type="password" name="pin" class="form-input form-input--sm" required minlength="4">
+                    </div>
+                    <button type="submit" class="btn">
+                        <span th:text="${hasPin ? 'Сменить PIN' : 'Установить PIN'}"></span>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- Feedback list -->
+        <div class="card">
+            <div class="card__header">
+                <div class="card__title">Все отзывы</div>
+            </div>
+
+            <div th:if="${#lists.isEmpty(items)}" style="text-align:center; padding: var(--sp-8); color: var(--text-muted);">
+                Пока нет отзывов.
+            </div>
+
+            <div th:each="it : ${items}" class="feedback-row"
+                 style="border-bottom: 1px solid var(--border-subtle); padding: var(--sp-4) 0;">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--sp-2);">
+                    <div>
+                        <strong th:text="${it.response.guestName ?: 'Гость'}"></strong>
+                        <span class="muted" style="margin-left: var(--sp-2); font-size: var(--text-sm);"
+                              th:text="${#temporals.format(it.response.createdAt, 'dd.MM.yyyy')}"></span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: var(--sp-3);">
+                        <span style="font-family: var(--font-mono); font-weight: var(--weight-semibold);"
+                              th:text="${it.avgRating + '/10'}"></span>
+                        <form th:action="@{'/feedback-admin/' + ${it.response.id} + '/toggle-housekeeper'}" method="post" style="display:inline">
+                            <button type="submit" class="btn btn-sm"
+                                    th:text="${it.response.showToHousekeeper ? 'Скрыть от горничной' : 'Показать горничной'}"
+                                    th:class="${it.response.showToHousekeeper ? 'btn btn-sm btn-primary' : 'btn btn-sm'}"></button>
+                        </form>
+                    </div>
+                </div>
+
+                <div th:each="a : ${it.answers}" style="font-size: var(--text-sm); margin: var(--sp-1) 0;">
+                    <span class="muted" th:text="${a.question + ':'}"></span>
+                    <span th:if="${a.type == 'SCALE'}" style="font-family: var(--font-mono);"
+                          th:text="${a.numeric != null ? a.numeric + '/10' : '—'}"></span>
+                    <span th:unless="${a.type == 'SCALE'}"
+                          th:text="${a.text != null and !#strings.isEmpty(a.text) ? a.text : '—'}"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
