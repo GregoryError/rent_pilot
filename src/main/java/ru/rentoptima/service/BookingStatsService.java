@@ -187,6 +187,7 @@ public class BookingStatsService {
         return items;
     }
 
+
     // --- Records ---
 
     public record DashboardKpi(
