@@ -14,8 +14,7 @@
         .tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: 600; }
 
         .booking { border: 1px solid var(--border); padding: 1rem; border-radius: 8px; margin-bottom: 0.75rem; background: var(--bg-elevated); }
-        .booking-date { font-family: var(--font-mono); font-weight: 700; font-size: 1.1rem; color: var(--text); }
-        .booking-info { display: flex; justify-content: space-between; align-items: baseline; }
+        .booking-date { font-family: var(--font-mono); font-weight: 700; font-size: 1.25rem; color: var(--text); }
         .booking-guest { color: var(--text); margin-top: 0.25rem; }
         .booking-nights { color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem; }
 
@@ -54,13 +53,9 @@
     </div>
 
     <div th:each="b : ${bookings}" class="booking">
-        <div class="booking-info">
-            <div>
-                <div class="booking-date" th:text="${#temporals.format(b.checkOut, 'dd.MM')} + ' → ' + ${#temporals.format(b.checkIn ?: b.checkOut, 'dd.MM')}"></div>
-                <div class="booking-guest" th:text="${b.guestName ?: 'Гость'}"></div>
-                <div class="booking-nights" th:text="'Заезд: ' + ${#temporals.format(b.checkIn, 'dd.MM.yyyy')} + ' → Выезд: ' + ${#temporals.format(b.checkOut, 'dd.MM.yyyy')}"></div>
-            </div>
-        </div>
+        <div class="booking-date" th:text="'Выезд ' + ${#temporals.format(b.checkOut, 'dd.MM')}"></div>
+        <div class="booking-guest" th:text="${b.guestName ?: 'Гость'}"></div>
+        <div class="booking-nights" th:text="'Заезд был: ' + ${#temporals.format(b.checkIn, 'dd.MM.yyyy')}"></div>
     </div>
 </div>
 
