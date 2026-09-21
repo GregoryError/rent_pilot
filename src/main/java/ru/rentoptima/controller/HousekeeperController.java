@@ -12,11 +12,13 @@ import ru.rentoptima.entity.FeedbackAnswer;
 import ru.rentoptima.entity.FeedbackQuestion;
 import ru.rentoptima.entity.FeedbackResponse;
 import ru.rentoptima.entity.Property;
+import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.FeedbackAnswerRepository;
 import ru.rentoptima.repository.FeedbackQuestionRepository;
 import ru.rentoptima.repository.FeedbackResponseRepository;
 import ru.rentoptima.repository.PropertyRepository;
 
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -25,6 +27,7 @@ import java.util.stream.Collectors;
 public class HousekeeperController {
 
     private final PropertyRepository propertyRepo;
+    private final BookingRepository bookingRepo;
     private final FeedbackResponseRepository feedbackRepo;
     private final FeedbackAnswerRepository answerRepo;
     private final FeedbackQuestionRepository questionRepo;
@@ -32,13 +35,13 @@ public class HousekeeperController {
 
     @GetMapping("/housekeeper/{code}")
     public String housekeeperPage(@PathVariable String code,
-                                   @CookieValue(value = "hk_auth", required = false) String cookieAuth,
-                                   @RequestParam(required = false) String error,
-                                   Model model) {
+                                  @CookieValue(value = "hk_auth", required = false) String cookieAuth,
+                                  @RequestParam(required = false) String error,
+                                  @RequestParam(required = false, defaultValue = "schedule") String tab,
+                                  Model model) {
         Property property = propertyRepo.findByHousekeeperCode(code).orElse(null);
         if (property == null) return "error/404";
 
-        // PIN is required — if not set, block with message
         if (property.getHousekeeperPinHash() == null || property.getHousekeeperPinHash().isBlank()) {
             model.addAttribute("code", code);
             model.addAttribute("pinNotSet", true);
@@ -54,6 +57,12 @@ public class HousekeeperController {
             return "pages/housekeeper/login";
         }
 
+        LocalDate now = LocalDate.now();
+
+        // Schedule
+        var upcoming = bookingRepo.findUpcomingCheckouts(property.getId(), now);
+
+        // Reviews with answers
         List<FeedbackResponse> feedbacks = feedbackRepo
                 .findByPropertyIdAndShowToHousekeeperTrueOrderByCreatedAtDesc(property.getId());
 
@@ -62,7 +71,7 @@ public class HousekeeperController {
         Map<Long, FeedbackQuestion> qMap = questions.stream()
                 .collect(Collectors.toMap(FeedbackQuestion::getId, q -> q));
 
-        List<Map<String, Object>> items = feedbacks.stream().map(r -> {
+        List<Map<String, Object>> reviews = feedbacks.stream().map(r -> {
             List<FeedbackAnswer> answers = answerRepo.findByResponseIdOrderByAnsweredAtAsc(r.getId());
             List<Map<String, Object>> texts = answers.stream()
                     .filter(a -> a.getTextValue() != null && !a.getTextValue().isBlank())
@@ -92,7 +101,11 @@ public class HousekeeperController {
         }).collect(Collectors.toList());
 
         model.addAttribute("property", property);
-        model.addAttribute("feedbacks", items);
+        model.addAttribute("bookings", upcoming);
+        model.addAttribute("reviews", reviews);
+        model.addAttribute("today", now);
+        model.addAttribute("tab", tab);
+        model.addAttribute("code", code);
         return "pages/housekeeper/index";
     }
 
@@ -111,7 +124,7 @@ public class HousekeeperController {
         Cookie c = new Cookie("hk_auth", cookieValueFor(property));
         c.setPath("/housekeeper/" + code);
         c.setHttpOnly(true);
-        c.setMaxAge(7 * 24 * 3600); // 1 неделя
+        c.setMaxAge(7 * 24 * 3600);
         response.addCookie(c);
         return "redirect:/housekeeper/" + code;
     }

@@ -16,6 +16,7 @@ import ru.rentoptima.repository.FeedbackResponseRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.FeedbackAnalyticsService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.util.*;
 import java.util.stream.Collectors;
