@@ -8,6 +8,7 @@ import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.BookingStatsService;
 import ru.rentoptima.service.ExpenseService;
+import ru.rentoptima.service.PricingLearningService;
 import ru.rentoptima.service.SettingsService;
 
 import java.time.LocalDate;
@@ -20,6 +21,8 @@ public class DashboardController {
     private final BookingStatsService statsService;
     private final ExpenseService expenseService;
     private final SettingsService settings;
+
+    private final PricingLearningService learningService;
 
     @GetMapping("/dashboard")
     public String dashboard(Model model) {
@@ -48,6 +51,7 @@ public class DashboardController {
         model.addAttribute("prevKpi", prevKpi);
         model.addAttribute("pace", pace);
         model.addAttribute("actionItems", actionItems);
+        model.addAttribute("learningSummary", learningService.getLatestSummary(tenantId));
 
         return "pages/dashboard/index";
     }

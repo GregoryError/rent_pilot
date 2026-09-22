@@ -59,6 +59,17 @@
         </p>
     </div>
 
+    <div th:if="${learningSummary}" class="card"
+         style="border-left: 3px solid var(--amber); margin-bottom: var(--sp-5);">
+        <div style="display: flex; align-items: baseline; gap: var(--sp-3);">
+            <span style="font-size: 1.2rem;">💡</span>
+            <div>
+                <div class="card__title" style="margin-bottom: var(--sp-2);">Наблюдения системы</div>
+                <p style="margin: 0; color: var(--text);" th:text="${learningSummary}"></p>
+            </div>
+        </div>
+    </div>
+
     <!-- Action Items (from gpt_proposal: "что делать сегодня") -->
     <div class="card" th:if="${!actionItems.isEmpty()}">
         <div class="card__header">
