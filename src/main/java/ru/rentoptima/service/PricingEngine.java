@@ -7,8 +7,11 @@ import org.springframework.stereotype.Service;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.repository.BookingRepository;
+import ru.rentoptima.repository.PricingDecisionRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.service.CompetitorService.CompetitorAnalysis;
+import ru.rentoptima.entity.PricingDecision;
+import ru.rentoptima.repository.PricingDecisionRepository;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -20,6 +23,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+
+// For peace in the World!
 
 @Slf4j
 @Service
@@ -36,6 +42,8 @@ public class PricingEngine {
     private final RcSyncService rcSyncService;
     private final CompetitorService competitorService;
     private final FeedbackAnalyticsService feedbackAnalytics;
+    private final PricingLearningService learningService;
+    private final PricingDecisionRepository decisionRepo;
 
     /**
      * Автопилот запускается каждый час.
@@ -209,6 +217,8 @@ public class PricingEngine {
         /*
          * 6. Фильтруем даты и применяем корректировки
          */
+        int skipped = 0; // that`s ok
+
         for (PricingRecommendation rec : recs) {
 
             if (rec.status() == DayStatus.BOOKED) {
@@ -253,13 +263,45 @@ public class PricingEngine {
                         .setScale(0, RoundingMode.HALF_UP);
             }
 
-            items.add(
-                    new RealtyCalendarClient.SpecialPrice(
-                            rec.date(),
-                            finalPrice,
-                            rec.recommendedMinStay()
-                    )
-            );
+            int priceInt = finalPrice.intValue();
+            int minStayInt = rec.recommendedMinStay();
+
+            // Check if state actually changed vs last known
+            var latest = decisionRepo.findLatest(tenantId, property.getId(), rec.date());
+            boolean changed = latest.isEmpty()
+                    || !latest.get().getPrice().equals(priceInt)
+                    || !latest.get().getMinStay().equals(minStayInt);
+
+            if (changed) {
+                items.add(
+                        new RealtyCalendarClient.SpecialPrice(
+                                rec.date(),
+                                finalPrice,
+                                minStayInt
+                        )
+                );
+            } else {
+                skipped++;
+            }
+
+            // Log decision (only if state changed — internally checks itself)
+            try {
+                learningService.logDecisionIfChanged(
+                        tenantId, property.getId(), rec.date(),
+                        priceInt, minStayInt,
+                        adjustments.get(rec.date()),
+                        (int) java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), rec.date()),
+                        null,
+                        rec.date().getDayOfWeek().getValue() >= 5,
+                        prodCalendar.isHoliday(rec.date()),
+                        null,
+                        competitorAnalysis != null && competitorAnalysis.avgPriceByDate().containsKey(rec.date())
+                                ? competitorAnalysis.avgPriceByDate().get(rec.date()).intValue()
+                                : null
+                );
+            } catch (Exception e) {
+                log.warn("Log decision failed: {}", e.getMessage());
+            }
         }
 
         /*
@@ -271,8 +313,9 @@ public class PricingEngine {
             return;
         }
 
-        log.info("Autopilot [{}]: pushing {} price updates for {}",
-                mode, items.size(), property.getName());
+
+        log.info("Autopilot [{}]: pushing {} changes for {} ({} unchanged, skipped)",
+                mode, items.size(), property.getName(), skipped);
 
         rcClient.saveSpecialPrices(
                 property.getRcObjectId(),
