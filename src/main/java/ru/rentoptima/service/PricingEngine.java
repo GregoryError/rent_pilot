@@ -674,7 +674,11 @@ public class PricingEngine {
                 LocalDate start = LocalDate.parse(beginStr);
                 LocalDate end = LocalDate.parse(endStr);
                 long rcId = ev.path("id").asLong(0);
+
                 String guest = ev.path("client").path("fio").asText(null);
+                if (guest != null) guest = guest.trim();
+                if (guest != null && guest.isEmpty()) guest = null;
+
                 String phone = ev.path("client").path("phone").asText(null);
                 double amount = ev.path("amount").asDouble(0);
                 int sourceId = ev.path("source_id").asInt(0);
@@ -734,7 +738,11 @@ public class PricingEngine {
                 LocalDate start = LocalDate.parse(beginStr);
                 LocalDate end = LocalDate.parse(endStr);
                 long rcId = ev.path("id").asLong(0);
+
                 String guest = ev.path("client").path("fio").asText(null);
+                if (guest != null) guest = guest.trim();
+                if (guest != null && guest.isEmpty()) guest = null;
+
                 String phone = ev.path("client").path("phone").asText(null);
                 double amount = ev.path("amount").asDouble(0);
                 int sourceId = ev.path("source_id").asInt(0);

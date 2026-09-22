@@ -36,7 +36,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("""
         SELECT b FROM Booking b
         WHERE b.property.id = :propertyId
-          AND b.guestName = :guestName
+          AND TRIM(b.guestName) = TRIM(:guestName)
           AND b.checkIn = :checkIn
           AND b.checkOut = :checkOut
     """)
