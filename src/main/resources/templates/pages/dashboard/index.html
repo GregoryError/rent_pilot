@@ -9,7 +9,7 @@
     <div class="page-header flex justify-between items-center">
         <div>
             <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle" th:text="'Показатели за ' + ${T(java.time.LocalDate).now().getMonth()} + ' ' + ${T(java.time.LocalDate).now().getYear()}"></p>
+            <p class="page-subtitle" th:text="Показатели системы"></p>
         </div>
         <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1.5rem;">
             <a th:href="@{/dashboard(m=${prevMonth})}" class="btn btn-sm">‹ Пред</a>
@@ -38,7 +38,7 @@
             <div class="kpi__label">Ср. длительность</div>
             <div class="kpi__value" th:text="${kpi.avgNights()} + ' н.'">—</div>
         </div>
-        <div class="kpi" th:if="${avgRating != null}" style="margin-bottom: var(--sp-5);">
+        <div class="kpi" th:if="${avgRating != null}">
             <div class="kpi__label">Средний рейтинг</div>
             <div class="kpi__value" th:text="${#numbers.formatDecimal(avgRating, 1, 2) + ' / 10'}"></div>
             <div class="kpi__hint">за последние 90 дней</div>
