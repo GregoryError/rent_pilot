@@ -1,171 +1,140 @@
-# Патчи для обезличивания на входе
+# Патчи для AI comments на дашборде
 
-## 1. PricingEngine.java — 2 места
+## 1. AiPricingAdvisor.java
 
-### Оба метода `syncRcBookings` и `syncRcBookingsFromNode`
+**Меняем сигнатуру getAdjustments** — принимает tenantId и propertyId для сохранения комментария.
 
-**Импорт** в начало файла:
+**В поля класса добавь:**
 ```java
-import ru.rentoptima.util.PdAnonymizer;
+    private final ru.rentoptima.repository.AiCommentRepository aiCommentRepo;
 ```
 
-**Найди** (в обоих методах, одинаковый блок):
+**Найди метод `parseResponse` и замени** его на два метода:
 
+Было:
 ```java
-                String guest = ev.path("client").path("fio").asText(null);
-                if (guest != null) guest = guest.trim();
-                if (guest != null && guest.isEmpty()) guest = null;
-                String phone = ev.path("client").path("phone").asText(null);
-                double amount = ev.path("amount").asDouble(0);
+    private Map<LocalDate, Double> parseResponse(String json) {
+        Map<LocalDate, Double> result = new HashMap<>();
+        try {
+            String cleaned = json.replaceAll("```json|```", "").trim();
+            JsonNode root = objectMapper.readTree(cleaned);
+
+            String comment = root.path("comment").asText("");
+            if (!comment.isEmpty()) {
+                log.info("AI pricing comment: {}", comment);
+            }
+
+            JsonNode adj = root.path("adjustments");
+            ...
 ```
 
-**Замени на:**
-
+Стало:
 ```java
-                String guestRaw = ev.path("client").path("fio").asText(null);
-                String guest = PdAnonymizer.toInitial(guestRaw);
-                String phone = PdAnonymizer.stripPhone(
-                        ev.path("client").path("phone").asText(null));
-                double amount = ev.path("amount").asDouble(0);
+    private Map<LocalDate, Double> parseResponse(String json,
+                                                  Long tenantId, Long propertyId) {
+        Map<LocalDate, Double> result = new HashMap<>();
+        try {
+            String cleaned = json.replaceAll("```json|```", "").trim();
+            JsonNode root = objectMapper.readTree(cleaned);
+
+            String comment = root.path("comment").asText("");
+            
+            JsonNode adj = root.path("adjustments");
+            if (adj.isObject()) {
+                adj.fields().forEachRemaining(entry -> {
+                    try {
+                        LocalDate date = LocalDate.parse(entry.getKey());
+                        double mult = entry.getValue().asDouble(1.0);
+                        if (mult >= 0.75 && mult <= 1.30) {
+                            result.put(date, mult);
+                        }
+                    } catch (Exception e) {
+                        log.warn("Skip bad adjustment {}: {}",
+                                entry.getKey(), e.getMessage());
+                    }
+                });
+            }
+
+            // Save comment to DB for dashboard
+            if (!comment.isEmpty()) {
+                log.info("AI pricing comment: {}", comment);
+                try {
+                    ru.rentoptima.entity.AiComment c = new ru.rentoptima.entity.AiComment();
+                    c.setTenantId(tenantId);
+                    c.setPropertyId(propertyId);
+                    c.setComment(comment);
+                    c.setAdjustmentsCount(result.size());
+                    aiCommentRepo.save(c);
+                } catch (Exception e) {
+                    log.warn("Failed to save AI comment: {}", e.getMessage());
+                }
+            }
+
+            log.info("AI pricing: {} adjustments applied", result.size());
+        } catch (Exception e) {
+            log.warn("AI pricing: cannot parse response: {}", e.getMessage());
+        }
+        return result;
+    }
 ```
 
-Проверка на "Ручное закрытие" — оставь как было (внутри блока `if (guest == null || guest.isBlank()) guest = "Ручное закрытие RC";`). Всё должно быть под `guest = PdAnonymizer.toInitial(...)`.
+**В методе `getAdjustments` — обнови вызов** parseResponse:
+
+Было:
+```java
+            String response = callApi(apiKey, prompt);
+            return parseResponse(response);
+```
+
+Стало:
+```java
+            String response = callApi(apiKey, prompt);
+            return parseResponse(response, tenantId, property.getId());
+```
 
 ---
 
-## 2. WebhookService.java — строки 147-150
+## 2. DashboardController.java
 
-**Импорт:**
+**В поля добавь:**
 ```java
-import ru.rentoptima.util.PdAnonymizer;
+    private final ru.rentoptima.repository.AiCommentRepository aiCommentRepo;
 ```
 
-**Найди:**
+**В методе dashboard добавь перед return:**
 ```java
-            String fio = getText(client, "fio");
-            if (fio != null) booking.setGuestName(fio);
-            String phone = getText(client, "phone");
-            if (phone != null) booking.setGuestPhone(phone);
-```
-
-**Замени на:**
-```java
-            String fio = getText(client, "fio");
-            String initial = PdAnonymizer.toInitial(fio);
-            if (initial != null) booking.setGuestName(initial);
-            booking.setGuestPhone(PdAnonymizer.stripPhone(getText(client, "phone")));
+        var aiComments = aiCommentRepo.findByTenantIdOrderByCreatedAtDesc(
+                tenantId, org.springframework.data.domain.PageRequest.of(0, 5));
+        model.addAttribute("aiComments", aiComments);
 ```
 
 ---
 
-## 3. ImportService.java — строка 91 (и 81)
+## 3. src/main/resources/templates/pages/dashboard/index.html
 
-**Импорт:**
-```java
-import ru.rentoptima.util.PdAnonymizer;
+Найди место где сейчас виден блок «Наблюдения системы» (learningSummary). После него вставь:
+
+```html
+<!-- AI comments history -->
+<div class="card" th:if="${aiComments != null and !#lists.isEmpty(aiComments)}"
+     style="margin-bottom: var(--sp-5);">
+    <div class="card__header">
+        <div class="card__title">Комментарии AI-помощника</div>
+    </div>
+    <div th:each="c : ${aiComments}"
+         style="padding: var(--sp-3) 0; border-bottom: 1px solid var(--border-subtle);">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--sp-2);">
+            <span style="font-family: var(--font-mono); color: var(--text-secondary); font-size: var(--text-sm);"
+                  th:text="${#temporals.format(c.createdAt, 'dd.MM HH:mm')}"></span>
+            <span class="tag tag--amber" th:if="${c.adjustmentsCount > 0}"
+                  th:text="${c.adjustmentsCount} + ' изменений'"></span>
+        </div>
+        <p style="margin: 0; color: var(--text); line-height: 1.5;" th:text="${c.comment}"></p>
+    </div>
+</div>
 ```
 
-**Найди:**
-```java
-                    b.setGuestName(guestName);
+Коммит:
 ```
-
-**Замени на:**
-```java
-                    b.setGuestName(PdAnonymizer.toInitial(guestName));
-```
-
-**Плюс — поиск дубликатов** (строка 81 использовала `guestName`).
-Ищем существующие брони по инициалам:
-
-**Найди:**
-```java
-                            propertyId, guestName, checkIn, checkOut)) {
-```
-
-**Замени на:**
-```java
-                            propertyId, PdAnonymizer.toInitial(guestName), checkIn, checkOut)) {
-```
-
-**Плюс телефон** — найди установку `b.setGuestPhone(...)` в ImportService (если есть) и замени значение на `null` или удали строку. Скинь если не найдёшь — уточню.
-
----
-
-## 4. FeedbackController.java
-
-**Импорт:**
-```java
-import ru.rentoptima.util.PdAnonymizer;
-```
-
-**Найди:**
-```java
-        response.setGuestName(request.guestName());
-```
-
-**Замени на:**
-```java
-        response.setGuestName(PdAnonymizer.toInitial(request.guestName()));
-```
-
-Гость сам вводит своё имя в форму — обрезаем до инициала.
-
----
-
-## 5. RcSyncService.java
-
-Проверить строку где создаётся Booking и устанавливается guest:
-
-```bash
-grep -n "setGuestName\|setGuestPhone" src/main/java/ru/rentoptima/service/RcSyncService.java
-```
-
-Если там `b.setGuestName(rcB.guestName())` — уже правильно, т.к. `rcB` уже приходит из `PricingEngine` с обезличенными данными.
-Если там что-то ещё — скинь, поправим.
-
----
-
-## 6. Проверка логов
-
-Запусти на всякий случай:
-```bash
-grep -rn 'log\..*guest\|log\..*fio\|log\..*phone' src/main/java/ru/rentoptima/
-```
-
-Скинь вывод — если увидим `log.info("... {}", guest)` где guest — полное имя, поправим на маску. Логика: даже если у нас в БД инициалы, в логах могут быть полные ФИО (например RcSyncService логгирует до передачи в анонимизатор).
-
----
-
-## 7. WebhookController.java
-
-Проверь как принимает вебхуки:
-```bash
-grep -n "setGuestName\|fio\|phone" src/main/java/ru/rentoptima/controller/WebhookController.java
-```
-
-Скинь вывод. Если данные читаются напрямую там (а не в WebhookService), нужно ещё один патч.
-
----
-
-## После деплоя
-
-1. Проверь БД:
-```bash
-docker compose exec db psql -U rentoptima -c "
-SELECT COUNT(*) as with_full_name FROM bookings 
-WHERE LENGTH(guest_name) > 3 AND guest_name NOT LIKE 'Ручное%';
-SELECT COUNT(*) as with_phone FROM bookings WHERE guest_phone IS NOT NULL;
-"
-```
-
-Оба должны быть 0.
-
-2. Проверь свежие брони после ближайшего sync — должны приходить как «Р.», «I.», без телефонов.
-
----
-
-**Коммит:**
-```
-feat: PD anonymization at entry points (RC events, webhooks, XLS import, feedback form)
+feat: AI comments history on dashboard
 ```

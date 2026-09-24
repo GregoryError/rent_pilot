@@ -23,6 +23,7 @@ public class DashboardController {
     private final SettingsService settings;
 
     private final PricingLearningService learningService;
+    private final ru.rentoptima.repository.AiCommentRepository aiCommentRepo;
 
     @GetMapping("/dashboard")
     public String dashboard(Model model) {
@@ -52,6 +53,10 @@ public class DashboardController {
         model.addAttribute("pace", pace);
         model.addAttribute("actionItems", actionItems);
         model.addAttribute("learningSummary", learningService.getLatestSummary(tenantId));
+
+        var aiComments = aiCommentRepo.findByTenantIdOrderByCreatedAtDesc(
+                tenantId, org.springframework.data.domain.PageRequest.of(0, 5));
+        model.addAttribute("aiComments", aiComments);
 
         return "pages/dashboard/index";
     }

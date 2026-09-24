@@ -70,6 +70,24 @@
         </div>
     </div>
 
+    <!-- AI comments history -->
+    <div class="card" th:if="${aiComments != null and !#lists.isEmpty(aiComments)}"
+         style="margin-bottom: var(--sp-5);">
+        <div class="card__header">
+            <div class="card__title">ÐÐ¾Ð¼Ð¼ÐµÐ½ÑÐ°ÑÐ¸Ð¸ AI-Ð¿Ð¾Ð¼Ð¾ÑÐ½Ð¸ÐºÐ°</div>
+        </div>
+        <div th:each="c : ${aiComments}"
+             style="padding: var(--sp-3) 0; border-bottom: 1px solid var(--border-subtle);">
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--sp-2);">
+            <span style="font-family: var(--font-mono); color: var(--text-secondary); font-size: var(--text-sm);"
+                  th:text="${#temporals.format(c.createdAt, 'dd.MM HH:mm')}"></span>
+                <span class="tag tag--amber" th:if="${c.adjustmentsCount > 0}"
+                      th:text="${c.adjustmentsCount} + ' Ð¸Ð·Ð¼ÐµÐ½ÐµÐ½Ð¸Ð¹'"></span>
+            </div>
+            <p style="margin: 0; color: var(--text); line-height: 1.5;" th:text="${c.comment}"></p>
+        </div>
+    </div>
+
     <!-- Action Items (from gpt_proposal: "что делать сегодня") -->
     <div class="card" th:if="${!actionItems.isEmpty()}">
         <div class="card__header">

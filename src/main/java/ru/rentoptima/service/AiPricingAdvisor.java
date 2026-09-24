@@ -39,9 +39,8 @@ public class AiPricingAdvisor {
     private final ObjectMapper objectMapper;
     private final BookingStatsService bookingStatsService;
     private final FeedbackAnalyticsService feedbackAnalytics;
-
     private final RestTemplate restTemplate = new RestTemplate();
-
+    private final ru.rentoptima.repository.AiCommentRepository aiCommentRepo;
     private static final String API_URL = "https://api.anthropic.com/v1/messages";
 
     public Map<LocalDate, Double> getAdjustments(
@@ -60,7 +59,7 @@ public class AiPricingAdvisor {
         try {
             String prompt = buildPrompt(property, recs, tenantId, competitorAnalysis);
             String response = callApi(apiKey, prompt);
-            return parseResponse(response);
+            return parseResponse(response, tenantId, property.getId());
         } catch (Exception e) {
             log.warn("AI pricing failed: {}", e.getMessage());
             return Map.of();
@@ -237,16 +236,14 @@ public class AiPricingAdvisor {
         return response.getBody().get("content").get(0).path("text").asText();
     }
 
-    private Map<LocalDate, Double> parseResponse(String json) {
+    private Map<LocalDate, Double> parseResponse(String json,
+                                                 Long tenantId, Long propertyId) {
         Map<LocalDate, Double> result = new HashMap<>();
         try {
             String cleaned = json.replaceAll("```json|```", "").trim();
             JsonNode root = objectMapper.readTree(cleaned);
 
             String comment = root.path("comment").asText("");
-            if (!comment.isEmpty()) {
-                log.info("AI pricing comment: {}", comment);
-            }
 
             JsonNode adj = root.path("adjustments");
             if (adj.isObject()) {
@@ -262,6 +259,21 @@ public class AiPricingAdvisor {
                                 entry.getKey(), e.getMessage());
                     }
                 });
+            }
+
+            // Save comment to DB for dashboard
+            if (!comment.isEmpty()) {
+                log.info("AI pricing comment: {}", comment);
+                try {
+                    ru.rentoptima.entity.AiComment c = new ru.rentoptima.entity.AiComment();
+                    c.setTenantId(tenantId);
+                    c.setPropertyId(propertyId);
+                    c.setComment(comment);
+                    c.setAdjustmentsCount(result.size());
+                    aiCommentRepo.save(c);
+                } catch (Exception e) {
+                    log.warn("Failed to save AI comment: {}", e.getMessage());
+                }
             }
 
             log.info("AI pricing: {} adjustments applied", result.size());
