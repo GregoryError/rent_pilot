@@ -198,6 +198,14 @@ public class PricingEngine {
         }
         final Map<LocalDate, Double> adjustments = aiAdjustments;
 
+        double bookingPaceVal = 0;
+        try {
+            bookingPaceVal = statsService.getBookingPace(tenantId).currentOccupancy();
+        } catch (Exception e) {
+            log.debug("BookingPace fetch failed: {}", e.getMessage());
+        }
+        final double bookingPaceFinal = bookingPaceVal;
+
         /*
          * 5. Рейтинговый множитель (единожды на весь цикл)
          */
@@ -292,10 +300,10 @@ public class PricingEngine {
                         priceInt, minStayInt,
                         adjustments.get(rec.date()),
                         (int) java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), rec.date()),
-                        null,
+                        rec.windowLen(),
                         rec.date().getDayOfWeek().getValue() >= 5,
                         prodCalendar.isHoliday(rec.date()),
-                        null,
+                        bookingPaceFinal,
                         competitorAnalysis != null && competitorAnalysis.avgPriceByDate().containsKey(rec.date())
                                 ? competitorAnalysis.avgPriceByDate().get(rec.date()).intValue()
                                 : null
@@ -503,7 +511,7 @@ public class PricingEngine {
                 result.add(new PricingRecommendation(
                         d, BigDecimal.ZERO, BigDecimal.ZERO,
                         0, 0, BigDecimal.ZERO,
-                        DayStatus.BOOKED, "Забронировано", 100));
+                        DayStatus.BOOKED, "Забронировано", 100, 0));
                 continue;
             }
 
@@ -603,7 +611,8 @@ public class PricingEngine {
                     netPerNight,
                     isGap ? DayStatus.GAP : DayStatus.FREE,
                     reason,
-                    confidence
+                    confidence,
+                    windowLen
             ));
         }
 
@@ -843,6 +852,7 @@ public class PricingEngine {
             BigDecimal netPerNight,
             DayStatus status,
             String reason,
-            int confidence
+            int confidence,
+            int windowLen
     ) {}
 }
