@@ -11,6 +11,12 @@
             <h1 class="page-title">Dashboard</h1>
             <p class="page-subtitle" th:text="'Показатели за ' + ${T(java.time.LocalDate).now().getMonth()} + ' ' + ${T(java.time.LocalDate).now().getYear()}"></p>
         </div>
+        <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1.5rem;">
+            <a th:href="@{/dashboard(m=${prevMonth})}" class="btn btn-sm">‹ Пред</a>
+            <span style="font-family: var(--font-mono); font-size: 1.1rem; text-transform: capitalize;"
+                  th:text="${monthLabel}">Октябрь 2026</span>
+            <a th:href="@{/dashboard(m=${nextMonth})}" class="btn btn-sm">След ›</a>
+        </div>
         <div th:switch="${autopilotMode}">
             <span th:case="'OFF'" class="autopilot-badge autopilot-badge--off"><span class="autopilot-badge__dot"></span> Автопилот выкл</span>
             <span th:case="'SOFT'" class="autopilot-badge autopilot-badge--soft"><span class="autopilot-badge__dot"></span> Автопилот: мягкий</span>
@@ -32,7 +38,7 @@
             <div class="kpi__label">Ср. длительность</div>
             <div class="kpi__value" th:text="${kpi.avgNights()} + ' н.'">—</div>
         </div>
-        <div class="card" th:if="${avgRating != null}" style="margin-bottom: var(--sp-5);">
+        <div class="kpi" th:if="${avgRating != null}" style="margin-bottom: var(--sp-5);">
             <div class="kpi__label">Средний рейтинг</div>
             <div class="kpi__value" th:text="${#numbers.formatDecimal(avgRating, 1, 2) + ' / 10'}"></div>
             <div class="kpi__hint">за последние 90 дней</div>
@@ -46,11 +52,6 @@
             <div class="kpi__label">Расход на уборку</div>
             <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.cleaningCost(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">—</div>
             <div class="kpi__delta muted" style="font-size:var(--text-xs)" th:text="${kpi.checkouts()} + ' выездов'"></div>
-        </div>
-        <div class="card" th:if="${avgRating != null}" style="margin-bottom: var(--sp-5);">
-            <div class="kpi__label">Средний рейтинг</div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(avgRating, 1, 2) + ' / 10'}"></div>
-            <div class="kpi__hint">за последние 90 дней</div>
         </div>
     </div>
 

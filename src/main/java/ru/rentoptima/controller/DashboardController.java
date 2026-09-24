@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.BookingStatsService;
@@ -27,14 +28,24 @@ public class DashboardController {
     private final ru.rentoptima.service.FeedbackAnalyticsService feedbackAnalytics;
 
     @GetMapping("/dashboard")
-    public String dashboard(Model model) {
+    public String dashboard(@RequestParam(required = false) String m, Model model) {
         Long tenantId = AuthContext.tenantId();
         var properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
         var settingsMap = settings.getSettingsMap(tenantId);
 
         LocalDate now = LocalDate.now();
-        LocalDate monthStart = now.withDayOfMonth(1);
-        LocalDate monthEnd = now.plusMonths(1).withDayOfMonth(1).minusDays(1);
+        java.time.YearMonth targetMonth;
+        try {
+            targetMonth = (m != null && !m.isBlank())
+                    ? java.time.YearMonth.parse(m)
+                    : java.time.YearMonth.from(now);
+        } catch (Exception e) {
+            targetMonth = java.time.YearMonth.from(now);
+        }
+        LocalDate monthStart = targetMonth.atDay(1);
+        LocalDate monthEnd = targetMonth.atEndOfMonth();
+
+
 
         // Current month KPIs
         var kpi = statsService.getKpi(tenantId, monthStart, monthEnd);
@@ -68,6 +79,13 @@ public class DashboardController {
             }
         }
         model.addAttribute("avgRating", avgRating);
+
+        model.addAttribute("currentMonth", targetMonth.toString());
+        model.addAttribute("prevMonth", targetMonth.minusMonths(1).toString());
+        model.addAttribute("nextMonth", targetMonth.plusMonths(1).toString());
+        model.addAttribute("monthLabel", targetMonth.getMonth()
+                .getDisplayName(java.time.format.TextStyle.FULL, new java.util.Locale("ru"))
+                + " " + targetMonth.getYear());
 
         return "pages/dashboard/index";
     }
