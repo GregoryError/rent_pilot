@@ -32,6 +32,11 @@
             <div class="kpi__label">Ср. длительность</div>
             <div class="kpi__value" th:text="${kpi.avgNights()} + ' н.'">—</div>
         </div>
+        <div class="card" th:if="${avgRating != null}" style="margin-bottom: var(--sp-5);">
+            <div class="kpi__label">Средний рейтинг</div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(avgRating, 1, 2) + ' / 10'}"></div>
+            <div class="kpi__hint">за последние 90 дней</div>
+        </div>
         <div class="kpi">
             <div class="kpi__label">Net RevPAR</div>
             <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.netRevPar(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">—</div>
@@ -41,6 +46,11 @@
             <div class="kpi__label">Расход на уборку</div>
             <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.cleaningCost(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">—</div>
             <div class="kpi__delta muted" style="font-size:var(--text-xs)" th:text="${kpi.checkouts()} + ' выездов'"></div>
+        </div>
+        <div class="card" th:if="${avgRating != null}" style="margin-bottom: var(--sp-5);">
+            <div class="kpi__label">Средний рейтинг</div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(avgRating, 1, 2) + ' / 10'}"></div>
+            <div class="kpi__hint">за последние 90 дней</div>
         </div>
     </div>
 

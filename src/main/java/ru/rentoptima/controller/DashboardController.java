@@ -24,6 +24,7 @@ public class DashboardController {
 
     private final PricingLearningService learningService;
     private final ru.rentoptima.repository.AiCommentRepository aiCommentRepo;
+    private final ru.rentoptima.service.FeedbackAnalyticsService feedbackAnalytics;
 
     @GetMapping("/dashboard")
     public String dashboard(Model model) {
@@ -57,6 +58,16 @@ public class DashboardController {
         var aiComments = aiCommentRepo.findByTenantIdOrderByCreatedAtDesc(
                 tenantId, org.springframework.data.domain.PageRequest.of(0, 5));
         model.addAttribute("aiComments", aiComments);
+
+        Double avgRating = null;
+        if (!properties.isEmpty()) {
+            try {
+                avgRating = feedbackAnalytics.averageRating(tenantId, properties.get(0).getId());
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+        model.addAttribute("avgRating", avgRating);
 
         return "pages/dashboard/index";
     }
