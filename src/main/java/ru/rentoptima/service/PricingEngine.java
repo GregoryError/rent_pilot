@@ -12,6 +12,7 @@ import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.service.CompetitorService.CompetitorAnalysis;
 import ru.rentoptima.entity.PricingDecision;
 import ru.rentoptima.repository.PricingDecisionRepository;
+import ru.rentoptima.util.PdAnonymizer;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -718,12 +719,12 @@ public class PricingEngine {
                 LocalDate end = LocalDate.parse(endStr);
                 long rcId = ev.path("id").asLong(0);
 
-                String guest = ev.path("client").path("fio").asText(null);
-                if (guest != null) guest = guest.trim();
-                if (guest != null && guest.isEmpty()) guest = null;
-
-                String phone = ev.path("client").path("phone").asText(null);
+                String guestRaw = ev.path("client").path("fio").asText(null);
+                String guest = PdAnonymizer.toInitial(guestRaw);
+                String phone = PdAnonymizer.stripPhone(
+                        ev.path("client").path("phone").asText(null));
                 double amount = ev.path("amount").asDouble(0);
+
                 int sourceId = ev.path("source_id").asInt(0);
 
                 if ((guest == null || guest.isBlank()) && amount == 0.0) {
@@ -782,12 +783,12 @@ public class PricingEngine {
                 LocalDate end = LocalDate.parse(endStr);
                 long rcId = ev.path("id").asLong(0);
 
-                String guest = ev.path("client").path("fio").asText(null);
-                if (guest != null) guest = guest.trim();
-                if (guest != null && guest.isEmpty()) guest = null;
-
-                String phone = ev.path("client").path("phone").asText(null);
+                String guestRaw = ev.path("client").path("fio").asText(null);
+                String guest = PdAnonymizer.toInitial(guestRaw);
+                String phone = PdAnonymizer.stripPhone(
+                        ev.path("client").path("phone").asText(null));
                 double amount = ev.path("amount").asDouble(0);
+
                 int sourceId = ev.path("source_id").asInt(0);
 
                 if ((guest == null || guest.isBlank()) && amount == 0.0) {

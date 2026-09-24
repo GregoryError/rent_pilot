@@ -9,6 +9,7 @@ import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.PropertyRepository;
+import ru.rentoptima.util.PdAnonymizer;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -145,9 +146,9 @@ public class WebhookService {
         JsonNode client = b.path("client");
         if (!client.isMissingNode()) {
             String fio = getText(client, "fio");
-            if (fio != null) booking.setGuestName(fio);
-            String phone = getText(client, "phone");
-            if (phone != null) booking.setGuestPhone(phone);
+            String initial = PdAnonymizer.toInitial(fio);
+            if (initial != null) booking.setGuestName(initial);
+            booking.setGuestPhone(PdAnonymizer.stripPhone(getText(client, "phone")));
         }
 
         // Notes

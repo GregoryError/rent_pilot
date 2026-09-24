@@ -14,6 +14,7 @@ import ru.rentoptima.repository.FeedbackAnswerRepository;
 import ru.rentoptima.repository.FeedbackQuestionRepository;
 import ru.rentoptima.repository.FeedbackResponseRepository;
 import ru.rentoptima.repository.PropertyRepository;
+import ru.rentoptima.util.PdAnonymizer;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,7 +55,7 @@ public class FeedbackController {
                     r.setSessionId(request.sessionId());
                     return r;
                 });
-        response.setGuestName(request.guestName());
+        response.setGuestName(PdAnonymizer.toInitial(request.guestName()));
         response.setUpdatedAt(LocalDateTime.now());
         response.setCompleted(Boolean.TRUE.equals(request.completed()));
         response = feedbackRepo.save(response);
