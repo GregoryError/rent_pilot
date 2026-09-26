@@ -41,7 +41,11 @@ public class AiPricingAdvisor {
     private final FeedbackAnalyticsService feedbackAnalytics;
     private final RestTemplate restTemplate = new RestTemplate();
     private final ru.rentoptima.repository.AiCommentRepository aiCommentRepo;
-    private static final String API_URL = "https://api.anthropic.com/v1/messages";
+
+
+//    private static final String API_URL = "https://api.anthropic.com/v1/messages";
+    private static final String API_URL = "https://anthropic-proxy.errorgrisha.workers.dev/v1/messages";
+
 
     public Map<LocalDate, Double> getAdjustments(
             Property property,
