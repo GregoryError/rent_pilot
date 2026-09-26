@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.repository.BookingRepository;
+import java.util.HashSet;
+import java.util.HashMap;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -99,6 +101,7 @@ public class AiChatService {
         }
     }
 
+
     private String buildSystemPrompt(Long tenantId) {
         Map<String, String> s = settings.getSettingsMap(tenantId);
         LocalDate now = LocalDate.now();
@@ -183,9 +186,16 @@ public class AiChatService {
                         Историческая норма: %s%%
                         Статус: %s
 
-                        === НЕДАВНИЕ БРОНИРОВАНИЯ (±30 дней) ===
-                        %s
-                        """,
+                                        === КАЛЕНДАРЬ (30 дней вперёд) ===
+                Формат: дата день_недели статус цена
+                ВАЖНО: "день выезда" — это свободный день. Гость уезжает утром
+                (обычно до 12:00), вечером может заехать новый. Такие дни доступны
+                для бронирования.
+                %s
+
+                === НЕДАВНИЕ БРОНИРОВАНИЯ (±30 дней) ===
+                %s
+                """,
                 s.getOrDefault("city", "Выборг"),
                 now,
                 s.getOrDefault("city", "Выборг"),
@@ -199,8 +209,57 @@ public class AiChatService {
                 kpi.cleaningCost(), kpi.netRevPar(),
                 pace.month(), pace.currentOccupancy(),
                 pace.historicalAvg(), pace.status(),
+                buildCalendarSection(tenantId),
                 recentStr.toString()
         );
+    }
+
+    private String buildCalendarSection(Long tenantId) {
+        LocalDate today = LocalDate.now();
+        LocalDate to = today.plusDays(30);
+
+        List<Booking> bookings = bookingRepo.findActiveInRangeForTenant(
+                tenantId, today, to);
+
+        java.util.Set<LocalDate> bookedDates = new java.util.HashSet<>();
+        java.util.Map<LocalDate, String> checkoutsByDate = new java.util.HashMap<>();
+
+        for (Booking b : bookings) {
+            LocalDate d = b.getCheckIn();
+            while (d.isBefore(b.getCheckOut())) {
+                bookedDates.add(d);
+                d = d.plusDays(1);
+            }
+            checkoutsByDate.put(b.getCheckOut(),
+                    b.getGuestName() != null ? b.getGuestName() : "?");
+        }
+
+        Map<String, String> s = settings.getSettingsMap(tenantId);
+        int weekday = Integer.parseInt(s.getOrDefault("weekday_base_price", "3200"));
+        int weekend = Integer.parseInt(s.getOrDefault("weekend_base_price", "4200"));
+
+        String[] days = {"Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"};
+        StringBuilder sb = new StringBuilder();
+
+        for (LocalDate d = today; !d.isAfter(to); d = d.plusDays(1)) {
+            int dow = d.getDayOfWeek().getValue();
+            String dayName = days[dow - 1];
+            boolean isWeekend = dow >= 5;
+            int price = isWeekend ? weekend : weekday;
+
+            String status;
+            if (bookedDates.contains(d)) {
+                status = "занято";
+            } else if (checkoutsByDate.containsKey(d)) {
+                status = "свободно (день выезда " + checkoutsByDate.get(d) + ")";
+            } else {
+                status = "свободно";
+            }
+
+            sb.append(String.format("%s %s %s %d₽%n", d, dayName, status, price));
+        }
+
+        return sb.toString();
     }
 
     private JsonNode buildRequest(String systemPrompt, String userMessage,
