@@ -30,7 +30,9 @@ public class AiChatService {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
-    private static final String API_URL = "https://api.anthropic.com/v1/messages";
+//    private static final String API_URL = "https://api.anthropic.com/v1/messages";
+
+    private static final String API_URL = "https://anthropic-proxy.errorgrisha.workers.dev/v1/messages";
     private static final Pattern ACTION_PATTERN =
             Pattern.compile("<action>\\s*(\\{.*?\\})\\s*</action>", Pattern.DOTALL);
 
