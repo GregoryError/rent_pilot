@@ -87,6 +87,10 @@ public class DashboardController {
                 .getDisplayName(java.time.format.TextStyle.FULL, new java.util.Locale("ru"))
                 + " " + targetMonth.getYear());
 
+        java.math.BigDecimal totalExpenses = expenseService.getTotalExpenses(tenantId, monthStart, monthEnd);
+        java.math.BigDecimal netIncome = kpi.revenue().subtract(totalExpenses);
+        model.addAttribute("netIncome", netIncome);
+
         return "pages/dashboard/index";
     }
 }

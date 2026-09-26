@@ -18,40 +18,98 @@
             <a th:href="@{/dashboard(m=${nextMonth})}" class="btn btn-sm">След ›</a>
         </div>
         <div th:switch="${autopilotMode}">
-            <span th:case="'OFF'" class="autopilot-badge autopilot-badge--off"><span class="autopilot-badge__dot"></span> Автопилот выкл</span>
-            <span th:case="'SOFT'" class="autopilot-badge autopilot-badge--soft"><span class="autopilot-badge__dot"></span> Автопилот: мягкий</span>
-            <span th:case="'FULL'" class="autopilot-badge autopilot-badge--full"><span class="autopilot-badge__dot"></span> Автопилот: полный</span>
+            <span th:case="'OFF'" class="autopilot-badge autopilot-badge--off"><span
+                    class="autopilot-badge__dot"></span> Автопилот выкл</span>
+            <span th:case="'SOFT'" class="autopilot-badge autopilot-badge--soft"><span
+                    class="autopilot-badge__dot"></span> Автопилот: мягкий</span>
+            <span th:case="'FULL'" class="autopilot-badge autopilot-badge--full"><span
+                    class="autopilot-badge__dot"></span> Автопилот: полный</span>
         </div>
     </div>
 
     <!-- KPI Row -->
     <div class="kpi-row">
         <div class="kpi">
+            <div class="kpi__icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                </svg>
+            </div>
             <div class="kpi__label">Доход</div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.revenue(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">—</div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.revenue(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">
+                —
+            </div>
         </div>
+
+        <div class="kpi" th:if="${netIncome != null}">
+            <div class="kpi__icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M20 12V8H6a2 2 0 010-4h12v4M4 6v12a2 2 0 002 2h14v-4M18 12a2 2 0 000 4h4v-4z"/>
+                </svg>
+            </div>
+            <div class="kpi__label">Чистый доход</div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(netIncome, 1, 'COMMA', 0, 'POINT')} + ' ₽'">—
+            </div>
+            <div class="kpi__delta muted" style="font-size:var(--text-xs)">Доход минус расходы</div>
+        </div>
+
         <div class="kpi">
+            <div class="kpi__icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12l2-2 2 2 4-4 4 4 4-4 2 2M3 20h18"/>
+                </svg>
+            </div>
             <div class="kpi__label">Заполняемость</div>
             <div class="kpi__value" th:text="${kpi.occupancy()} + '%'">—</div>
         </div>
+
         <div class="kpi">
+            <div class="kpi__icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 6v6l4 2"/>
+                </svg>
+            </div>
             <div class="kpi__label">Ср. длительность</div>
             <div class="kpi__value" th:text="${kpi.avgNights()} + ' н.'">—</div>
         </div>
+
         <div class="kpi" th:if="${avgRating != null}">
+            <div class="kpi__icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <polygon points="12 2 15 8.5 22 9.3 17 14 18.2 21 12 17.8 5.8 21 7 14 2 9.3 9 8.5"/>
+                </svg>
+            </div>
             <div class="kpi__label">Средний рейтинг</div>
             <div class="kpi__value" th:text="${#numbers.formatDecimal(avgRating, 1, 2) + ' / 10'}"></div>
             <div class="kpi__hint">за последние 90 дней</div>
         </div>
+
         <div class="kpi">
+            <div class="kpi__icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                </svg>
+            </div>
             <div class="kpi__label">Net RevPAR</div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.netRevPar(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">—</div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.netRevPar(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">
+                —
+            </div>
             <div class="kpi__delta muted" style="font-size:var(--text-xs)">Чистый доход / день</div>
         </div>
+
         <div class="kpi">
+            <div class="kpi__icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6l3 12h12l3-12M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
+                </svg>
+            </div>
             <div class="kpi__label">Расход на уборку</div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.cleaningCost(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">—</div>
-            <div class="kpi__delta muted" style="font-size:var(--text-xs)" th:text="${kpi.checkouts()} + ' выездов'"></div>
+            <div class="kpi__value"
+                 th:text="${#numbers.formatDecimal(kpi.cleaningCost(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">—
+            </div>
+            <div class="kpi__delta muted" style="font-size:var(--text-xs)"
+                 th:text="${kpi.checkouts()} + ' выездов'"></div>
         </div>
     </div>
 
@@ -105,7 +163,8 @@
             <div class="card__title">Требует внимания</div>
             <span class="tag tag--amber" th:text="${#lists.size(actionItems)}"></span>
         </div>
-        <div th:each="item : ${actionItems}" style="padding: var(--sp-3) 0; border-bottom: 1px solid var(--border-subtle);">
+        <div th:each="item : ${actionItems}"
+             style="padding: var(--sp-3) 0; border-bottom: 1px solid var(--border-subtle);">
             <div class="flex items-center gap-4">
                 <span th:if="${item.type() == 'CLEANING'}" style="font-size: 1.2em;">🧹</span>
                 <span th:if="${item.type() == 'GAP'}" style="font-size: 1.2em;">⚠</span>
@@ -113,7 +172,8 @@
                 <div>
                     <div style="font-weight: var(--weight-medium)" th:text="${item.title()}"></div>
                     <div class="text-sm muted" th:text="${item.detail()}"></div>
-                    <div class="text-sm" style="color: var(--accent)" th:if="${item.recommendation()}" th:text="${item.recommendation()}"></div>
+                    <div class="text-sm" style="color: var(--accent)" th:if="${item.recommendation()}"
+                         th:text="${item.recommendation()}"></div>
                 </div>
             </div>
         </div>
@@ -125,18 +185,26 @@
             <div class="card__title">Объекты</div>
         </div>
         <div th:if="${#lists.isEmpty(properties)}" class="muted text-sm">
-            Нет объектов. <a th:href="@{/settings}">Добавьте в настройках</a>, затем <a th:href="@{/import}">импортируйте бронирования</a>.
+            Нет объектов. <a th:href="@{/settings}">Добавьте в настройках</a>, затем <a th:href="@{/import}">импортируйте
+            бронирования</a>.
         </div>
         <div class="table-wrap" th:unless="${#lists.isEmpty(properties)}">
             <table>
-                <thead><tr><th>Название</th><th>Город</th><th>RC ID</th><th>Статус</th></tr></thead>
+                <thead>
+                <tr>
+                    <th>Название</th>
+                    <th>Город</th>
+                    <th>RC ID</th>
+                    <th>Статус</th>
+                </tr>
+                </thead>
                 <tbody>
-                    <tr th:each="prop : ${properties}">
-                        <td th:text="${prop.name}"></td>
-                        <td th:text="${prop.city}"></td>
-                        <td class="mono muted" th:text="${prop.rcObjectId ?: '—'}"></td>
-                        <td><span class="tag tag--green">Активен</span></td>
-                    </tr>
+                <tr th:each="prop : ${properties}">
+                    <td th:text="${prop.name}"></td>
+                    <td th:text="${prop.city}"></td>
+                    <td class="mono muted" th:text="${prop.rcObjectId ?: '—'}"></td>
+                    <td><span class="tag tag--green">Активен</span></td>
+                </tr>
                 </tbody>
             </table>
         </div>
