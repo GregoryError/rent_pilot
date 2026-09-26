@@ -1,6 +1,7 @@
 package ru.rentoptima.service;
 
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.math3.analysis.function.Exp;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.rentoptima.entity.Booking;
@@ -20,6 +21,7 @@ public class ExpenseService {
     private final ExpenseRepository expenseRepo;
     private final ExpenseCategoryRepository categoryRepo;
     private final SettingsService settings;
+
 
     public List<Expense> getExpenses(Long tenantId, LocalDate from, LocalDate to) {
         return expenseRepo.findByTenantIdAndDateBetweenOrderByDateDesc(tenantId, from, to);
@@ -76,5 +78,10 @@ public class ExpenseService {
     public BigDecimal getTotalExpenses(Long tenantId, LocalDate from, LocalDate to) {
         BigDecimal total = expenseRepo.sumByTenantIdAndDateBetween(tenantId, from, to);
         return total != null ? total : BigDecimal.ZERO;
+    }
+
+    public java.math.BigDecimal getExpensesExcludingCleaning(
+            Long tenantId, java.time.LocalDate from, java.time.LocalDate to) {
+        return expenseRepo.sumExcludingCategory(tenantId, from, to, 1L);
     }
 }
