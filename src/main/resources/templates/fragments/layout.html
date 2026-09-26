@@ -78,6 +78,315 @@
     </main>
 </div>
 
+<!-- Floating AI Chat -->
+<div id="floating-chat">
+    <!-- Trigger button -->
+    <button id="fc-button" onclick="toggleFloatingChat()" title="AI Помощник">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span id="fc-badge" style="display:none;"></span>
+    </button>
+
+    <!-- Panel -->
+    <div id="fc-panel">
+        <div id="fc-header">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                </svg>
+                <span style="font-weight:600;">AI Помощник</span>
+            </div>
+            <div style="display:flex; gap:4px;">
+                <a th:href="@{/chat}" title="Открыть полный чат" style="color:var(--text-secondary); text-decoration:none; padding:4px 8px; font-size:12px;">↗</a>
+                <button onclick="toggleFloatingChat()" title="Свернуть" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:18px; padding:0 8px;">×</button>
+            </div>
+        </div>
+
+        <div id="fc-messages"></div>
+
+        <div id="fc-input-row">
+            <textarea id="fc-input" rows="1" placeholder="Спросить..."
+                      onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();fcSend()}"></textarea>
+            <button id="fc-send" onclick="fcSend()">↑</button>
+        </div>
+    </div>
+</div>
+
+<style>
+    #fc-button {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 9999;
+        transition: transform 0.15s;
+    }
+    #fc-button:hover { transform: scale(1.05); }
+    #fc-badge {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        background: #dc2626;
+        color: #fff;
+        font-size: 10px;
+        font-weight: 600;
+        min-width: 16px;
+        height: 16px;
+        border-radius: 8px;
+        padding: 0 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    #fc-panel {
+        position: fixed;
+        bottom: 90px;
+        right: 20px;
+        width: 380px;
+        max-width: calc(100vw - 40px);
+        height: 520px;
+        max-height: calc(100vh - 120px);
+        background: var(--bg-surface, #1a1a1a);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        display: none;
+        flex-direction: column;
+        z-index: 9999;
+        overflow: hidden;
+    }
+    #fc-panel.open { display: flex; }
+
+    #fc-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--border-subtle);
+        color: var(--text-primary);
+    }
+
+    #fc-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 12px 16px;
+    }
+    #fc-messages .fc-msg {
+        margin-bottom: 12px;
+        font-size: 13px;
+        line-height: 1.5;
+    }
+    #fc-messages .fc-msg-role {
+        font-size: 10px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        margin-bottom: 3px;
+    }
+    #fc-messages .fc-msg-body {
+        padding: 8px 12px;
+        border-radius: 8px;
+        white-space: pre-wrap;
+    }
+    #fc-messages .fc-msg--user .fc-msg-body {
+        background: var(--accent-glow, rgba(108,140,255,0.15));
+        max-width: 85%;
+        margin-left: auto;
+    }
+    #fc-messages .fc-msg--ai .fc-msg-body {
+        background: var(--bg-raised);
+        border: 1px solid var(--border-subtle);
+    }
+
+    .fc-action {
+        margin-top: 8px;
+        padding: 10px;
+        background: rgba(245,158,11,0.1);
+        border: 1px solid rgba(245,158,11,0.3);
+        border-radius: 6px;
+        font-size: 12px;
+    }
+    .fc-action-desc { margin-bottom: 8px; color: var(--text-primary); }
+    .fc-action-buttons { display: flex; gap: 6px; }
+    .fc-action-btn {
+        padding: 4px 10px;
+        border-radius: 4px;
+        font-size: 12px;
+        border: 1px solid var(--border);
+        background: var(--bg-raised);
+        color: var(--text-primary);
+        cursor: pointer;
+    }
+    .fc-action-btn--apply { background: var(--amber); color: #000; border-color: var(--amber); }
+
+    #fc-input-row {
+        display: flex;
+        gap: 8px;
+        padding: 10px;
+        border-top: 1px solid var(--border-subtle);
+    }
+    #fc-input {
+        flex: 1;
+        padding: 8px 10px;
+        background: var(--bg-raised);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text-primary);
+        font-family: inherit;
+        font-size: 13px;
+        resize: none;
+        outline: none;
+    }
+    #fc-send {
+        width: 34px;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 16px;
+    }
+    #fc-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Hide floating chat on /chat and /login pages to avoid duplication */
+    body.no-floating-chat #floating-chat { display: none; }
+
+    @media (max-width: 480px) {
+        #fc-panel {
+            right: 10px;
+            bottom: 80px;
+            width: calc(100vw - 20px);
+            height: calc(100vh - 100px);
+        }
+    }
+</style>
+
+<script>
+(function() {
+    // Hide on /chat and /login
+    if (location.pathname === '/chat' || location.pathname === '/login') {
+        document.body.classList.add('no-floating-chat');
+    }
+})();
+
+const fcMessagesEl = document.getElementById('fc-messages');
+const fcInputEl = document.getElementById('fc-input');
+const fcSendBtn = document.getElementById('fc-send');
+const fcPanel = document.getElementById('fc-panel');
+const fcCsrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
+const fcCsrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+
+let fcHistory = JSON.parse(localStorage.getItem('fc_history') || '[]');
+
+// Render history on load
+fcHistory.forEach(m => fcAddMsg(m.role, m.content, null, false));
+
+function toggleFloatingChat() {
+    fcPanel.classList.toggle('open');
+    if (fcPanel.classList.contains('open')) fcInputEl.focus();
+}
+
+function fcAddMsg(role, content, action, save = true) {
+    const div = document.createElement('div');
+    div.className = 'fc-msg fc-msg--' + (role === 'user' ? 'user' : 'ai');
+    div.innerHTML = `
+        <div class="fc-msg-role">${role === 'user' ? 'Вы' : 'AI'}</div>
+        <div class="fc-msg-body">${fcEscape(content)}</div>
+    `;
+    if (action) {
+        const act = document.createElement('div');
+        act.className = 'fc-action';
+        act.innerHTML = `
+            <div class="fc-action-desc">${fcEscape(action.description || action.type)}</div>
+            <div class="fc-action-buttons">
+                <button class="fc-action-btn fc-action-btn--apply">Применить</button>
+                <button class="fc-action-btn">Отмена</button>
+            </div>
+        `;
+        div.appendChild(act);
+        act.querySelector('.fc-action-btn--apply').onclick = () => fcApplyAction(act, action);
+        act.querySelector('.fc-action-btn:not(.fc-action-btn--apply)').onclick = () => act.remove();
+    }
+    fcMessagesEl.appendChild(div);
+    fcMessagesEl.scrollTop = fcMessagesEl.scrollHeight;
+    if (save) {
+        fcHistory.push({ role, content });
+        if (fcHistory.length > 20) fcHistory = fcHistory.slice(-20);
+        localStorage.setItem('fc_history', JSON.stringify(fcHistory));
+    }
+}
+
+async function fcApplyAction(container, action) {
+    container.querySelectorAll('button').forEach(b => b.disabled = true);
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (fcCsrfHeader && fcCsrfToken) headers[fcCsrfHeader] = fcCsrfToken;
+        const resp = await fetch('/api/chat/apply-action', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ actionJson: JSON.stringify(action) })
+        });
+        const data = await resp.json();
+        if (data.status === 'applied') {
+            container.innerHTML = '<div style="color:var(--green,#4ade80); text-align:center; padding:8px;">✓ Применено</div>';
+        } else {
+            container.innerHTML = '<div style="color:var(--red,#f87171); text-align:center; padding:8px;">Ошибка: ' + (data.error || 'неизвестная') + '</div>';
+        }
+    } catch (e) {
+        alert('Ошибка: ' + e.message);
+    }
+}
+
+function fcEscape(t) {
+    if (t == null) return '';
+    return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+async function fcSend() {
+    const msg = fcInputEl.value.trim();
+    if (!msg) return;
+    fcInputEl.value = '';
+    fcAddMsg('user', msg);
+    fcSendBtn.disabled = true;
+
+    const typing = document.createElement('div');
+    typing.className = 'fc-msg';
+    typing.innerHTML = '<div style="color:var(--text-muted); font-size:11px; padding:4px 0;">AI думает...</div>';
+    fcMessagesEl.appendChild(typing);
+    fcMessagesEl.scrollTop = fcMessagesEl.scrollHeight;
+
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (fcCsrfHeader && fcCsrfToken) headers[fcCsrfHeader] = fcCsrfToken;
+        const historyForApi = fcHistory.slice(0, -1); // Exclude current message we just added
+        const resp = await fetch('/api/chat', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ message: msg, history: historyForApi })
+        });
+        const data = await resp.json();
+        typing.remove();
+        fcAddMsg('ai', data.content, data.action);
+    } catch (e) {
+        typing.remove();
+        fcAddMsg('ai', 'Ошибка: ' + e.message);
+    }
+    fcSendBtn.disabled = false;
+    fcInputEl.focus();
+}
+</script>
+
 <script>
         // Auto-hide toast
         const toast = document.getElementById('toast');
