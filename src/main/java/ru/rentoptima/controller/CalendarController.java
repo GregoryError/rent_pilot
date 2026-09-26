@@ -76,6 +76,14 @@ public class CalendarController {
             int weekdayPrice = settings.getIntValue(tenantId, "weekday_base_price", 3200);
             int weekendPrice = settings.getIntValue(tenantId, "weekend_base_price", 4200);
 
+            double platformMarkup = 0;
+            try {
+                platformMarkup = Double.parseDouble(
+                        settings.getValue(tenantId, "platform_markup_pct")) / 100.0;
+            } catch (Exception e) {
+                platformMarkup = 0.18; // fallback
+            }
+
             for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
                 final LocalDate date = d;
                 Booking booking = bookings.stream()
@@ -88,9 +96,9 @@ public class CalendarController {
                 boolean isToday = d.equals(now);
                 boolean isPast = d.isBefore(now);
                 int basePrice = (isWeekend || isHoliday) ? weekendPrice : weekdayPrice;
-                // Prefer real RC price/min_stay when available
                 int displayPrice = rcPrices.getOrDefault(d, basePrice);
                 int displayMinStay = rcMinStays.getOrDefault(d, 1);
+                int platformPrice = (int) Math.round(displayPrice * (1 + platformMarkup));
 
                 String status;
                 String guestName = null;
@@ -114,7 +122,7 @@ public class CalendarController {
 
                 days.add(new CalendarDay(
                         d, d.getDayOfMonth(), d.getDayOfWeek().getValue(),
-                        status, guestName, source, displayPrice, displayMinStay,
+                        status, guestName, source, displayPrice, platformPrice, displayMinStay,
                         isWeekend, isHoliday, isGap, isToday, isPast,
                         isCheckIn, isCheckOut,
                         holidays.getOrDefault(d, null)
@@ -151,7 +159,8 @@ public class CalendarController {
 
     public record CalendarDay(
             LocalDate date, int dayOfMonth, int dayOfWeek,
-            String status, String guestName, String source, int basePrice, int minStay,
+            String status, String guestName, String source,
+            int basePrice, int platformPrice, int minStay,
             boolean weekend, boolean holiday, boolean gap, boolean today, boolean past,
             boolean checkIn, boolean checkOut, String holidayName
     ) {}

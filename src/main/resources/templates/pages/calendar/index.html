@@ -30,29 +30,55 @@
         }
         .cal-day {
             background: var(--bg-surface);
-            padding: var(--sp-2) var(--sp-3);
-            min-height: 90px;
+            padding: 6px 8px;
+            min-height: 100px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
             position: relative;
+            overflow: hidden;
         }
         .cal-day--empty { background: var(--bg-root); }
         .cal-day--today { outline: 2px solid var(--accent); outline-offset: -2px; z-index: 1; }
         .cal-day--past { opacity: 0.6; }
 
+        .cal-day-top {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 4px;
+        }
         .cal-num {
             font-size: var(--text-sm);
             font-weight: var(--weight-semibold);
             color: var(--text-primary);
+            line-height: 1;
         }
         .cal-num--weekend { color: var(--red); }
         .cal-num--holiday { color: var(--amber); }
+        .cal-min-stay-badge {
+            font-size: 0.65rem;
+            padding: 1px 5px;
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--amber);
+            border-radius: 3px;
+            font-weight: 600;
+        }
 
-        /* Booked day — solid colored block */
+        .cal-holiday-label {
+            font-size: 0.6rem;
+            color: var(--amber);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Booked day */
         .cal-booked {
-            margin-top: 4px;
-            padding: 4px 6px;
+            padding: 3px 5px;
             background: rgba(108,140,255,0.2);
             border-left: 3px solid var(--accent);
-            border-radius: 4px;
+            border-radius: 3px;
             font-size: 0.72rem;
             font-weight: 500;
             color: var(--accent);
@@ -62,50 +88,62 @@
         }
         .cal-booked--checkin { border-left-color: var(--green); }
 
-        /* Gap — red warning */
+        /* Gap */
         .cal-gap {
-            margin-top: 4px;
-            padding: 4px 6px;
+            padding: 3px 5px;
             background: rgba(248,113,113,0.2);
             border-left: 3px solid var(--red);
-            border-radius: 4px;
-            font-size: 0.72rem;
+            border-radius: 3px;
+            font-size: 0.7rem;
             font-weight: 600;
             color: var(--red);
         }
 
-        /* Free day — just price text */
-        .cal-free-price {
-            margin-top: 6px;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            font-family: var(--font-mono);
+        /* Prices for free days */
+        .cal-prices {
             display: flex;
-            justify-content: space-between;
-            gap: 6px;
+            flex-direction: column;
+            gap: 2px;
+            margin-top: auto;
+            font-family: var(--font-mono);
         }
-
-        .cal-min-stay {
-            font-size: 0.65rem;
-            color: var(--amber);
+        .cal-price-base {
+            font-size: 0.78rem;
+            color: var(--text-primary);
             font-weight: 600;
         }
-
-        .cal-holiday-label {
-            font-size: 0.6rem;
-            color: var(--amber);
-            margin-top: 2px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        .cal-price-platform {
+            font-size: 0.68rem;
+            color: var(--text-muted);
         }
 
         .cal-legend {
-            display: flex; gap: var(--sp-6); margin-top: var(--sp-5);
-            font-size: var(--text-xs); color: var(--text-secondary);
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--sp-5);
+            margin-top: var(--sp-6);
+            padding: var(--sp-4);
+            background: var(--bg-raised);
+            border-radius: var(--radius);
+            font-size: var(--text-xs);
+            color: var(--text-secondary);
         }
-        .cal-legend span { display: flex; align-items: center; gap: var(--sp-2); }
-        .cal-legend-dot { width: 12px; height: 12px; border-radius: 3px; }
+        .cal-legend-item { display: flex; align-items: center; gap: var(--sp-2); }
+        .cal-legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+        .cal-legend-price {
+            width: 40px;
+            text-align: right;
+            font-family: var(--font-mono);
+        }
+        .cal-legend-price--base {
+            font-size: 0.78rem;
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        .cal-legend-price--platform {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+        }
     </style>
 </head>
 <body>
@@ -144,13 +182,20 @@
             <div th:each="day : ${days}" class="cal-day"
                  th:classappend="${day.today() ? ' cal-day--today' : ''} + ${day.past() ? ' cal-day--past' : ''}">
 
-                <!-- Day number -->
-                <div class="cal-num"
-                     th:classappend="${day.holiday() ? ' cal-num--holiday' : (day.weekend() ? ' cal-num--weekend' : '')}"
-                     th:text="${day.dayOfMonth()}"></div>
+                <!-- Top: day number + min-stay badge -->
+                <div class="cal-day-top">
+                    <span class="cal-num"
+                          th:classappend="${day.holiday() ? ' cal-num--holiday' : (day.weekend() ? ' cal-num--weekend' : '')}"
+                          th:text="${day.dayOfMonth()}"></span>
+                    <span th:if="${day.status() == 'free' && !day.past() && day.minStay() > 1}"
+                          class="cal-min-stay-badge"
+                          th:text="${day.minStay()} + 'н'"></span>
+                </div>
 
                 <!-- Holiday label -->
-                <div th:if="${day.holidayName() != null}" class="cal-holiday-label" th:text="${day.holidayName()}" th:title="${day.holidayName()}"></div>
+                <div th:if="${day.holidayName() != null}" class="cal-holiday-label"
+                     th:text="${day.holidayName()}"
+                     th:title="${day.holidayName()}"></div>
 
                 <!-- BOOKED -->
                 <th:block th:if="${day.status() == 'booked'}">
@@ -167,20 +212,46 @@
 
                 <!-- FREE (future only) -->
                 <th:block th:if="${day.status() == 'free' && !day.past()}">
-                    <div class="cal-free-price">
-                        <span th:text="${day.basePrice()} + ' ₽'"></span>
-                        <span class="cal-min-stay" th:if="${day.minStay() > 1}" th:text="${day.minStay()} + 'н'"></span>
+                    <div class="cal-prices">
+                        <span class="cal-price-base" th:text="${day.basePrice()} + ' ₽'"></span>
+                        <span class="cal-price-platform" th:text="${day.platformPrice()} + ' ₽'"></span>
                     </div>
                 </th:block>
             </div>
         </div>
 
+        <!-- Legend -->
         <div class="cal-legend">
-            <span><div class="cal-legend-dot" style="background:rgba(108,140,255,0.3); border-left:3px solid var(--accent);"></div> Бронь</span>
-            <span><div class="cal-legend-dot" style="background:rgba(248,113,113,0.3); border-left:3px solid var(--red);"></div> Gap (дыра)</span>
-            <span><div class="cal-legend-dot" style="background:var(--amber);"></div> Праздник</span>
-            <span><div class="cal-legend-dot" style="background:var(--green);"></div> Заезд</span>
+            <div class="cal-legend-item">
+                <div class="cal-legend-swatch" style="background:rgba(108,140,255,0.3); border-left:3px solid var(--accent);"></div>
+                <span>Бронь</span>
+            </div>
+            <div class="cal-legend-item">
+                <div class="cal-legend-swatch" style="background:rgba(108,140,255,0.3); border-left:3px solid var(--green);"></div>
+                <span>Заезд</span>
+            </div>
+            <div class="cal-legend-item">
+                <div class="cal-legend-swatch" style="background:rgba(248,113,113,0.2); border-left:3px solid var(--red);"></div>
+                <span>Gap (дыра)</span>
+            </div>
+            <div class="cal-legend-item">
+                <div class="cal-legend-swatch" style="background:var(--amber);"></div>
+                <span>Праздник</span>
+            </div>
+            <div class="cal-legend-item">
+                <span class="cal-legend-price cal-legend-price--base">3200 ₽</span>
+                <span>— ваша цена</span>
+            </div>
+            <div class="cal-legend-item">
+                <span class="cal-legend-price cal-legend-price--platform">3776 ₽</span>
+                <span>— на площадках (с наценкой)</span>
+            </div>
+            <div class="cal-legend-item">
+                <span class="cal-min-stay-badge">2н</span>
+                <span>— минимальный срок</span>
+            </div>
         </div>
+
     </th:block>
 
 </div>
