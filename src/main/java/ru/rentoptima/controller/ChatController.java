@@ -129,8 +129,9 @@ public class ChatController {
         return ResponseEntity.ok(Map.of("status", "cancelled"));
     }
 
+
     private boolean isValidType(String type) {
-        return List.of("price_multiplier").contains(type);
+        return List.of("price_multiplier", "min_stay_override").contains(type);
     }
 
     public record ChatRequest(String message, List<Map<String, String>> history) {}

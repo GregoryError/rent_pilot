@@ -1,134 +1,189 @@
-# Патчи для manual_overrides — часть 2
+# Расширение overrides — 4 типа
 
-## 1. PricingEngine.java
+## 1. OverrideResolver.java — уже в архиве, полная замена
 
-**Импорт добавь:**
-```java
-import ru.rentoptima.service.OverrideResolver;
+## 2. AiChatService.java — обновить промпт
+
+Найди в методе `buildSystemPrompt` блок `Возможные типы:` и замени всё что относится к типам на:
+
+```
+Возможные типы:
+- price_multiplier — умножить цены на factor.
+  params: {"factor":1.10,"from":"2026-10-01","to":"2026-10-31"}
+  factor от 0.5 до 3.0 (например 1.10 = +10%%, 0.90 = -10%%)
+
+- min_stay_override — задать минимальный срок для диапазона.
+  params: {"value":3,"from":"2026-10-01","to":"2026-10-31"}
+  value от 1 до 14 ночей
+
+- close_dates — закрыть диапазон дат для новых бронирований.
+  params: {"from":"2026-10-15","to":"2026-10-17"}
+
+- open_ahead_days — сколько дней вперёд открывать цены.
+  params: {"days":45}
+  days от 7 до 365
+
+- floor_ceil — установить границы цены.
+  params: {"floor":2500,"ceil":6000}
+  floor > 0, ceil > floor, оба меньше 100000
 ```
 
-**Поля класса — добавь:**
-```java
-    private final OverrideResolver overrideResolver;
-```
-
-**В методе `runForProperty`** — там где применяется `ratingMult`, добавь **сразу после** блока рейтингового множителя:
+## 3. ChatController.java — расширить isValidType
 
 Найди:
 ```java
-            // Rating-based multiplier
-            if (ratingMult != 1.0) {
-                finalPrice = finalPrice
-                        .multiply(BigDecimal.valueOf(ratingMult))
-                        .setScale(0, RoundingMode.HALF_UP);
+    private boolean isValidType(String type) {
+        return List.of("price_multiplier").contains(type);
+    }
+```
+
+Замени на:
+```java
+    private boolean isValidType(String type) {
+        return List.of(
+                "price_multiplier",
+                "min_stay_override",
+                "close_dates",
+                "open_ahead_days",
+                "floor_ceil"
+        ).contains(type);
+    }
+```
+
+## 4. PricingEngine.java — применить все override
+
+### a) В начале `runForProperty` — override для open_ahead_days
+
+Найди:
+```java
+        int openAheadDays = settings.getIntValue(
+                tenantId,
+                "open_ahead_days",
+                30
+        );
+```
+
+Замени на:
+```java
+        int openAheadDays = settings.getIntValue(tenantId, "open_ahead_days", 30);
+        Integer openAheadOverride = overrideResolver.getActiveOpenAheadDays(
+                tenantId, property.getId());
+        if (openAheadOverride != null) {
+            openAheadDays = openAheadOverride;
+            log.info("Autopilot [{}]: open_ahead_days override to {} for {}",
+                    mode, openAheadDays, property.getName());
+        }
+```
+
+### b) closedDates — добавить override-даты
+
+Найди строку где инициализируется calendarState (после `loadCalendarState`):
+
+```java
+        CalendarState calendarState;
+        try {
+            calendarState = loadCalendarState(...);
+```
+
+После блока `try/catch` (после присваивания calendarState) добавь:
+
+```java
+        // Merge override close_dates with RC-closed dates
+        Set<LocalDate> closedOverride = overrideResolver.getClosedDates(
+                tenantId, property.getId());
+        if (!closedOverride.isEmpty()) {
+            calendarState.closedDates().addAll(closedOverride);
+            log.info("Autopilot [{}]: {} dates closed by override for {}",
+                    mode, closedOverride.size(), property.getName());
+        }
+```
+
+### c) floor_ceil — переопределить границы
+
+Найди в `runForProperty`:
+```java
+            BigDecimal finalPrice = applyAiAdjustment(
+                    rec, adjustments, tenantId);
+```
+
+Прямо после этого добавь применение floor_ceil override:
+
+```java
+            int[] fcOverride = overrideResolver.getActiveFloorCeil(tenantId, property.getId());
+            if (fcOverride != null) {
+                int fp = finalPrice.intValue();
+                fp = Math.max(fcOverride[0], Math.min(fcOverride[1], fp));
+                finalPrice = BigDecimal.valueOf(fp);
             }
 ```
 
-Добавь после этого блока:
+### d) min_stay_override — переопределить срок
+
+Найди блок где создаётся `SpecialPrice`:
+
 ```java
-            // Manual override multiplier (from AI chat commands)
-            double overrideMult = overrideResolver.getActivePriceMultiplier(
+            items.add(
+                    new RealtyCalendarClient.SpecialPrice(
+                            rec.date(),
+                            finalPrice,
+                            minStayInt
+                    )
+            );
+```
+
+Прямо перед этим блоком (там где вычисляется `minStayInt`):
+
+```java
+            int priceInt = finalPrice.intValue();
+            int minStayInt = rec.recommendedMinStay();
+
+            // min_stay override
+            Integer overrideStay = overrideResolver.getActiveMinStay(
                     tenantId, property.getId(), rec.date());
-            if (overrideMult != 1.0) {
-                finalPrice = finalPrice
-                        .multiply(BigDecimal.valueOf(overrideMult))
-                        .setScale(0, RoundingMode.HALF_UP);
-                log.debug("Manual override multiplier {} applied for {}", overrideMult, rec.date());
+            if (overrideStay != null) {
+                minStayInt = overrideStay;
             }
 ```
 
----
+## 5. chat/index.html — describeAction для новых типов
 
-## 2. DashboardController.java — виджет активных overrides
+Найди `function describeAction(action)` и замени тело функции на:
 
-**Импорты:**
-```java
-import ru.rentoptima.repository.ManualOverrideRepository;
-import java.time.LocalDateTime;
-```
-
-**В поля добавь:**
-```java
-    private final ManualOverrideRepository overrideRepo;
-```
-
-**В методе `dashboard` перед `return`:**
-```java
-        var activeOverrides = overrideRepo.findAllActive(tenantId, LocalDateTime.now());
-        model.addAttribute("activeOverrides", activeOverrides);
-```
-
----
-
-## 3. src/main/resources/templates/pages/dashboard/index.html
-
-Добавь после блока «Наблюдения системы» или в любое видное место:
-
-```html
-<!-- Active manual overrides -->
-<div class="card" th:if="${activeOverrides != null and !#lists.isEmpty(activeOverrides)}"
-     style="margin-bottom: var(--sp-5); border-left: 3px solid var(--amber);">
-    <div class="card__header">
-        <div class="card__title">Активные ручные указания</div>
-    </div>
-    <div th:each="o : ${activeOverrides}"
-         style="padding: var(--sp-3) 0; border-bottom: 1px solid var(--border-subtle); display: flex; justify-content: space-between; align-items: center;">
-        <div style="flex:1;">
-            <div style="color: var(--text); font-weight: 500;"
-                 th:text="${o.description != null and !#strings.isEmpty(o.description) ? o.description : o.overrideType}"></div>
-            <div style="color: var(--text-secondary); font-size: var(--text-xs); font-family: var(--font-mono); margin-top: var(--sp-1);"
-                 th:text="'Тип: ' + ${o.overrideType} + (${o.expiresAt != null} ? ' · до ' + ${#temporals.format(o.expiresAt, 'dd.MM.yyyy')} : ' · бессрочно')"></div>
-        </div>
-        <button class="btn btn-sm" style="color: var(--red);"
-                th:attr="data-id=${o.id}"
-                onclick="cancelOverride(this)">Отменить</button>
-    </div>
-</div>
-
-<script th:inline="javascript">
-async function cancelOverride(btn) {
-    if (!confirm('Отменить это указание?')) return;
-    const id = btn.getAttribute('data-id');
-    btn.disabled = true;
-    try {
-        const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
-        const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
-        const headers = { 'Content-Type': 'application/json' };
-        if (csrfHeader && csrfToken) headers[csrfHeader] = csrfToken;
-
-        const resp = await fetch('/api/overrides/' + id + '/cancel', {
-            method: 'POST',
-            headers
-        });
-        if (resp.ok) location.reload();
-        else alert('Не удалось отменить');
-    } catch (e) {
-        alert('Ошибка: ' + e.message);
-        btn.disabled = false;
+```javascript
+function describeAction(action) {
+    const p = action.params || {};
+    switch (action.type) {
+        case 'price_multiplier': {
+            const pct = Math.round((p.factor - 1) * 100);
+            return `Умножить цены на ${p.factor} (${pct > 0 ? '+' : ''}${pct}%) с ${p.from} по ${p.to}`;
+        }
+        case 'min_stay_override':
+            return `Минимальный срок ${p.value} ночей с ${p.from} по ${p.to}`;
+        case 'close_dates':
+            return `Закрыть даты с ${p.from} по ${p.to} для бронирования`;
+        case 'open_ahead_days':
+            return `Открывать цены на ${p.days} дней вперёд`;
+        case 'floor_ceil':
+            return `Границы цены: от ${p.floor}₽ до ${p.ceil}₽`;
+        default:
+            return action.type;
     }
 }
-</script>
 ```
 
----
+## Проверка после деплоя
+
+1. В /chat напиши: «Закрой даты с 20 по 22 октября» — должна прийти карточка close_dates
+2. Напиши: «Открывай цены только на 30 дней вперёд» — open_ahead_days
+3. Напиши: «Поставь минимальный срок 3 ночи в октябре» — min_stay_override
+4. Напиши: «Ограничь цены от 3000 до 5500» — floor_ceil
+5. Проверь БД:
+
+```bash
+docker compose exec db psql -U rentoptima -c "SELECT override_type, params_json, description FROM manual_overrides WHERE active = TRUE;"
+```
 
 ## Коммит:
 ```
-feat: AI chat directives — action extraction, apply endpoint, price_multiplier override in PricingEngine + dashboard widget
+feat: extend manual overrides — min_stay, close_dates, open_ahead_days, floor_ceil
 ```
-
-## Проверка после деплоя:
-
-1. Открой /chat
-2. Напиши: «Подними цены на выходные октября на 10%»
-3. AI должен выдать текстовый ответ + карточку с подтверждением
-4. Нажми «Применить»
-5. Проверь запись:
-
-```bash
-docker compose exec db psql -U rentoptima -c "SELECT id, override_type, params_json, description, expires_at FROM manual_overrides;"
-```
-
-6. На дашборде появится виджет «Активные ручные указания»
-7. При следующем цикле автопилота в логах:
-   `Manual override multiplier 1.10 applied for 2026-10-XX`
