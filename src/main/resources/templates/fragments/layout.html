@@ -321,7 +321,8 @@ function fcAddMsg(role, content, action, save = true) {
     fcMessagesEl.appendChild(div);
     fcMessagesEl.scrollTop = fcMessagesEl.scrollHeight;
     if (save) {
-        fcHistory.push({ role, content });
+        const apiRole = role === 'ai' ? 'assistant' : role;
+        fcHistory.push({ role: apiRole, content });
         if (fcHistory.length > 20) fcHistory = fcHistory.slice(-20);
         localStorage.setItem('fc_history', JSON.stringify(fcHistory));
     }
