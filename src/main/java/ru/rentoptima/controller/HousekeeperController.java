@@ -19,12 +19,15 @@ import ru.rentoptima.repository.FeedbackResponseRepository;
 import ru.rentoptima.repository.PropertyRepository;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
 @Controller
 @RequiredArgsConstructor
 public class HousekeeperController {
+
+    private static final int FRESH_REVIEW_DAYS = 5;
 
     private final PropertyRepository propertyRepo;
     private final BookingRepository bookingRepo;
@@ -59,12 +62,17 @@ public class HousekeeperController {
 
         LocalDate now = LocalDate.now();
 
-        // Schedule
+        // Schedule — ближайшие выезды
         var upcoming = bookingRepo.findUpcomingCheckouts(property.getId(), now);
 
-        // Reviews with answers
+        // Reviews
         List<FeedbackResponse> feedbacks = feedbackRepo
                 .findByPropertyIdAndShowToHousekeeperTrueOrderByCreatedAtDesc(property.getId());
+
+        // Fresh review flag (для колокольчика)
+        LocalDateTime freshThreshold = LocalDateTime.now().minusDays(FRESH_REVIEW_DAYS);
+        boolean hasFreshReview = feedbacks.stream()
+                .anyMatch(f -> f.getCreatedAt() != null && f.getCreatedAt().isAfter(freshThreshold));
 
         List<FeedbackQuestion> questions = questionRepo
                 .findByTenantIdAndActiveTrueOrderBySortOrderAsc(property.getTenant().getId());
@@ -97,12 +105,14 @@ public class HousekeeperController {
             item.put("response", r);
             item.put("texts", texts);
             item.put("scales", scales);
+            item.put("isFresh", r.getCreatedAt() != null && r.getCreatedAt().isAfter(freshThreshold));
             return item;
         }).collect(Collectors.toList());
 
         model.addAttribute("property", property);
         model.addAttribute("bookings", upcoming);
         model.addAttribute("reviews", reviews);
+        model.addAttribute("hasFreshReview", hasFreshReview);
         model.addAttribute("today", now);
         model.addAttribute("tab", tab);
         model.addAttribute("code", code);
