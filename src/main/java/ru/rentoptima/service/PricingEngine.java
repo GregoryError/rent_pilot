@@ -10,9 +10,8 @@ import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.PricingDecisionRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.service.CompetitorService.CompetitorAnalysis;
-import ru.rentoptima.entity.PricingDecision;
-import ru.rentoptima.repository.PricingDecisionRepository;
 import ru.rentoptima.util.PdAnonymizer;
+import ru.rentoptima.service.OverrideResolver;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -45,6 +44,7 @@ public class PricingEngine {
     private final FeedbackAnalyticsService feedbackAnalytics;
     private final PricingLearningService learningService;
     private final PricingDecisionRepository decisionRepo;
+    private final OverrideResolver overrideResolver;
 
     /**
      * Автопилот запускается каждый час.
@@ -270,6 +270,16 @@ public class PricingEngine {
                 finalPrice = finalPrice
                         .multiply(BigDecimal.valueOf(ratingMult))
                         .setScale(0, RoundingMode.HALF_UP);
+            }
+
+            // Manual override multiplier (from AI chat commands)
+            double overrideMult = overrideResolver.getActivePriceMultiplier(
+                    tenantId, property.getId(), rec.date());
+            if (overrideMult != 1.0) {
+                finalPrice = finalPrice
+                        .multiply(BigDecimal.valueOf(overrideMult))
+                        .setScale(0, RoundingMode.HALF_UP);
+                log.debug("Manual override multiplier {} applied for {}", overrideMult, rec.date());
             }
 
             int priceInt = finalPrice.intValue();

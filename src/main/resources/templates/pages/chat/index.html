@@ -104,6 +104,62 @@
             cursor: pointer;
         }
         .chat-hint:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* Action confirmation card */
+        .action-confirm {
+            margin-top: var(--sp-3);
+            padding: var(--sp-4);
+            background: rgba(245,158,11,0.08);
+            border: 1px solid rgba(245,158,11,0.3);
+            border-radius: var(--radius-sm);
+        }
+        .action-confirm__title {
+            font-size: var(--text-sm);
+            font-weight: 600;
+            color: var(--amber);
+            margin-bottom: var(--sp-2);
+            display: flex;
+            align-items: center;
+            gap: var(--sp-2);
+        }
+        .action-confirm__desc {
+            font-size: var(--text-sm);
+            color: var(--text-primary);
+            margin-bottom: var(--sp-3);
+        }
+        .action-confirm__details {
+            font-size: var(--text-xs);
+            color: var(--text-muted);
+            font-family: var(--font-mono);
+            margin-bottom: var(--sp-3);
+            padding: var(--sp-2);
+            background: var(--bg-raised);
+            border-radius: var(--radius-sm);
+        }
+        .action-confirm__buttons { display: flex; gap: var(--sp-2); }
+        .action-btn {
+            padding: var(--sp-2) var(--sp-4);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-sm);
+            font-family: var(--font-sans);
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-raised);
+            color: var(--text-primary);
+        }
+        .action-btn--apply { background: var(--amber); color: #000; border-color: var(--amber); }
+        .action-btn--apply:hover { opacity: 0.9; }
+        .action-btn--cancel:hover { border-color: var(--red); color: var(--red); }
+        .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .action-applied {
+            padding: var(--sp-2);
+            background: rgba(74,222,128,0.15);
+            color: var(--green);
+            border-radius: var(--radius-sm);
+            font-size: var(--text-sm);
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -118,7 +174,7 @@
         <div class="chat-hints" id="hints">
             <div class="chat-hint" onclick="sendHint(this)">Как увеличить среднюю длительность проживания?</div>
             <div class="chat-hint" onclick="sendHint(this)">Проанализируй текущий месяц</div>
-            <div class="chat-hint" onclick="sendHint(this)">Какую цену поставить на выходные?</div>
+            <div class="chat-hint" onclick="sendHint(this)">Подними цены на выходные октября на 10%</div>
             <div class="chat-hint" onclick="sendHint(this)">Что добавить в квартиру для повышения дохода?</div>
         </div>
 
@@ -145,19 +201,90 @@ const hintsEl = document.getElementById('hints');
 let history = [];
 let totalTokens = 0;
 
-function addMessage(role, content) {
+function addMessage(role, content, action) {
     const div = document.createElement('div');
     div.className = 'chat-msg chat-msg--' + (role === 'user' ? 'user' : 'ai');
-    div.innerHTML = `
+    let html = `
         <div class="chat-msg__role">${role === 'user' ? 'Вы' : 'AI'}</div>
         <div class="chat-msg__body">${escapeHtml(content)}</div>
     `;
+    div.innerHTML = html;
+
+    if (action) {
+        const conf = document.createElement('div');
+        conf.className = 'action-confirm';
+        conf.innerHTML = renderActionConfirm(action);
+        div.appendChild(conf);
+    }
+
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    if (action) {
+        const btnApply = div.querySelector('.action-btn--apply');
+        const btnCancel = div.querySelector('.action-btn--cancel');
+        btnApply.onclick = () => applyAction(div, action);
+        btnCancel.onclick = () => { div.querySelector('.action-confirm').remove(); };
+    }
+}
+
+function renderActionConfirm(action) {
+    const desc = action.description || describeAction(action);
+    const params = action.params || {};
+    const details = Object.entries(params)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(' · ');
+    const expires = action.expires_at ? `до ${action.expires_at}` : 'бессрочно';
+
+    return `
+        <div class="action-confirm__title">⚙ Требуется подтверждение</div>
+        <div class="action-confirm__desc">${escapeHtml(desc)}</div>
+        <div class="action-confirm__details">${escapeHtml(details)} · ${escapeHtml(expires)}</div>
+        <div class="action-confirm__buttons">
+            <button class="action-btn action-btn--apply">Применить</button>
+            <button class="action-btn action-btn--cancel">Отмена</button>
+        </div>
+    `;
+}
+
+function describeAction(action) {
+    if (action.type === 'price_multiplier') {
+        const p = action.params || {};
+        const pct = Math.round(((p.factor || 1) - 1) * 100);
+        return `Умножить цены на ${p.factor} (${pct > 0 ? '+' : ''}${pct}%) с ${p.from} по ${p.to}`;
+    }
+    return action.type;
+}
+
+async function applyAction(container, action) {
+    const buttons = container.querySelectorAll('.action-btn');
+    buttons.forEach(b => b.disabled = true);
+    try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (csrfHeader && csrfToken) headers[csrfHeader] = csrfToken;
+
+        const resp = await fetch('/api/chat/apply-action', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ actionJson: JSON.stringify(action) })
+        });
+        const data = await resp.json();
+
+        const conf = container.querySelector('.action-confirm');
+        if (data.status === 'applied') {
+            conf.innerHTML = `<div class="action-applied">✓ Применено. Автопилот учтёт при следующем цикле.</div>`;
+        } else {
+            conf.innerHTML = `<div class="action-applied" style="background: rgba(248,113,113,0.15); color: var(--red);">Ошибка: ${data.error || 'неизвестная'}</div>`;
+        }
+    } catch (e) {
+        alert('Не удалось применить: ' + e.message);
+        buttons.forEach(b => b.disabled = false);
+    }
 }
 
 function escapeHtml(text) {
-    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if (text == null) return '';
+    return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 async function send() {
@@ -187,13 +314,12 @@ async function send() {
         const data = await resp.json();
 
         typing.remove();
-        addMessage('ai', data.content);
+        addMessage('ai', data.content, data.action);
         totalTokens += data.tokens;
 
         history.push({ role: 'user', content: msg });
         history.push({ role: 'assistant', content: data.content });
 
-        // Keep last 10 exchanges to avoid token overflow
         if (history.length > 20) history = history.slice(-20);
     } catch (e) {
         typing.remove();

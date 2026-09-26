@@ -11,6 +11,8 @@ import ru.rentoptima.service.BookingStatsService;
 import ru.rentoptima.service.ExpenseService;
 import ru.rentoptima.service.PricingLearningService;
 import ru.rentoptima.service.SettingsService;
+import ru.rentoptima.repository.ManualOverrideRepository;
+import java.time.LocalDateTime;
 
 import java.time.LocalDate;
 
@@ -26,6 +28,7 @@ public class DashboardController {
     private final PricingLearningService learningService;
     private final ru.rentoptima.repository.AiCommentRepository aiCommentRepo;
     private final ru.rentoptima.service.FeedbackAnalyticsService feedbackAnalytics;
+    private final ManualOverrideRepository overrideRepo;
 
     @GetMapping("/dashboard")
     public String dashboard(@RequestParam(required = false) String m, Model model) {
@@ -92,6 +95,8 @@ public class DashboardController {
                 .subtract(kpi.cleaningCost())
                 .subtract(otherExpenses);
         model.addAttribute("netIncome", netIncome);
+        var activeOverrides = overrideRepo.findAllActive(tenantId, LocalDateTime.now());
+        model.addAttribute("activeOverrides", activeOverrides);
 
         return "pages/dashboard/index";
     }
