@@ -46,9 +46,9 @@ public class ChatController {
         result.put("content", response.content());
         result.put("tokens", response.tokens());
 
-        // Serialize pending action so front end can show confirm dialog
-        if (response.pendingAction() != null) {
-            result.put("action", response.pendingAction());
+        // Serialize pending actions so front end can show confirm dialogs
+        if (response.pendingActions() != null && !response.pendingActions().isEmpty()) {
+            result.put("actions", response.pendingActions());
         }
         return ResponseEntity.ok(result);
     }

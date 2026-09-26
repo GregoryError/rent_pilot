@@ -201,30 +201,66 @@ const hintsEl = document.getElementById('hints');
 let history = [];
 let totalTokens = 0;
 
-function addMessage(role, content, action) {
+function addMessage(role, content, actions) {
     const div = document.createElement('div');
     div.className = 'chat-msg chat-msg--' + (role === 'user' ? 'user' : 'ai');
-    let html = `
+    div.innerHTML = `
         <div class="chat-msg__role">${role === 'user' ? 'Вы' : 'AI'}</div>
         <div class="chat-msg__body">${escapeHtml(content)}</div>
     `;
-    div.innerHTML = html;
 
-    if (action) {
-        const conf = document.createElement('div');
-        conf.className = 'action-confirm';
-        conf.innerHTML = renderActionConfirm(action);
-        div.appendChild(conf);
+    if (actions && actions.length > 0) {
+        // "Apply all" button если больше одного action
+        if (actions.length > 1) {
+            const bulkDiv = document.createElement('div');
+            bulkDiv.className = 'action-confirm';
+            bulkDiv.style.background = 'rgba(108,140,255,0.08)';
+            bulkDiv.innerHTML = `
+                <div class="action-confirm__title">📦 ${actions.length} действий</div>
+                <div class="action-confirm__desc">Применить все ниже одним разом?</div>
+                <div class="action-confirm__buttons">
+                    <button class="action-btn action-btn--apply">Применить все</button>
+                    <button class="action-btn action-btn--cancel">Разбирать по одному</button>
+                </div>
+            `;
+            div.appendChild(bulkDiv);
+        }
+
+        actions.forEach((action, idx) => {
+            const conf = document.createElement('div');
+            conf.className = 'action-confirm';
+            conf.dataset.actionIdx = idx;
+            conf.innerHTML = renderActionConfirm(action);
+            div.appendChild(conf);
+        });
     }
 
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
 
-    if (action) {
-        const btnApply = div.querySelector('.action-btn--apply');
-        const btnCancel = div.querySelector('.action-btn--cancel');
-        btnApply.onclick = () => applyAction(div, action);
-        btnCancel.onclick = () => { div.querySelector('.action-confirm').remove(); };
+    if (actions && actions.length > 0) {
+        // Bulk apply
+        if (actions.length > 1) {
+            const bulkDiv = div.querySelectorAll('.action-confirm')[0];
+            bulkDiv.querySelector('.action-btn--apply').onclick = async () => {
+                bulkDiv.querySelectorAll('button').forEach(b => b.disabled = true);
+                for (let i = 0; i < actions.length; i++) {
+                    const confDiv = div.querySelector(`[data-action-idx="${i}"]`);
+                    if (confDiv) await applyAction(confDiv, actions[i]);
+                }
+                bulkDiv.innerHTML = `<div class="action-applied">✓ Все действия применены</div>`;
+            };
+            bulkDiv.querySelector('.action-btn--cancel').onclick = () => bulkDiv.remove();
+        }
+
+        // Individual apply/cancel
+        const confs = div.querySelectorAll('[data-action-idx]');
+        confs.forEach((confDiv, idx) => {
+            confDiv.querySelector('.action-btn--apply').onclick =
+                () => applyAction(confDiv, actions[idx]);
+            confDiv.querySelector('.action-btn--cancel').onclick =
+                () => confDiv.remove();
+        });
     }
 }
 
@@ -314,7 +350,7 @@ async function send() {
         const data = await resp.json();
 
         typing.remove();
-        addMessage('ai', data.content, data.action);
+        addMessage('ai', data.content, data.actions);
         totalTokens += data.tokens;
 
         history.push({ role: 'user', content: msg });

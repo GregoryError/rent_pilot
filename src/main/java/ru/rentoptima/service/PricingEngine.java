@@ -285,6 +285,14 @@ public class PricingEngine {
             int priceInt = finalPrice.intValue();
             int minStayInt = rec.recommendedMinStay();
 
+            // min_stay override
+            Integer overrideStay = overrideResolver.getActiveMinStay(
+                    tenantId, property.getId(), rec.date());
+            if (overrideStay != null) {
+                minStayInt = overrideStay;
+                log.debug("Override min_stay {} applied for {}", overrideStay, rec.date());
+            }
+
             // Check if state actually changed vs last known
             var latest = decisionRepo.findLatest(tenantId, property.getId(), rec.date());
             boolean changed = latest.isEmpty()

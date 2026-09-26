@@ -297,27 +297,56 @@ function toggleFloatingChat() {
     if (fcPanel.classList.contains('open')) fcInputEl.focus();
 }
 
-function fcAddMsg(role, content, action, save = true) {
+function fcAddMsg(role, content, actions, save = true) {
     const div = document.createElement('div');
     div.className = 'fc-msg fc-msg--' + (role === 'user' ? 'user' : 'ai');
     div.innerHTML = `
         <div class="fc-msg-role">${role === 'user' ? 'Вы' : 'AI'}</div>
         <div class="fc-msg-body">${fcEscape(content)}</div>
     `;
-    if (action) {
-        const act = document.createElement('div');
-        act.className = 'fc-action';
-        act.innerHTML = `
-            <div class="fc-action-desc">${fcEscape(action.description || action.type)}</div>
-            <div class="fc-action-buttons">
-                <button class="fc-action-btn fc-action-btn--apply">Применить</button>
-                <button class="fc-action-btn">Отмена</button>
-            </div>
-        `;
-        div.appendChild(act);
-        act.querySelector('.fc-action-btn--apply').onclick = () => fcApplyAction(act, action);
-        act.querySelector('.fc-action-btn:not(.fc-action-btn--apply)').onclick = () => act.remove();
+
+    if (actions && actions.length > 0) {
+        // Bulk apply
+        if (actions.length > 1) {
+            const bulk = document.createElement('div');
+            bulk.className = 'fc-action';
+            bulk.style.background = 'rgba(108,140,255,0.1)';
+            bulk.innerHTML = `
+                <div class="fc-action-desc">📦 ${actions.length} действий. Применить все?</div>
+                <div class="fc-action-buttons">
+                    <button class="fc-action-btn fc-action-btn--apply">Применить все</button>
+                    <button class="fc-action-btn">По одному</button>
+                </div>
+            `;
+            div.appendChild(bulk);
+            bulk.querySelector('.fc-action-btn--apply').onclick = async () => {
+                bulk.querySelectorAll('button').forEach(b => b.disabled = true);
+                const acts = div.querySelectorAll('.fc-action[data-idx]');
+                for (let i = 0; i < acts.length; i++) {
+                    await fcApplyAction(acts[i], actions[i]);
+                }
+                bulk.innerHTML = '<div style="color:var(--green,#4ade80); text-align:center; padding:8px;">✓ Все применены</div>';
+            };
+            bulk.querySelector('.fc-action-btn:not(.fc-action-btn--apply)').onclick = () => bulk.remove();
+        }
+
+        actions.forEach((action, idx) => {
+            const act = document.createElement('div');
+            act.className = 'fc-action';
+            act.dataset.idx = idx;
+            act.innerHTML = `
+                <div class="fc-action-desc">${fcEscape(action.description || action.type)}</div>
+                <div class="fc-action-buttons">
+                    <button class="fc-action-btn fc-action-btn--apply">Применить</button>
+                    <button class="fc-action-btn">Отмена</button>
+                </div>
+            `;
+            div.appendChild(act);
+            act.querySelector('.fc-action-btn--apply').onclick = () => fcApplyAction(act, action);
+            act.querySelector('.fc-action-btn:not(.fc-action-btn--apply)').onclick = () => act.remove();
+        });
     }
+
     fcMessagesEl.appendChild(div);
     fcMessagesEl.scrollTop = fcMessagesEl.scrollHeight;
     if (save) {
@@ -378,7 +407,7 @@ async function fcSend() {
         });
         const data = await resp.json();
         typing.remove();
-        fcAddMsg('ai', data.content, data.action);
+        fcAddMsg('ai', data.content, data.actions);
     } catch (e) {
         typing.remove();
         fcAddMsg('ai', 'Ошибка: ' + e.message);

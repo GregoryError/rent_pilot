@@ -11,12 +11,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.repository.BookingRepository;
-import java.util.HashSet;
-import java.util.HashMap;
+
+import java.util.*;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -41,8 +39,9 @@ public class AiChatService {
     public ChatResponse chat(Long tenantId, String userMessage, List<Map<String, String>> history) {
         String apiKey = settings.getValue(tenantId, "anthropic_api_key");
         if (apiKey == null || apiKey.isBlank()) {
+
             return new ChatResponse("API-ключ не настроен. Добавьте его в Настройки → Интеграции.",
-                    0, null);
+                    0, java.util.List.of());
         }
 
         try {
@@ -71,34 +70,34 @@ public class AiChatService {
                         + response.getBody().path("usage").path("input_tokens").asInt(0);
 
                 String rawText = text.toString();
-                JsonNode action = extractAction(rawText);
+                java.util.List<JsonNode> actions = extractActions(rawText);
                 String cleanText = ACTION_PATTERN.matcher(rawText).replaceAll("").trim();
 
-                return new ChatResponse(cleanText, tokens, action);
+                return new ChatResponse(cleanText, tokens, actions);
             }
 
-            return new ChatResponse("Пустой ответ от API.", 0, null);
+            return new ChatResponse("Пустой ответ от API.", 0, java.util.List.of());
         } catch (Exception e) {
             log.error("Anthropic API error: {}", e.getMessage());
             String errorMsg = e.getMessage().contains("401")
                     ? "Неверный API-ключ."
                     : "Ошибка API: " + e.getMessage();
-            return new ChatResponse(errorMsg, 0, null);
+            return new ChatResponse(errorMsg, 0, java.util.List.of());
         }
     }
 
-    /**
-     * Извлекает JSON action из ответа, если есть.
-     */
-    private JsonNode extractAction(String text) {
+    /** Извлекает все JSON action блоки из ответа. */
+    private java.util.List<JsonNode> extractActions(String text) {
+        java.util.List<JsonNode> result = new java.util.ArrayList<>();
         Matcher m = ACTION_PATTERN.matcher(text);
-        if (!m.find()) return null;
-        try {
-            return objectMapper.readTree(m.group(1));
-        } catch (Exception e) {
-            log.warn("Failed to parse action JSON: {}", e.getMessage());
-            return null;
+        while (m.find()) {
+            try {
+                result.add(objectMapper.readTree(m.group(1)));
+            } catch (Exception e) {
+                log.warn("Failed to parse action JSON: {}", e.getMessage());
+            }
         }
+        return result;
     }
 
 
@@ -121,81 +120,85 @@ public class AiChatService {
         }
 
         return String.format("""
-                        Ты — AI-аналитик системы оптимизации посуточной аренды RentOptima.
-                        Ты помогаешь хозяину квартиры в городе %s принимать решения по ценообразованию,
-                        управлению бронированиями и улучшению бизнеса.
+                                Ты — AI-аналитик системы оптимизации посуточной аренды RentOptima.
+                                Ты помогаешь хозяину квартиры в городе %s принимать решения по ценообразованию,
+                                управлению бронированиями и улучшению бизнеса.
 
-                        Отвечай на русском языке. Будь конкретен, давай цифры и рекомендации.
-                        Если данных недостаточно — скажи об этом.
+                                Отвечай на русском языке. Будь конкретен, давай цифры и рекомендации.
+                                Если данных недостаточно — скажи об этом.
 
-                        === УПРАВЛЕНИЕ АЛГОРИТМОМ ===
-                        Если пользователь просит изменить параметры автопилота (поднять/снизить цены,
-                        изменить сроки, закрыть даты и т.д.), кроме обычного ответа приложи блок:
+                                === УПРАВЛЕНИЕ АЛГОРИТМОМ ===
+                                Если пользователь просит изменить параметры автопилота (поднять/снизить цены,
+                                изменить сроки, закрыть даты и т.д.), кроме обычного ответа приложи блок:
 
-                        <action>{"type":"...","params":{...},"expires_at":"YYYY-MM-DD","description":"..."}</action>
+                                <action>{"type":"...","params":{...},"expires_at":"YYYY-MM-DD","description":"..."}</action>
 
-                       Возможные типы:
-                       - price_multiplier — умножить цены на factor.
-                         params: {"factor":1.10,"from":"2026-10-01","to":"2026-10-31"}
-                         factor от 0.5 до 3.0 (например 1.10 = +10%%, 0.90 = -10%%)
-                       
-                       - min_stay_override — задать минимальный срок для диапазона.
-                         params: {"value":3,"from":"2026-10-01","to":"2026-10-31"}
-                         value от 1 до 14 ночей
-                       
-                       - close_dates — закрыть диапазон дат для новых бронирований.
-                         params: {"from":"2026-10-15","to":"2026-10-17"}
-                       
-                       - open_ahead_days — сколько дней вперёд открывать цены.
-                         params: {"days":45}
-                         days от 7 до 365
-                       
-                       - floor_ceil — установить границы цены.
-                         params: {"floor":2500,"ceil":6000}
-                         floor > 0, ceil > floor, оба меньше 100000
-                       
-                       Правила:
-                        - expires_at обязателен и не может быть больше чем через 6 месяцев от сегодня
-                        - description — краткое человекочитаемое описание что ты применил
-                        - Если не уверен в намерении — переспроси, action НЕ выдавай
-                        - Если запрос не про настройки — action НЕ нужен
-                        - action помещай в конец ответа
+                               Возможные типы:
+                               - price_multiplier — умножить цены на factor.
+                                 params: {"factor":1.10,"from":"2026-10-01","to":"2026-10-31"}
+                                 factor от 0.5 до 3.0 (например 1.10 = +10%%, 0.90 = -10%%)
+                               
+                               - min_stay_override — задать минимальный срок для диапазона.
+                                 params: {"value":3,"from":"2026-10-01","to":"2026-10-31"}
+                                 value от 1 до 14 ночей
+                               
+                               - close_dates — закрыть диапазон дат для новых бронирований.
+                                 params: {"from":"2026-10-15","to":"2026-10-17"}
+                               
+                               - open_ahead_days — сколько дней вперёд открывать цены.
+                                 params: {"days":45}
+                                 days от 7 до 365
+                               
+                               - floor_ceil — установить границы цены.
+                                 params: {"floor":2500,"ceil":6000}
+                                 floor > 0, ceil > floor, оба меньше 100000
+                               
+                               Правила:
+                                - expires_at обязателен и не может быть больше чем через 6 месяцев от сегодня
+                                - description — краткое человекочитаемое описание что ты применил
+                                - Если не уверен в намерении — переспроси, action НЕ выдавай
+                                - Если запрос не про настройки — action НЕ нужен
+                                - action помещай в конец ответа
+                                - Если запрос требует несколько разных действий или несмежных диапазонов —
+                                  выдай несколько <action> блоков подряд. Пример:
+                                  "Поставь мин 2 ночи в будни и 1 в выходные с 11 по 18 октября":
+                                  <action>{"type":"min_stay_override","params":{"value":2,"from":"2026-10-12","to":"2026-10-15"},"expires_at":"2026-11-01","description":"Будни: мин 2 ночи"}</action>
+                                  <action>{"type":"min_stay_override","params":{"value":1,"from":"2026-10-16","to":"2026-10-18"},"expires_at":"2026-11-01","description":"Выходные: мин 1 ночь"}</action>
+                                Сегодня: %s
+                                
+                                === ДАННЫЕ КВАРТИРЫ ===
+                                Город: %s
+                                Базовая цена будни: %s ₽
+                                Базовая цена выходные: %s ₽
+                                Стоимость уборки: %s ₽
+                                Наценка площадок: %s%%
+                                Режим автопилота: %s
 
-                        Сегодня: %s
+                                === KPI ТЕКУЩИЙ МЕСЯЦ ===
+                                Доход: %s ₽
+                                Бронирований: %d
+                                Выездов (уборок): %d
+                                Средняя длительность: %s ночей
+                                Заполняемость: %s%%
+                                Расход на уборку: %s ₽
+                                Net RevPAR: %s ₽
 
-                        === ДАННЫЕ КВАРТИРЫ ===
-                        Город: %s
-                        Базовая цена будни: %s ₽
-                        Базовая цена выходные: %s ₽
-                        Стоимость уборки: %s ₽
-                        Наценка площадок: %s%%
-                        Режим автопилота: %s
+                                === BOOKING PACE (следующий месяц) ===
+                                Месяц: %s
+                                Текущая загрузка: %s%%
+                                Историческая норма: %s%%
+                                Статус: %s
 
-                        === KPI ТЕКУЩИЙ МЕСЯЦ ===
-                        Доход: %s ₽
-                        Бронирований: %d
-                        Выездов (уборок): %d
-                        Средняя длительность: %s ночей
-                        Заполняемость: %s%%
-                        Расход на уборку: %s ₽
-                        Net RevPAR: %s ₽
+                                                === КАЛЕНДАРЬ (30 дней вперёд) ===
+                        Формат: дата день_недели статус цена
+                        ВАЖНО: "день выезда" — это свободный день. Гость уезжает утром
+                        (обычно до 12:00), вечером может заехать новый. Такие дни доступны
+                        для бронирования.
+                        %s
 
-                        === BOOKING PACE (следующий месяц) ===
-                        Месяц: %s
-                        Текущая загрузка: %s%%
-                        Историческая норма: %s%%
-                        Статус: %s
-
-                                        === КАЛЕНДАРЬ (30 дней вперёд) ===
-                Формат: дата день_недели статус цена
-                ВАЖНО: "день выезда" — это свободный день. Гость уезжает утром
-                (обычно до 12:00), вечером может заехать новый. Такие дни доступны
-                для бронирования.
-                %s
-
-                === НЕДАВНИЕ БРОНИРОВАНИЯ (±30 дней) ===
-                %s
-                """,
+                        === НЕДАВНИЕ БРОНИРОВАНИЯ (±30 дней) ===
+                        %s
+                        """,
                 s.getOrDefault("city", "Выборг"),
                 now,
                 s.getOrDefault("city", "Выборг"),
@@ -283,6 +286,6 @@ public class AiChatService {
         return root;
     }
 
-    public record ChatResponse(String content, int tokens, JsonNode pendingAction) {
+    public record ChatResponse(String content, int tokens, List<JsonNode> pendingActions) {
     }
 }
