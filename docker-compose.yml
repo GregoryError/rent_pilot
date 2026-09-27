@@ -9,8 +9,6 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/rentoptima
       - SPRING_DATASOURCE_USERNAME=rentoptima
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
-      - RC_USERNAME=${RC_USERNAME:-}
-      - RC_PASSWORD=${RC_PASSWORD:-}
       - SERVER_FORWARD_HEADERS_STRATEGY=native
       - TZ=Europe/Moscow
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}

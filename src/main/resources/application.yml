@@ -46,8 +46,6 @@ logging:
 
 app:
   realty-calendar:
-    username: ${RC_USERNAME:}
-    password: ${RC_PASSWORD:}
     base-url: ${RC_BASE_URL:https://realtycalendar.ru}
     locale: ru
 
