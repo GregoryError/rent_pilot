@@ -26,7 +26,7 @@ public class SystemSetting {
 
     private String value;
 
-    @Column(name = "is_encrypted", nullable = false)
+    @Column(nullable = false)
     private Boolean encrypted = false;
 
     private String description;
