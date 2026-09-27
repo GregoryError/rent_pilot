@@ -12,8 +12,11 @@ import java.time.LocalDateTime;
 public class Property extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tenant_id", nullable = false)
+    @JoinColumn(name = "tenant_id", nullable = false, insertable = false, updatable = false)
     private Tenant tenant;
+
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
 
     @Column(nullable = false)
     private String name;

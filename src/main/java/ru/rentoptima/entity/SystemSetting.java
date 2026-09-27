@@ -15,15 +15,18 @@ public class SystemSetting {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "tenant_id", nullable = false)
+    @JoinColumn(name = "tenant_id", nullable = false, insertable = false, updatable = false)
     private Tenant tenant;
+
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
 
     @Column(name = "\"key\"", nullable = false)
     private String key;
 
     private String value;
 
-    @Column(nullable = false)
+    @Column(name = "is_encrypted", nullable = false)
     private Boolean encrypted = false;
 
     private String description;

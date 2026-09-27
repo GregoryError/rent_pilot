@@ -132,6 +132,7 @@ public class PricingEngine {
         CalendarState calendarState;
         try {
             calendarState = loadCalendarState(
+                    property.getTenantId(),
                     property.getRcObjectId(),
                     from,
                     to
@@ -345,6 +346,7 @@ public class PricingEngine {
                 mode, items.size(), property.getName(), skipped);
 
         rcClient.saveSpecialPrices(
+                property.getTenant().getId(),
                 property.getRcObjectId(),
                 items
         );
@@ -384,13 +386,14 @@ public class PricingEngine {
      * Получает календарь RC и извлекает закрытые даты.
      */
     private CalendarState loadCalendarState(
+            Long tenantId,
             String rcObjectId,
             LocalDate from,
             LocalDate to
     ) {
 
         JsonNode response = rcClient.getSpecialPrices(
-                rcObjectId, from, to);
+                tenantId, rcObjectId, from, to);
 
         if (response == null || response.isMissingNode()) {
             throw new IllegalStateException(
@@ -660,7 +663,7 @@ public class PricingEngine {
         Map<LocalDate, Integer> rcMinStays = new HashMap<>();
         try {
             JsonNode response = rcClient.getEventCalendars(
-                    property.getRcObjectId(), from, to);
+                    property.getTenantId(), property.getRcObjectId(), from, to);
             if (response == null || !response.has("items")
                     || !response.get("items").isArray()
                     || response.get("items").isEmpty()) {
@@ -775,7 +778,7 @@ public class PricingEngine {
 
     private void syncRcBookings(Property property, LocalDate from, LocalDate to) {
         JsonNode response = rcClient.getEventCalendars(
-                property.getRcObjectId(), from, to);
+                property.getTenantId(), property.getRcObjectId(), from, to);
         if (response == null || !response.has("items")
                 || !response.get("items").isArray()
                 || response.get("items").isEmpty()) {

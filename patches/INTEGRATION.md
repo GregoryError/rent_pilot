@@ -1,189 +1,139 @@
-# Расширение overrides — 4 типа
+# Шаг 1: RC-креды per-tenant + шифрование
 
-## 1. OverrideResolver.java — уже в архиве, полная замена
+## 0. Сгенерируй ENCRYPTION_KEY (32 байта в base64)
 
-## 2. AiChatService.java — обновить промпт
-
-Найди в методе `buildSystemPrompt` блок `Возможные типы:` и замени всё что относится к типам на:
-
-```
-Возможные типы:
-- price_multiplier — умножить цены на factor.
-  params: {"factor":1.10,"from":"2026-10-01","to":"2026-10-31"}
-  factor от 0.5 до 3.0 (например 1.10 = +10%%, 0.90 = -10%%)
-
-- min_stay_override — задать минимальный срок для диапазона.
-  params: {"value":3,"from":"2026-10-01","to":"2026-10-31"}
-  value от 1 до 14 ночей
-
-- close_dates — закрыть диапазон дат для новых бронирований.
-  params: {"from":"2026-10-15","to":"2026-10-17"}
-
-- open_ahead_days — сколько дней вперёд открывать цены.
-  params: {"days":45}
-  days от 7 до 365
-
-- floor_ceil — установить границы цены.
-  params: {"floor":2500,"ceil":6000}
-  floor > 0, ceil > floor, оба меньше 100000
+**На сервере или локально:**
+```bash
+openssl rand -base64 32
 ```
 
-## 3. ChatController.java — расширить isValidType
+Пример вывода: `xkH2NgPFN5wYQ9uw8VvKzFmL3RtBpXcJ4A8zHqW7T5s=`
 
-Найди:
+Скопируй, добавь в `/opt/rentoptima/.env`:
+```
+ENCRYPTION_KEY=xkH2NgPFN5wYQ9uw8VvKzFmL3RtBpXcJ4A8zHqW7T5s=
+```
+
+**Важно:** этот ключ шифрует RC-пароли и другие чувствительные данные. **Никогда не коммить его в git**, не отдавай никому. Если потеряешь — придётся заново настраивать все интеграции у всех пользователей.
+
+Сделай backup файла `.env` где-то (менеджер паролей, зашифрованный архив).
+
+---
+
+## 1. application.yml — новая секция
+
+Добавь в конец файла (или в раздел `spring:`):
+
+```yaml
+encryption:
+  key: ${ENCRYPTION_KEY:}
+```
+
+## 2. docker-compose.yml — передай переменную в контейнер
+
+Найди блок `app:` → `environment:` и добавь строку:
+```yaml
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+```
+
+## 3. SettingsService.java — метод для чувствительных значений
+
+Найди сервис `SettingsService`. Добавь зависимость:
+
 ```java
-    private boolean isValidType(String type) {
-        return List.of("price_multiplier").contains(type);
+    private final ru.rentoptima.util.EncryptionUtil encryptionUtil;
+    private final ru.rentoptima.repository.SystemSettingRepository systemSettingRepo;
+```
+
+(Проверь есть ли уже. Скорее всего есть.)
+
+Добавь методы:
+
+```java
+    /** Возвращает расшифрованное значение (для is_encrypted=true). */
+    public String getEncryptedValue(Long tenantId, String key) {
+        String raw = getValue(tenantId, key);
+        if (raw == null || raw.isBlank()) return null;
+        return encryptionUtil.decrypt(raw);
+    }
+
+    /** Устанавливает зашифрованное значение. */
+    @org.springframework.transaction.annotation.Transactional
+    public void setEncryptedValue(Long tenantId, String key, String plainValue) {
+        String encrypted = plainValue == null || plainValue.isBlank()
+                ? "" : encryptionUtil.encrypt(plainValue);
+
+        var existing = systemSettingRepo.findByTenantIdAndKey(tenantId, key);
+        var setting = existing.orElseGet(() -> {
+            var s = new ru.rentoptima.entity.SystemSetting();
+            s.setTenantId(tenantId);
+            s.setKey(key);
+            return s;
+        });
+        setting.setValue(encrypted);
+        setting.setIsEncrypted(true);
+        systemSettingRepo.save(setting);
     }
 ```
 
-Замени на:
-```java
-    private boolean isValidType(String type) {
-        return List.of(
-                "price_multiplier",
-                "min_stay_override",
-                "close_dates",
-                "open_ahead_days",
-                "floor_ceil"
-        ).contains(type);
-    }
-```
-
-## 4. PricingEngine.java — применить все override
-
-### a) В начале `runForProperty` — override для open_ahead_days
-
-Найди:
-```java
-        int openAheadDays = settings.getIntValue(
-                tenantId,
-                "open_ahead_days",
-                30
-        );
-```
-
-Замени на:
-```java
-        int openAheadDays = settings.getIntValue(tenantId, "open_ahead_days", 30);
-        Integer openAheadOverride = overrideResolver.getActiveOpenAheadDays(
-                tenantId, property.getId());
-        if (openAheadOverride != null) {
-            openAheadDays = openAheadOverride;
-            log.info("Autopilot [{}]: open_ahead_days override to {} for {}",
-                    mode, openAheadDays, property.getName());
-        }
-```
-
-### b) closedDates — добавить override-даты
-
-Найди строку где инициализируется calendarState (после `loadCalendarState`):
+Если в `SystemSetting` нет поля `isEncrypted` — добавь:
 
 ```java
-        CalendarState calendarState;
-        try {
-            calendarState = loadCalendarState(...);
+    @Column(name = "is_encrypted", nullable = false)
+    private Boolean isEncrypted = false;
 ```
 
-После блока `try/catch` (после присваивания calendarState) добавь:
+С геттером/сеттером (если Lombok — уже есть).
 
-```java
-        // Merge override close_dates with RC-closed dates
-        Set<LocalDate> closedOverride = overrideResolver.getClosedDates(
-                tenantId, property.getId());
-        if (!closedOverride.isEmpty()) {
-            calendarState.closedDates().addAll(closedOverride);
-            log.info("Autopilot [{}]: {} dates closed by override for {}",
-                    mode, closedOverride.size(), property.getName());
-        }
-```
+---
 
-### c) floor_ceil — переопределить границы
+## 4. RealtyCalendarClient.java — читать креды из БД
 
-Найди в `runForProperty`:
-```java
-            BigDecimal finalPrice = applyAiAdjustment(
-                    rec, adjustments, tenantId);
-```
-
-Прямо после этого добавь применение floor_ceil override:
-
-```java
-            int[] fcOverride = overrideResolver.getActiveFloorCeil(tenantId, property.getId());
-            if (fcOverride != null) {
-                int fp = finalPrice.intValue();
-                fp = Math.max(fcOverride[0], Math.min(fcOverride[1], fp));
-                finalPrice = BigDecimal.valueOf(fp);
-            }
-```
-
-### d) min_stay_override — переопределить срок
-
-Найди блок где создаётся `SpecialPrice`:
-
-```java
-            items.add(
-                    new RealtyCalendarClient.SpecialPrice(
-                            rec.date(),
-                            finalPrice,
-                            minStayInt
-                    )
-            );
-```
-
-Прямо перед этим блоком (там где вычисляется `minStayInt`):
-
-```java
-            int priceInt = finalPrice.intValue();
-            int minStayInt = rec.recommendedMinStay();
-
-            // min_stay override
-            Integer overrideStay = overrideResolver.getActiveMinStay(
-                    tenantId, property.getId(), rec.date());
-            if (overrideStay != null) {
-                minStayInt = overrideStay;
-            }
-```
-
-## 5. chat/index.html — describeAction для новых типов
-
-Найди `function describeAction(action)` и замени тело функции на:
-
-```javascript
-function describeAction(action) {
-    const p = action.params || {};
-    switch (action.type) {
-        case 'price_multiplier': {
-            const pct = Math.round((p.factor - 1) * 100);
-            return `Умножить цены на ${p.factor} (${pct > 0 ? '+' : ''}${pct}%) с ${p.from} по ${p.to}`;
-        }
-        case 'min_stay_override':
-            return `Минимальный срок ${p.value} ночей с ${p.from} по ${p.to}`;
-        case 'close_dates':
-            return `Закрыть даты с ${p.from} по ${p.to} для бронирования`;
-        case 'open_ahead_days':
-            return `Открывать цены на ${p.days} дней вперёд`;
-        case 'floor_ceil':
-            return `Границы цены: от ${p.floor}₽ до ${p.ceil}₽`;
-        default:
-            return action.type;
-    }
-}
-```
-
-## Проверка после деплоя
-
-1. В /chat напиши: «Закрой даты с 20 по 22 октября» — должна прийти карточка close_dates
-2. Напиши: «Открывай цены только на 30 дней вперёд» — open_ahead_days
-3. Напиши: «Поставь минимальный срок 3 ночи в октябре» — min_stay_override
-4. Напиши: «Ограничь цены от 3000 до 5500» — floor_ceil
-5. Проверь БД:
+**Приложи полный файл прежде чем менять — покажу точные строки для замены.** Скинь:
 
 ```bash
-docker compose exec db psql -U rentoptima -c "SELECT override_type, params_json, description FROM manual_overrides WHERE active = TRUE;"
+sed -n '1,60p' src/main/java/ru/rentoptima/service/RealtyCalendarClient.java
 ```
+
+Основная идея:
+- Убрать `@Value("${rc.username}")` и `@Value("${rc.password}")`
+- Добавить `SettingsService settings` в поля
+- Все методы, где используются `rcUsername`/`rcPassword`, теперь принимают `tenantId` и читают:
+  ```java
+  String username = settings.getValue(tenantId, "rc_username");
+  String password = settings.getEncryptedValue(tenantId, "rc_password");
+  ```
+
+Проблема — сейчас `RealtyCalendarClient` вызывается из разных мест. Придётся везде проверить что tenantId прокидывается.
+
+---
+
+## 5. Пока не переключаем — миграционный подход
+
+Чтобы не сломать текущую работу на моём tenantId=1:
+
+1. Сначала применяем миграцию V11 (добавляет колонку `is_encrypted`)
+2. Ручной шаг — переносим твои текущие креды из env в БД зашифрованно:
+   ```java
+   // однократно через seed или SQL
+   ```
+3. Только потом меняем `RealtyCalendarClient` на чтение из БД
+
+---
+
+## Что делать сейчас
+
+1. Сгенерируй ENCRYPTION_KEY и добавь в `.env`
+2. Распакуй архив (миграция + EncryptionUtil)
+3. Обнови `application.yml` и `docker-compose.yml`
+4. Расширь `SettingsService` (два новых метода)
+5. **Пришли мне `RealtyCalendarClient.java`** — по нему сделаю точный патч для чтения кредов из БД
+6. Собери и задеплой, но пока не меняй RealtyCalendarClient (только миграция + утилита + сервис + env)
+7. Проверь что старая работа не сломана
+
+После этого — шаг с миграцией существующих кредов в БД и переключением клиента.
 
 ## Коммит:
 ```
-feat: extend manual overrides — min_stay, close_dates, open_ahead_days, floor_ceil
+feat: encryption util + settings support for encrypted values (part 1 of RC-creds refactor)
 ```

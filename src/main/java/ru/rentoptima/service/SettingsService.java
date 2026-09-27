@@ -1,5 +1,6 @@
 package ru.rentoptima.service;
 
+import jakarta.persistence.Column;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,6 +16,7 @@ import java.util.stream.Collectors;
 public class SettingsService {
 
     private final SystemSettingRepository repo;
+    private final ru.rentoptima.util.EncryptionUtil encryptionUtil;
 
     public List<SystemSetting> getAllForTenant(Long tenantId) {
         return repo.findByTenantIdOrderByKey(tenantId);
@@ -59,5 +61,43 @@ public class SettingsService {
     @Transactional
     public void updateSettings(Long tenantId, Map<String, String> updates) {
         updates.forEach((key, value) -> updateSetting(tenantId, key, value));
+    }
+
+    /** Возвращает расшифрованное значение (для is_encrypted=true). */
+    public String getEncryptedValue(Long tenantId, String key) {
+        String raw = getValue(tenantId, key);
+        if (raw == null || raw.isBlank()) return null;
+        return encryptionUtil.decrypt(raw);
+    }
+
+    /** Устанавливает зашифрованное значение. */
+    @Transactional
+    public void setEncryptedValue(Long tenantId, String key, String plainValue) {
+        String encrypted = plainValue == null || plainValue.isBlank()
+                ? "" : encryptionUtil.encrypt(plainValue);
+
+        var setting = repo.findByTenantIdAndKey(tenantId, key)
+                .orElseGet(() -> {
+                    var s = new SystemSetting();
+                    s.setTenantId(tenantId);
+                    s.setKey(key);
+                    return s;
+                });
+        setting.setValue(encrypted);
+        setting.setEncrypted(true);  // ← не setIsEncrypted, а setEncrypted (поле называется encrypted)
+        repo.save(setting);
+    }
+
+    @Transactional
+    public void setValue(Long tenantId, String key, String value) {
+        var setting = repo.findByTenantIdAndKey(tenantId, key)
+                .orElseGet(() -> {
+                    var s = new SystemSetting();
+                    s.setTenantId(tenantId);
+                    s.setKey(key);
+                    return s;
+                });
+        setting.setValue(value);
+        repo.save(setting);
     }
 }

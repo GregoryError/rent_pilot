@@ -35,13 +35,13 @@ public class RealtyCalendarController {
         if (endDate.isBefore(beginDate)) {
             throw new ResponseStatusException(BAD_REQUEST, "Дата окончания раньше даты начала");
         }
-        return realtyCalendarClient.getSpecialPrices(rcObjectId(propertyId), beginDate, endDate);
+        return realtyCalendarClient.getSpecialPrices(AuthContext.tenantId(), rcObjectId(propertyId), beginDate, endDate);
     }
 
     @PostMapping("/properties/{propertyId}/special-prices")
     public ResponseEntity<Void> saveSpecialPrices(@PathVariable Long propertyId,
                                                    @Valid @RequestBody SpecialPricesRequest request) {
-        realtyCalendarClient.saveSpecialPrices(rcObjectId(propertyId), request.items());
+        realtyCalendarClient.saveSpecialPrices(AuthContext.tenantId(), rcObjectId(propertyId), request.items());
         return ResponseEntity.noContent().build();
     }
 
