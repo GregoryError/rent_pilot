@@ -1,139 +1,126 @@
-# Шаг 1: RC-креды per-tenant + шифрование
+# Шаг 3: регистрация — интеграционные патчи
 
-## 0. Сгенерируй ENCRYPTION_KEY (32 байта в base64)
+## 1. User.java — добавить поля
 
-**На сервере или локально:**
-```bash
-openssl rand -base64 32
-```
-
-Пример вывода: `xkH2NgPFN5wYQ9uw8VvKzFmL3RtBpXcJ4A8zHqW7T5s=`
-
-Скопируй, добавь в `/opt/rentoptima/.env`:
-```
-ENCRYPTION_KEY=xkH2NgPFN5wYQ9uw8VvKzFmL3RtBpXcJ4A8zHqW7T5s=
-```
-
-**Важно:** этот ключ шифрует RC-пароли и другие чувствительные данные. **Никогда не коммить его в git**, не отдавай никому. Если потеряешь — придётся заново настраивать все интеграции у всех пользователей.
-
-Сделай backup файла `.env` где-то (менеджер паролей, зашифрованный архив).
-
----
-
-## 1. application.yml — новая секция
-
-Добавь в конец файла (или в раздел `spring:`):
-
-```yaml
-encryption:
-  key: ${ENCRYPTION_KEY:}
-```
-
-## 2. docker-compose.yml — передай переменную в контейнер
-
-Найди блок `app:` → `environment:` и добавь строку:
-```yaml
-      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-```
-
-## 3. SettingsService.java — метод для чувствительных значений
-
-Найди сервис `SettingsService`. Добавь зависимость:
+Найди в `src/main/java/ru/rentoptima/entity/User.java` после `private String tgChatId;`:
 
 ```java
-    private final ru.rentoptima.util.EncryptionUtil encryptionUtil;
-    private final ru.rentoptima.repository.SystemSettingRepository systemSettingRepo;
+    @Column(name = "tg_chat_id")
+    private String tgChatId;
 ```
 
-(Проверь есть ли уже. Скорее всего есть.)
-
-Добавь методы:
+Добавь после этого:
 
 ```java
-    /** Возвращает расшифрованное значение (для is_encrypted=true). */
-    public String getEncryptedValue(Long tenantId, String key) {
-        String raw = getValue(tenantId, key);
-        if (raw == null || raw.isBlank()) return null;
-        return encryptionUtil.decrypt(raw);
-    }
+    @Column(unique = true)
+    private String email;
 
-    /** Устанавливает зашифрованное значение. */
-    @org.springframework.transaction.annotation.Transactional
-    public void setEncryptedValue(Long tenantId, String key, String plainValue) {
-        String encrypted = plainValue == null || plainValue.isBlank()
-                ? "" : encryptionUtil.encrypt(plainValue);
+    @Column(name = "email_verified", nullable = false)
+    private Boolean emailVerified = true;
 
-        var existing = systemSettingRepo.findByTenantIdAndKey(tenantId, key);
-        var setting = existing.orElseGet(() -> {
-            var s = new ru.rentoptima.entity.SystemSetting();
-            s.setTenantId(tenantId);
-            s.setKey(key);
-            return s;
-        });
-        setting.setValue(encrypted);
-        setting.setIsEncrypted(true);
-        systemSettingRepo.save(setting);
-    }
+    @Column(name = "email_verification_token")
+    private String emailVerificationToken;
+
+    @Column(name = "email_verification_expires_at")
+    private java.time.LocalDateTime emailVerificationExpiresAt;
+
+    @Column(name = "password_reset_token")
+    private String passwordResetToken;
+
+    @Column(name = "password_reset_expires_at")
+    private java.time.LocalDateTime passwordResetExpiresAt;
+
+    @Column(name = "agreed_to_pd_at")
+    private java.time.LocalDateTime agreedToPdAt;
 ```
 
-Если в `SystemSetting` нет поля `isEncrypted` — добавь:
+## 2. UserRepository.java — добавить методы
+
+Найди файл `src/main/java/ru/rentoptima/repository/UserRepository.java`. Добавь методы:
 
 ```java
-    @Column(name = "is_encrypted", nullable = false)
-    private Boolean isEncrypted = false;
+    java.util.Optional<ru.rentoptima.entity.User> findByEmail(String email);
+
+    java.util.Optional<ru.rentoptima.entity.User> findByEmailVerificationToken(String token);
+
+    java.util.Optional<ru.rentoptima.entity.User> findByPasswordResetToken(String token);
 ```
 
-С геттером/сеттером (если Lombok — уже есть).
+## 3. SecurityConfig.java — разрешить /register и /welcome
 
----
+Найди в `SecurityConfig.java` блок `.requestMatchers("/login", ...)` и добавь пути:
 
-## 4. RealtyCalendarClient.java — читать креды из БД
+Было:
+```java
+                        .requestMatchers(
+                                "/login",
+                                "/css/**",
+                                ...
+                        ).permitAll()
+```
 
-**Приложи полный файл прежде чем менять — покажу точные строки для замены.** Скинь:
+Стало:
+```java
+                        .requestMatchers(
+                                "/login",
+                                "/register",
+                                "/legal/**",
+                                "/css/**",
+                                ...
+                        ).permitAll()
+```
+
+## 4. login.html — добавить ссылку на регистрацию
+
+Найди `src/main/resources/templates/pages/auth/login.html`. После формы логина добавь:
+
+```html
+<div style="text-align: center; margin-top: 1.25rem; font-size: var(--text-sm); color: var(--text-secondary);">
+    Нет аккаунта? <a th:href="@{/register}" style="color: var(--accent);">Создать</a>
+</div>
+```
+
+Место — обычно перед закрывающим `</div>` login-box.
+
+## 5. Проверка после деплоя
+
+1. Открой `/register` — должна показаться форма
+2. Введи любой email, пароль (8+ символов), название компании, чекбокс
+3. После сабмита → должно попасть на `/welcome`
+4. Проверь БД:
 
 ```bash
-sed -n '1,60p' src/main/java/ru/rentoptima/service/RealtyCalendarClient.java
+docker exec c43adb215099 psql -U rentoptima -c "SELECT id, email, username, email_verified, agreed_to_pd_at FROM users ORDER BY id DESC LIMIT 3;"
 ```
 
-Основная идея:
-- Убрать `@Value("${rc.username}")` и `@Value("${rc.password}")`
-- Добавить `SettingsService settings` в поля
-- Все методы, где используются `rcUsername`/`rcPassword`, теперь принимают `tenantId` и читают:
-  ```java
-  String username = settings.getValue(tenantId, "rc_username");
-  String password = settings.getEncryptedValue(tenantId, "rc_password");
-  ```
+5. Проверь что новый tenant тоже создан:
+```bash
+docker exec c43adb215099 psql -U rentoptima -c "SELECT id, name, slug FROM tenants ORDER BY id DESC LIMIT 3;"
+```
 
-Проблема — сейчас `RealtyCalendarClient` вызывается из разных мест. Придётся везде проверить что tenantId прокидывается.
+6. Убедись что дефолтные settings созданы для нового tenant:
+```bash
+docker exec c43adb215099 psql -U rentoptima -c "SELECT COUNT(*) FROM system_settings WHERE tenant_id = (SELECT MAX(id) FROM tenants);"
+```
 
----
-
-## 5. Пока не переключаем — миграционный подход
-
-Чтобы не сломать текущую работу на моём tenantId=1:
-
-1. Сначала применяем миграцию V11 (добавляет колонку `is_encrypted`)
-2. Ручной шаг — переносим твои текущие креды из env в БД зашифрованно:
-   ```java
-   // однократно через seed или SQL
-   ```
-3. Только потом меняем `RealtyCalendarClient` на чтение из БД
-
----
-
-## Что делать сейчас
-
-1. Сгенерируй ENCRYPTION_KEY и добавь в `.env`
-2. Распакуй архив (миграция + EncryptionUtil)
-3. Обнови `application.yml` и `docker-compose.yml`
-4. Расширь `SettingsService` (два новых метода)
-5. **Пришли мне `RealtyCalendarClient.java`** — по нему сделаю точный патч для чтения кредов из БД
-6. Собери и задеплой, но пока не меняй RealtyCalendarClient (только миграция + утилита + сервис + env)
-7. Проверь что старая работа не сломана
-
-После этого — шаг с миграцией существующих кредов в БД и переключением клиента.
+Должно быть ~12.
 
 ## Коммит:
 ```
-feat: encryption util + settings support for encrypted values (part 1 of RC-creds refactor)
+feat: user registration with tenant creation and welcome page
 ```
+
+## Что заложено на будущее
+
+- `email_verified` + `email_verification_token` + `expires_at` — для будущего email confirm
+- `password_reset_token` + `expires_at` — для восстановления пароля
+- `agreed_to_pd_at` — юридический след согласия
+- `EmailService` — заглушка, потом заменим SMTP-реализацией без ломки прочих сервисов
+- `email` unique в БД
+
+Когда решишь включить email verification:
+1. Написать `SmtpEmailService`
+2. Поменять `user.setEmailVerified(true)` → `false` в `RegistrationService.register`
+3. Добавить контроллер `/verify-email?token=...` для подтверждения
+4. Заблокировать логин если `!emailVerified`
+5. Аналогично для `/reset-password`

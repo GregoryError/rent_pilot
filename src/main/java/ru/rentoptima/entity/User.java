@@ -30,6 +30,27 @@ public class User extends BaseEntity {
     @Column(name = "tg_chat_id")
     private String tgChatId;
 
+    @Column(unique = true)
+    private String email;
+
+    @Column(name = "email_verified", nullable = false)
+    private Boolean emailVerified = true;
+
+    @Column(name = "email_verification_token")
+    private String emailVerificationToken;
+
+    @Column(name = "email_verification_expires_at")
+    private java.time.LocalDateTime emailVerificationExpiresAt;
+
+    @Column(name = "password_reset_token")
+    private String passwordResetToken;
+
+    @Column(name = "password_reset_expires_at")
+    private java.time.LocalDateTime passwordResetExpiresAt;
+
+    @Column(name = "agreed_to_pd_at")
+    private java.time.LocalDateTime agreedToPdAt;
+
     @Column(nullable = false)
     private Boolean active = true;
 
