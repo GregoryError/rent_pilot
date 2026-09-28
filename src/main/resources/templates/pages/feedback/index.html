@@ -93,9 +93,17 @@
     <!-- Step 5: Name (optional) -->
     <div class="step" id="step5">
         <div class="step-title">Как вас зовут?</div>
-        <input type="text" id="guestName" placeholder="Необязательно">
-        <button class="btn" onclick="finish()">Отправить отзыв</button>
-        <button class="btn btn-skip" onclick="finish()">Отправить анонимно</button>
+        <input type="text" id="guestName" placeholder="Необязательно" oninput="onNameChange()">
+
+        <div id="consent-block" style="display:none; margin: 12px 0; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: 0.85rem; line-height: 1.5;">
+            <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer;">
+                <input type="checkbox" id="consentCheck" onchange="onConsentChange()" style="margin-top: 3px; flex-shrink: 0;">
+                <span>Даю <a href="/legal/feedback-consent" target="_blank" style="color: var(--accent);">согласие на обработку персональных данных</a> при отправке отзыва с указанием имени</span>
+            </label>
+        </div>
+
+        <button class="btn" onclick="finish()" id="submitBtn">Отправить отзыв</button>
+        <button class="btn btn-skip" onclick="finishAnonymous()">Отправить анонимно</button>
     </div>
 
     <!-- Done -->
@@ -143,14 +151,58 @@
         }
 
         function finish() {
-            data.guestName = document.getElementById('guestName').value;
+            const name = document.getElementById('guestName').value.trim();
+            const consent = document.getElementById('consentCheck').checked;
+
+            if (name && !consent) {
+                alert('Для указания имени поставьте отметку о согласии');
+                return;
+            }
+
+            data.guestName = name || null;
             data.liked = document.getElementById('liked').value;
             data.improve = document.getElementById('improve').value;
+            data.agreedToConsent = consent;
             data.completed = true;
             saveProgress();
+            done();
+        }
+
+        function finishAnonymous() {
+            document.getElementById('guestName').value = '';
+            document.getElementById('consentCheck').checked = false;
+            data.guestName = null;
+            data.liked = document.getElementById('liked').value;
+            data.improve = document.getElementById('improve').value;
+            data.agreedToConsent = false;
+            data.completed = true;
+            saveProgress();
+            done();
+        }
+
+        function done() {
             document.getElementById('step5').classList.remove('active');
             document.getElementById('stepDone').classList.add('active');
             document.getElementById('progressBar').style.width = '100%';
+        }
+
+        function onNameChange() {
+            const name = document.getElementById('guestName').value.trim();
+            const block = document.getElementById('consent-block');
+            block.style.display = name ? 'block' : 'none';
+            updateSubmitBtn();
+        }
+
+        function onConsentChange() {
+            updateSubmitBtn();
+        }
+
+        function updateSubmitBtn() {
+            const name = document.getElementById('guestName').value.trim();
+            const consent = document.getElementById('consentCheck').checked;
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = name && !consent;
+            btn.style.opacity = btn.disabled ? '0.5' : '1';
         }
 
         function saveProgress() {
@@ -161,6 +213,7 @@
                     propertyCode,
                     sessionId,
                     guestName: document.getElementById('guestName')?.value || null,
+                    agreedToConsent: document.getElementById('consentCheck')?.checked || false,
                     ...data
                 })
             }).catch(() => {});

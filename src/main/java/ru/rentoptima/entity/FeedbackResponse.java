@@ -41,4 +41,7 @@ public class FeedbackResponse {
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
+
+    @Column(name = "agreed_to_consent_at")
+    private java.time.LocalDateTime agreedToConsentAt;
 }

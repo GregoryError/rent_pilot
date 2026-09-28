@@ -55,6 +55,17 @@ public class FeedbackController {
                     r.setSessionId(request.sessionId());
                     return r;
                 });
+        // If guest provided a name, they must have given consent
+        boolean hasName = request.guestName() != null && !request.guestName().trim().isEmpty();
+        boolean hasConsent = Boolean.TRUE.equals(request.agreedToConsent());
+        if (hasName && !hasConsent) {
+            return ResponseEntity.badRequest().body(Map.of(
+                    "error", "Для указания имени требуется согласие на обработку персональных данных"));
+        }
+        if (hasName) {
+            response.setAgreedToConsentAt(LocalDateTime.now());
+        }
+
         response.setGuestName(PdAnonymizer.toInitial(request.guestName()));
         response.setUpdatedAt(LocalDateTime.now());
         response.setCompleted(Boolean.TRUE.equals(request.completed()));
@@ -101,6 +112,7 @@ public class FeedbackController {
             String liked,
             String improve,
             String comments,
-            Boolean completed
+            Boolean completed,
+            Boolean agreedToConsent
     ) {}
 }
