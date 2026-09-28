@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Интеграции</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Интеграции</h1>
+        <p class="page-subtitle">Подключения к внешним сервисам</p>
+    </div>
+
+    <!-- RC Integration Card -->
+    <div class="card" style="margin-bottom: var(--sp-6);">
+        <div class="card__header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div class="card__title">RealtyCalendar</div>
+                <div class="text-sm muted">Синхронизация бронирований и цен</div>
+            </div>
+            <div>
+                <span th:if="${configured}" class="tag tag--green">
+                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor; margin-right:6px; vertical-align:middle;"></span>
+                    Подключено
+                </span>
+                <span th:unless="${configured}" class="tag tag--red">
+                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor; margin-right:6px; vertical-align:middle;"></span>
+                    Не подключено
+                </span>
+            </div>
+        </div>
+
+        <!-- Safety explanation -->
+        <div style="background: var(--bg-raised); border-left: 3px solid var(--accent); padding: var(--sp-4); margin: var(--sp-4) 0; border-radius: var(--radius-sm);">
+            <div style="font-weight: 600; margin-bottom: var(--sp-2); color: var(--text-primary);">
+                Для чего нам логин и пароль от RealtyCalendar?
+            </div>
+            <p style="margin: 0 0 var(--sp-3) 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.6;">
+                Платформа работает поверх RealtyCalendar — читает ваши бронирования и обновляет цены
+                на будущие даты. Для этого нам нужен доступ к вашему аккаунту RC.
+            </p>
+            <p style="margin: 0 0 var(--sp-3) 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.6;">
+                <strong>Мы гарантируем:</strong>
+            </p>
+            <ul style="margin: 0 0 var(--sp-3) 0; padding-left: var(--sp-5); color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.8;">
+                <li>Ваш пароль хранится в базе данных только в зашифрованном виде (AES-256-GCM)</li>
+                <li>Мы не передаём ваши данные третьим лицам ни при каких обстоятельствах</li>
+                <li>Соединение между вашим браузером и сервером защищено SSL/TLS</li>
+                <li>Ни один сотрудник не имеет доступа к вашему аккаунту RC</li>
+                <li>Пароль используется только для получения токена авторизации в RC</li>
+            </ul>
+            <p style="margin: 0; color: var(--text-muted); font-size: var(--text-xs); font-style: italic;">
+                Если вы не согласны с такой схемой интеграции — откажитесь от использования сервиса.
+                Мы понимаем и уважаем это решение.
+            </p>
+        </div>
+
+        <!-- Form -->
+        <form method="post" th:action="@{/settings/integrations/rc}">
+            <div style="margin-bottom: var(--sp-4);">
+                <label class="form-label">Логин RC</label>
+                <input type="text" name="rcUsername" th:value="${rcUsername}" class="input" required
+                       placeholder="Ваш email или телефон, под которым вы входите в RealtyCalendar">
+            </div>
+
+            <div style="margin-bottom: var(--sp-4);">
+                <label class="form-label">Пароль RC</label>
+                <input type="password" name="rcPassword" class="input"
+                       th:placeholder="${hasPassword ? '••••••••  (оставьте пустым чтобы не менять)' : 'Пароль от RealtyCalendar'}">
+                <div class="text-xs muted" style="margin-top: var(--sp-1);">
+                    Пароль будет зашифрован перед сохранением.
+                </div>
+            </div>
+
+            <div style="display: flex; gap: var(--sp-3); align-items: center;">
+                <button type="submit" class="btn btn--primary">Сохранить</button>
+                <button type="button" onclick="testRc()" class="btn" th:if="${configured}">
+                    Проверить подключение
+                </button>
+                <a th:href="@{/settings/integrations/rc/clear}"
+                   onclick="return confirm('Удалить сохранённые данные RC?')"
+                   class="btn" style="color: var(--red); margin-left: auto;"
+                   th:if="${configured}">
+                    Удалить данные
+                </a>
+            </div>
+        </form>
+
+        <div id="test-result" style="margin-top: var(--sp-4); display: none;"></div>
+    </div>
+
+</div>
+
+<div layout:fragment="scripts">
+<script>
+async function testRc() {
+    const resultEl = document.getElementById('test-result');
+    resultEl.style.display = 'block';
+    resultEl.innerHTML = '<div class="text-sm muted">Проверяем...</div>';
+
+    try {
+        const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
+        const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
+        const headers = { 'Content-Type': 'application/json' };
+        if (csrfHeader && csrfToken) headers[csrfHeader] = csrfToken;
+
+        const resp = await fetch('/settings/integrations/rc/test', {
+            method: 'POST',
+            headers
+        });
+        const data = await resp.json();
+
+        if (data.ok) {
+            resultEl.innerHTML = '<div style="padding: 10px; background: rgba(74,222,128,0.15); color: var(--green); border-radius: 6px;">✓ ' + data.message + '</div>';
+        } else {
+            resultEl.innerHTML = '<div style="padding: 10px; background: rgba(248,113,113,0.15); color: var(--red); border-radius: 6px;">✗ ' + data.message + '</div>';
+        }
+    } catch (e) {
+        resultEl.innerHTML = '<div style="padding: 10px; background: rgba(248,113,113,0.15); color: var(--red); border-radius: 6px;">✗ Ошибка: ' + e.message + '</div>';
+    }
+}
+</script>
+</div>
+</body>
+</html>

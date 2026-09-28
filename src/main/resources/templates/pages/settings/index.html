@@ -13,7 +13,10 @@
             <h1 class="page-title">Настройки</h1>
             <p class="page-subtitle">Параметры системы и интеграций</p>
         </div>
-        <a th:href="@{/settings/properties}" class="btn btn-ghost">Управление объектами →</a>
+        <div style="display: flex; gap: var(--sp-3);">
+            <a th:href="@{/settings/integrations}" class="btn btn-ghost">Интеграции →</a>
+            <a th:href="@{/settings/properties}" class="btn btn-ghost">Управление объектами →</a>
+        </div>
     </div>
 
     <form th:action="@{/settings}" method="post">
