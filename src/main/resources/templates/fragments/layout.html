@@ -73,7 +73,12 @@
 
         <div class="sidebar__footer">
             <div sec:authentication="principal.displayName">User</div>
-            <a th:href="@{/logout}" class="muted text-sm">Выйти</a>
+            <form th:action="@{/logout}" method="post" style="display: inline; margin: 0;">
+                <button type="submit" class="muted text-sm"
+                        style="background: none; border: none; padding: 0; font: inherit; cursor: pointer; color: inherit; text-align: left;">
+                    Выйти
+                </button>
+            </form>
         </div>
     </aside>
 
