@@ -98,6 +98,13 @@
         }
         .login-link a { color: var(--accent); text-decoration: none; }
         .login-link a:hover { text-decoration: underline; }
+        .btn-submit:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .btn-submit:disabled:hover {
+            background: var(--accent);
+        }
     </style>
 </head>
 <body class="no-floating-chat">
@@ -141,16 +148,32 @@
         </div>
 
         <div class="checkbox-row">
-            <input type="checkbox" name="agreedToPd" id="agreedToPd" required>
-            <label for="agreedToPd">
-                Я принимаю
-                <a href="/legal/privacy" target="_blank">политику обработки персональных данных</a>
-                и
-                <a href="/legal/terms" target="_blank">пользовательское соглашение</a>
+            <input type="checkbox" name="agreedToTerms" id="agreedToTerms" required class="reg-check">
+            <label for="agreedToTerms">
+                Я принимаю <a href="/legal/terms" target="_blank">Пользовательское соглашение</a>
+                и ознакомлен(а) с <a href="/legal/privacy" target="_blank">Политикой обработки персональных данных</a>
             </label>
         </div>
 
-        <button type="submit" class="btn-submit">Создать аккаунт</button>
+        <div class="checkbox-row">
+            <input type="checkbox" name="agreedToConsent" id="agreedToConsent" required class="reg-check">
+            <label for="agreedToConsent">
+                Даю <a href="/legal/consent" target="_blank">согласие на обработку персональных данных</a>
+            </label>
+        </div>
+
+        <button type="submit" class="btn-submit" id="submitBtn" disabled>Зарегистрироваться</button>
+
+        <script>
+        (function() {
+            const checks = document.querySelectorAll('.reg-check');
+            const btn = document.getElementById('submitBtn');
+            function update() {
+                btn.disabled = ![...checks].every(c => c.checked);
+            }
+            checks.forEach(c => c.addEventListener('change', update));
+        })();
+        </script>
     </form>
 
     <div class="login-link">

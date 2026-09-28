@@ -29,25 +29,24 @@ public class RegistrationController {
 
     @PostMapping("/register")
     public String doRegister(@RequestParam String email,
-                              @RequestParam String password,
-                              @RequestParam String confirmPassword,
-                              @RequestParam String tenantName,
-                              @RequestParam(required = false) String agreedToPd,
-                              HttpServletRequest request,
-                              RedirectAttributes redirect,
-                              Model model) {
+                             @RequestParam String password,
+                             @RequestParam String confirmPassword,
+                             @RequestParam String tenantName,
+                             @RequestParam(required = false) String agreedToTerms,
+                             @RequestParam(required = false) String agreedToConsent,
+                             HttpServletRequest request,
+                             RedirectAttributes redirect,
+                             Model model) {
         try {
             if (!password.equals(confirmPassword)) {
                 throw new IllegalArgumentException("Пароли не совпадают");
             }
-            if (agreedToPd == null) {
-                throw new IllegalArgumentException("Необходимо принять условия обработки персональных данных");
-            }
 
             User user = registrationService.register(
-                    email, password, tenantName, true);
+                    email, password, tenantName,
+                    agreedToTerms != null,
+                    agreedToConsent != null);
 
-            // Auto-login
             UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                     userDetails, null, userDetails.getAuthorities());

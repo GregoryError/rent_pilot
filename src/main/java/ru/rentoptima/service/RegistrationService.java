@@ -28,7 +28,8 @@ public class RegistrationService {
      * Возвращает созданный User или бросает IllegalArgumentException при ошибке.
      */
     @Transactional
-    public User register(String email, String password, String tenantName, boolean agreedToPd) {
+    public User register(String email, String password, String tenantName,
+                         boolean agreedToTerms, boolean agreedToConsent) {
         if (email == null || email.isBlank() || !email.contains("@")) {
             throw new IllegalArgumentException("Некорректный email");
         }
@@ -38,18 +39,19 @@ public class RegistrationService {
         if (tenantName == null || tenantName.isBlank()) {
             throw new IllegalArgumentException("Введите название компании");
         }
-        if (!agreedToPd) {
-            throw new IllegalArgumentException("Необходимо принять условия обработки персональных данных");
+        if (!agreedToTerms) {
+            throw new IllegalArgumentException("Необходимо принять пользовательское соглашение и политику конфиденциальности");
+        }
+        if (!agreedToConsent) {
+            throw new IllegalArgumentException("Необходимо дать согласие на обработку персональных данных");
         }
 
         String normalizedEmail = email.trim().toLowerCase();
 
-        // Проверка что email не занят
         userRepo.findByEmail(normalizedEmail).ifPresent(existing -> {
             throw new IllegalArgumentException("Email уже зарегистрирован");
         });
 
-        // Создаём tenant
         Tenant tenant = new Tenant();
         tenant.setName(tenantName.trim());
         tenant.setSlug(generateSlug(normalizedEmail));
@@ -57,21 +59,23 @@ public class RegistrationService {
         tenant.setUpdatedAt(LocalDateTime.now());
         tenant = tenantRepo.save(tenant);
 
-        // Создаём пользователя
         User user = new User();
         user.setTenant(tenant);
-        user.setUsername(normalizedEmail); // username = email
+        user.setUsername(normalizedEmail);
         user.setEmail(normalizedEmail);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setDisplayName(tenantName.trim());
         user.setRole(User.Role.OWNER);
         user.setActive(true);
-        // Пока без email-верификации — сразу активен
         user.setEmailVerified(true);
-        user.setAgreedToPdAt(LocalDateTime.now());
+
+        LocalDateTime now = LocalDateTime.now();
+        user.setAgreedToPdAt(now); // legacy
+        user.setAgreedToTermsAt(now);
+        user.setAgreedToConsentAt(now);
+
         user = userRepo.save(user);
 
-        // Создаём дефолтные настройки
         seedDefaultSettings(tenant.getId());
 
         log.info("New user registered: {} (tenant {})", normalizedEmail, tenant.getId());

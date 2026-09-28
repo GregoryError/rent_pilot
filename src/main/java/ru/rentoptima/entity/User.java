@@ -54,6 +54,12 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private Boolean active = true;
 
+    @Column(name = "agreed_to_terms_at")
+    private java.time.LocalDateTime agreedToTermsAt;
+
+    @Column(name = "agreed_to_consent_at")
+    private java.time.LocalDateTime agreedToConsentAt;
+
     public enum Role {
         ADMIN, OWNER
     }
