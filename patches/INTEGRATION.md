@@ -1,126 +1,89 @@
-# Шаг 3: регистрация — интеграционные патчи
+# Правовые страницы + админ-раздел
 
-## 1. User.java — добавить поля
+## 1. AuthContext.java — добавить userId()
 
-Найди в `src/main/java/ru/rentoptima/entity/User.java` после `private String tgChatId;`:
-
-```java
-    @Column(name = "tg_chat_id")
-    private String tgChatId;
+Проверь есть ли уже:
+```bash
+grep "userId" src/main/java/ru/rentoptima/security/AuthContext.java
 ```
 
-Добавь после этого:
+Если нет — добавь метод:
 
 ```java
-    @Column(unique = true)
-    private String email;
-
-    @Column(name = "email_verified", nullable = false)
-    private Boolean emailVerified = true;
-
-    @Column(name = "email_verification_token")
-    private String emailVerificationToken;
-
-    @Column(name = "email_verification_expires_at")
-    private java.time.LocalDateTime emailVerificationExpiresAt;
-
-    @Column(name = "password_reset_token")
-    private String passwordResetToken;
-
-    @Column(name = "password_reset_expires_at")
-    private java.time.LocalDateTime passwordResetExpiresAt;
-
-    @Column(name = "agreed_to_pd_at")
-    private java.time.LocalDateTime agreedToPdAt;
+    public static Long userId() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof TenantUserDetails details) {
+            return details.getUserId();
+        }
+        return null;
+    }
 ```
 
-## 2. UserRepository.java — добавить методы
+## 2. SecurityConfig.java — разрешить публичный /legal/**
 
-Найди файл `src/main/java/ru/rentoptima/repository/UserRepository.java`. Добавь методы:
+Уже разрешено в предыдущем патче (`/legal/**` в permitAll). Убедись что есть.
 
+## 3. Включить @PreAuthorize
+
+В SecurityConfig, поверх класса:
 ```java
-    java.util.Optional<ru.rentoptima.entity.User> findByEmail(String email);
-
-    java.util.Optional<ru.rentoptima.entity.User> findByEmailVerificationToken(String token);
-
-    java.util.Optional<ru.rentoptima.entity.User> findByPasswordResetToken(String token);
+@EnableMethodSecurity(prePostEnabled = true)
 ```
 
-## 3. SecurityConfig.java — разрешить /register и /welcome
-
-Найди в `SecurityConfig.java` блок `.requestMatchers("/login", ...)` и добавь пути:
-
-Было:
-```java
-                        .requestMatchers(
-                                "/login",
-                                "/css/**",
-                                ...
-                        ).permitAll()
+Или на конкретный метод контроллера. Проверь:
+```bash
+grep "EnableMethodSecurity\|EnableGlobalMethodSecurity" src/main/java/ru/rentoptima/config/SecurityConfig.java
 ```
 
-Стало:
-```java
-                        .requestMatchers(
-                                "/login",
-                                "/register",
-                                "/legal/**",
-                                "/css/**",
-                                ...
-                        ).permitAll()
-```
+Если нет — добавь `@EnableMethodSecurity` на SecurityConfig класс.
 
-## 4. login.html — добавить ссылку на регистрацию
+## 4. layout.html — раздел "Администрирование"
 
-Найди `src/main/resources/templates/pages/auth/login.html`. После формы логина добавь:
+Найди последний блок с `.nav-section` (у тебя это "Система"). После него — перед `</nav>` — вставь:
 
 ```html
-<div style="text-align: center; margin-top: 1.25rem; font-size: var(--text-sm); color: var(--text-secondary);">
-    Нет аккаунта? <a th:href="@{/register}" style="color: var(--accent);">Создать</a>
-</div>
+            <!-- Admin only -->
+            <div sec:authorize="hasRole('ADMIN')">
+                <div class="nav-section">Администрирование</div>
+                <a th:href="@{/admin/legal-pages}"
+                   th:classappend="${activePage == 'admin-legal'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>⚖</span> Правовые страницы
+                </a>
+            </div>
 ```
 
-Место — обычно перед закрывающим `</div>` login-box.
+## 5. Сделай себя ADMIN
 
-## 5. Проверка после деплоя
-
-1. Открой `/register` — должна показаться форма
-2. Введи любой email, пароль (8+ символов), название компании, чекбокс
-3. После сабмита → должно попасть на `/welcome`
-4. Проверь БД:
+Твой существующий user id=1 сейчас скорее всего OWNER. Меняем через SQL:
 
 ```bash
-docker exec c43adb215099 psql -U rentoptima -c "SELECT id, email, username, email_verified, agreed_to_pd_at FROM users ORDER BY id DESC LIMIT 3;"
+docker exec c43adb215099 psql -U rentoptima -c "UPDATE users SET role='ADMIN' WHERE id=1;"
 ```
 
-5. Проверь что новый tenant тоже создан:
-```bash
-docker exec c43adb215099 psql -U rentoptima -c "SELECT id, name, slug FROM tenants ORDER BY id DESC LIMIT 3;"
-```
+Разлогинься и залогинься заново — новые authorities подхватятся.
 
-6. Убедись что дефолтные settings созданы для нового tenant:
-```bash
-docker exec c43adb215099 psql -U rentoptima -c "SELECT COUNT(*) FROM system_settings WHERE tenant_id = (SELECT MAX(id) FROM tenants);"
-```
+## 6. Проверка после деплоя
 
-Должно быть ~12.
+1. Открой `/legal/privacy` (без логина) — должна отобразиться страница
+2. Открой `/legal/terms` — то же
+3. Залогинься как ты (после смены роли на ADMIN)
+4. В сайдбаре появится раздел «Администрирование» с пунктом «Правовые страницы»
+5. Открой `/admin/legal-pages` — список из 2 страниц
+6. Нажми «Редактировать» → измени текст → «Сохранить»
+7. Обнови публичную `/legal/privacy` — увидишь изменения
+
+Если новый юзер (OWNER) откроет `/admin/legal-pages` — получит 403 Forbidden.
 
 ## Коммит:
 ```
-feat: user registration with tenant creation and welcome page
+feat: editable legal pages + admin section (privacy, terms via markdown)
 ```
 
-## Что заложено на будущее
+## Что заложено
 
-- `email_verified` + `email_verification_token` + `expires_at` — для будущего email confirm
-- `password_reset_token` + `expires_at` — для восстановления пароля
-- `agreed_to_pd_at` — юридический след согласия
-- `EmailService` — заглушка, потом заменим SMTP-реализацией без ломки прочих сервисов
-- `email` unique в БД
-
-Когда решишь включить email verification:
-1. Написать `SmtpEmailService`
-2. Поменять `user.setEmailVerified(true)` → `false` в `RegistrationService.register`
-3. Добавить контроллер `/verify-email?token=...` для подтверждения
-4. Заблокировать логин если `!emailVerified`
-5. Аналогично для `/reset-password`
+- Таблица `legal_pages` универсальная, можно добавить любую страницу через SQL
+- Простой markdown-парсер в LegalController (заголовки, списки, жирный, курсив)
+- Роутинг `/legal/{slug}` — динамический, работает для любого slug
+- Админ-раздел появится когда добавим другие админские страницы (тарифы, оснащение и т.д.)
+- `@PreAuthorize` — стандартный механизм Spring Security, можно вешать на любой контроллер

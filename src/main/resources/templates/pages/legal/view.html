@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${page.title} + ' — RentOptima'">Legal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <style>
+        body {
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+            background: var(--bg-root);
+            color: var(--text-primary);
+            line-height: 1.7;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .header a { color: var(--text-secondary); text-decoration: none; font-size: var(--text-sm); }
+        .header a:hover { color: var(--accent); }
+
+        .content h1 { font-size: 1.8rem; margin: 1.5rem 0 1rem; }
+        .content h2 { font-size: 1.35rem; margin: 1.5rem 0 0.75rem; color: var(--text-primary); }
+        .content h3 { font-size: 1.1rem; margin: 1.25rem 0 0.5rem; }
+        .content p { margin: 0.75rem 0; color: var(--text-secondary); }
+        .content ul { margin: 0.75rem 0 0.75rem 1.5rem; color: var(--text-secondary); }
+        .content li { margin: 0.35rem 0; }
+        .content strong { color: var(--text-primary); }
+
+        .updated {
+            font-size: var(--text-xs);
+            color: var(--text-muted);
+            margin-top: 3rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border-subtle);
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <img src="/static/images/logo-icon.svg" alt="" style="width: 24px; height: 24px;">
+    <span style="font-weight: 600;">RentOptima</span>
+    <a href="/" style="margin-left: auto;">← На главную</a>
+</div>
+
+<div class="content" th:utext="${htmlContent}"></div>
+
+<div class="updated">
+    Последнее обновление: <span th:text="${#temporals.format(page.updatedAt, 'dd.MM.yyyy')}"></span>
+</div>
+
+</body>
+</html>

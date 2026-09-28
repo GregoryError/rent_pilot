@@ -17,7 +17,8 @@
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar__logo">
-            <img src="/static/images/logo-icon.svg" alt="RentOptima" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">
+            <img src="/static/images/logo-icon.svg" alt="RentOptima"
+                 style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">
             <span>RentOptima</span>
         </div>
 
@@ -59,6 +60,15 @@
                class="nav-item">
                 <span>⚙</span> Настройки
             </a>
+            <!-- Admin only -->
+            <div sec:authorize="hasRole('ADMIN')">
+                <div class="nav-section">Администрирование</div>
+                <a th:href="@{/admin/legal-pages}"
+                   th:classappend="${activePage == 'admin-legal'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>⚖</span> Правовые страницы
+                </a>
+            </div>
         </nav>
 
         <div class="sidebar__footer">
@@ -98,8 +108,12 @@
                 <span style="font-weight:600;">AI Помощник</span>
             </div>
             <div style="display:flex; gap:4px;">
-                <a th:href="@{/chat}" title="Открыть полный чат" style="color:var(--text-secondary); text-decoration:none; padding:4px 8px; font-size:12px;">↗</a>
-                <button onclick="toggleFloatingChat()" title="Свернуть" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:18px; padding:0 8px;">×</button>
+                <a th:href="@{/chat}" title="Открыть полный чат"
+                   style="color:var(--text-secondary); text-decoration:none; padding:4px 8px; font-size:12px;">↗</a>
+                <button onclick="toggleFloatingChat()" title="Свернуть"
+                        style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:18px; padding:0 8px;">
+                    ×
+                </button>
             </div>
         </div>
 
@@ -270,6 +284,7 @@
             height: calc(100vh - 100px);
         }
     }
+
 </style>
 
 <script>
@@ -415,12 +430,14 @@ async function fcSend() {
     fcSendBtn.disabled = false;
     fcInputEl.focus();
 }
+
 </script>
 
 <script>
         // Auto-hide toast
         const toast = document.getElementById('toast');
         if (toast) setTimeout(() => toast.style.display = 'none', 3000);
+
 
 </script>
 <script layout:fragment="scripts"></script>

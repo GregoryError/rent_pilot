@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Редактор правовой страницы</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Редактор</h1>
+        <p class="page-subtitle">
+            <a th:href="@{/admin/legal-pages}" style="color: var(--text-secondary);">← К списку</a>
+            &nbsp;·&nbsp;
+            <a th:href="@{'/legal/' + ${page.slug}}" target="_blank" style="color: var(--accent);">
+                Просмотр на публичной странице ↗
+            </a>
+        </p>
+    </div>
+
+    <form th:action="@{'/admin/legal-pages/' + ${page.slug}}" method="post">
+        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+
+        <div class="card" style="margin-bottom: 1rem;">
+            <div class="form-group">
+                <label class="form-label">Заголовок страницы</label>
+                <input type="text" name="title" th:value="${page.title}" required class="form-input"
+                       style="width: 100%; max-width: 600px;">
+            </div>
+
+            <div class="form-group" style="margin-top: 1.5rem;">
+                <label class="form-label">Содержимое (Markdown)</label>
+                <div class="form-hint" style="margin-bottom: 0.5rem;">
+                    Поддерживается: <code># Заголовок</code>, <code>## Подзаголовок</code>, <code>- список</code>, <code>**жирный**</code>, <code>*курсив*</code>
+                </div>
+                <textarea name="content" rows="25" required class="form-input"
+                          style="width: 100%; font-family: var(--font-mono); font-size: var(--text-sm); line-height: 1.6;"
+                          th:text="${page.content}"></textarea>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn--primary">Сохранить</button>
+        <a th:href="@{/admin/legal-pages}" class="btn btn-ghost">Отменить</a>
+    </form>
+
+</div>
+</body>
+</html>
