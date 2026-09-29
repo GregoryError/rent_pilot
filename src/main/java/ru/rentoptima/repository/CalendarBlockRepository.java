@@ -7,15 +7,46 @@ import ru.rentoptima.entity.CalendarBlock;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 public interface CalendarBlockRepository extends JpaRepository<CalendarBlock, Long> {
 
     List<CalendarBlock> findByUnitTypeId(Long unitTypeId);
 
     /**
-     * Найти все блокировки пересекающиеся с диапазоном [from, to).
-     * Полуоткрытый интервал — to это checkout date, не включительно.
+     * Ключ идемпотентности iCal-импорта.
      */
+    Optional<CalendarBlock> findByChannelIdAndExternalUid(Long channelId, String externalUid);
+
+    /**
+     * Все блокировки канала, пересекающиеся с окном [from, to).
+     * Используется для reconcile — снятия исчезнувших событий.
+     */
+    @Query("""
+        SELECT b FROM CalendarBlock b
+        WHERE b.channelId = :channelId
+          AND b.fromDate < :to
+          AND b.toDate > :from
+    """)
+    List<CalendarBlock> findByChannelInRange(@Param("channelId") Long channelId,
+                                              @Param("from") LocalDate from,
+                                              @Param("to") LocalDate to);
+
+    /**
+     * Все блокировки нескольких unit_type, пересекающиеся с окном [from, to).
+     * Для AvailabilityService (шахматка, iCal-экспорт).
+     */
+    @Query("""
+        SELECT b FROM CalendarBlock b
+        WHERE b.unitTypeId IN :unitTypeIds
+          AND b.fromDate < :to
+          AND b.toDate > :from
+    """)
+    List<CalendarBlock> findByUnitTypesInRange(@Param("unitTypeIds") List<Long> unitTypeIds,
+                                                @Param("from") LocalDate from,
+                                                @Param("to") LocalDate to);
+
+    /** Найти все пересечения для одного unit_type — для детектора конфликтов. */
     @Query("""
         SELECT b FROM CalendarBlock b
         WHERE b.unitTypeId = :unitTypeId

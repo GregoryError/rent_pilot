@@ -9,11 +9,15 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Блокировка дат: ручная бронь, ремонт, личное использование, hold.
- * Отличается от Booking тем, что не имеет цены/гостя/канала —
- * это просто пометка "unit type занят в эти даты".
+ * Блокировка дат: ручная бронь, ремонт, личное использование, hold, iCal-импорт.
+ * Отличается от Booking тем, что не имеет цены/гостя/деталей — это просто
+ * пометка "unit type занят в эти даты".
  * <p>
- * Экспортируется во все iCal-каналы этого unit_type для защиты от овербукинга.
+ * Экспортируется во все iCal-каналы этого unit_type для защиты от овербукинга,
+ * с исключением самого канала-источника (anti-echo).
+ * <p>
+ * Ключ идемпотентности для iCal-импорта: (channel_id, external_uid).
+ * Уникальный индекс на паре — в V17.
  */
 @Entity
 @Table(name = "calendar_blocks")
@@ -31,6 +35,21 @@ public class CalendarBlock {
 
     @Column(name = "unit_type_id", nullable = false)
     private Long unitTypeId;
+
+    /**
+     * Канал-источник блокировки:
+     * - null для ручных броней и MAINTENANCE/OWNER_USE/HOLD (заводит человек в UI)
+     * - id iCal-канала для CHANNEL_SYNC (импорт с площадки)
+     */
+    @Column(name = "channel_id")
+    private Long channelId;
+
+    /**
+     * UID из внешнего iCal (VEVENT.UID) — ключ идемпотентности при повторных импортах.
+     * null для ручных блокировок.
+     */
+    @Column(name = "external_uid", length = 255)
+    private String externalUid;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "block_type", nullable = false, length = 20)
@@ -58,8 +77,9 @@ public class CalendarBlock {
 
     public enum BlockType {
         MANUAL_BOOKING,   // Ручная бронь (например через звонок)
-        MAINTENANCE,       // Ремонт, уборка после ЧП
-        OWNER_USE,         // Хозяин заехал сам
-        HOLD               // Резерв (например ожидание оплаты)
+        MAINTENANCE,      // Ремонт, уборка после ЧП
+        OWNER_USE,        // Хозяин заехал сам
+        HOLD,             // Резерв (например ожидание оплаты)
+        CHANNEL_SYNC      // Импортировано из iCal внешнего канала
     }
 }

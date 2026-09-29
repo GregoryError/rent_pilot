@@ -30,12 +30,14 @@ public class SecurityConfig {
                         .ignoringRequestMatchers(
                                 new AntPathRequestMatcher("/api/**"),
                                 new AntPathRequestMatcher("/housekeeper/**"),
+                                new AntPathRequestMatcher("/ical/**"),
                                 new AntPathRequestMatcher("/webhooks/**")))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/login",
                                 "/register",
                                 "/legal/**",
+                                "/ical/**",
                                 "/css/**",
                                 "/js/**",
                                 "/webjars/**",

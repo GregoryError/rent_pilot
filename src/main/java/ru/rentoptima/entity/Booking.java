@@ -29,24 +29,6 @@ public class Booking extends BaseEntity {
     @Column(nullable = false)
     private String status = "BOOKED";
 
-    /** ID канала откуда пришла бронь. Nullable для legacy бронирований до spring-1. */
-    @Column(name = "channel_id")
-    private Long channelId;
-
-    /** ID unit_type — обязателен после миграции V16. */
-    @Column(name = "unit_type_id")
-    private Long unitTypeId;
-
-    /**
-     * External ID брони в исходной системе:
-     * - RC: booking_id из RC (для legacy — тот же что в rc_booking_id)
-     * - Avito: booking_id из Avito API
-     * - iCal: UID из VEVENT
-     * - Manual: null
-     */
-    @Column(name = "external_id")
-    private String externalId;
-
     @Column(name = "guest_name")
     private String guestName;
 
@@ -81,6 +63,24 @@ public class Booking extends BaseEntity {
 
     @Column(name = "manager_name")
     private String managerName;
+
+    /** ID канала откуда пришла бронь. Nullable для legacy бронирований до V16. */
+    @Column(name = "channel_id")
+    private Long channelId;
+
+    /** ID unit_type — заполняется автоматом при импорте, для legacy заполнен по property. */
+    @Column(name = "unit_type_id")
+    private Long unitTypeId;
+
+    /**
+     * External ID брони в исходной системе:
+     * - RC: booking_id из RC
+     * - Avito: booking_id из Avito API
+     * - iCal: UID из VEVENT
+     * - Manual: null
+     */
+    @Column(name = "external_id")
+    private String externalId;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();

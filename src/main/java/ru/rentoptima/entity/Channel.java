@@ -12,16 +12,19 @@ import java.time.LocalDateTime;
 
 /**
  * Подключённый канал синхронизации:
- * - RC: работа поверх RealtyCalendar (legacy path)
+ * - RC: работа поверх RealtyCalendar (legacy path, wrapper via RcChannelAdapter)
  * - AVITO: официальный API Авито
  * - ICAL: iCal-подключение к любой площадке (Sutochno, Ostrovok, Booking, etc.)
  * - MANUAL: ручные брони (не тянутся ни откуда, но экспортируются в iCal)
- *
+ * <p>
  * config_json содержит специфичные для канала параметры:
- * - RC: { "rc_object_id": "211995" }
+ * - RC: null (rc_object_id хранится в properties)
  * - AVITO: { "item_id": "...", "oauth_client_id": "..." }
- * - ICAL: { "import_url": "https://...", "export_secret": "abc123" }
+ * - ICAL: { "import_url": "https://..." }
  * - MANUAL: {}
+ * <p>
+ * export_secret — публичный секретный токен для отдачи iCal-фида этого канала
+ * (используется только для каналов с supportsIcalExport = true).
  */
 @Entity
 @Table(name = "channels")
@@ -59,6 +62,19 @@ public class Channel {
 
     @Column(name = "last_error", columnDefinition = "TEXT")
     private String lastError;
+
+    @Column(name = "last_sync_imported")
+    private Integer lastSyncImported;
+
+    @Column(name = "last_sync_removed")
+    private Integer lastSyncRemoved;
+
+    /**
+     * Публичный секрет для iCal-экспорта: /ical/{export_secret}.ics
+     * 192 бита энтропии, base64-url-encoded (~32 символа).
+     */
+    @Column(name = "export_secret", length = 64, unique = true)
+    private String exportSecret;
 
     @Column(nullable = false)
     private Boolean active = true;

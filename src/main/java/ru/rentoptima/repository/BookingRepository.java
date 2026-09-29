@@ -100,4 +100,16 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByTenantIdAndStatusAndCheckInBetween(
             Long tenantId, String status, LocalDate from, LocalDate to);
 
+    /** Активные брони по нескольким unit_type в окне [from, to). Для AvailabilityService. */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.unitTypeId IN :unitTypeIds
+          AND b.status = 'BOOKED'
+          AND b.checkOut > :from
+          AND b.checkIn < :to
+        ORDER BY b.checkIn
+    """)
+    List<Booking> findActiveByUnitTypesInRange(java.util.List<Long> unitTypeIds,
+                                               LocalDate from, LocalDate to);
+
 }
