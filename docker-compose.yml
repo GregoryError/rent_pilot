@@ -1,17 +1,19 @@
 services:
   app:
     build: .
+    container_name: rentoptima-staging-app
     ports:
-      - "127.0.0.1:${APP_PORT:-8080}:8080"
+      - "127.0.0.1:${STAGING_APP_PORT:-8081}:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - SERVER_FORWARD_HEADERS_STRATEGY=native
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/rentoptima
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/rentoptima_staging
       - SPRING_DATASOURCE_USERNAME=rentoptima
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
-      - SERVER_FORWARD_HEADERS_STRATEGY=native
       - TZ=Europe/Moscow
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - APP_ENVIRONMENT=staging
+      - JAVA_TOOL_OPTIONS=-Xmx512m -XX:MaxRAMPercentage=60
     depends_on:
       db:
         condition: service_healthy
@@ -19,10 +21,11 @@ services:
 
   db:
     image: postgres:16-alpine
+    container_name: rentoptima-staging-db
     volumes:
       - pgdata:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=rentoptima
+      - POSTGRES_DB=rentoptima_staging
       - POSTGRES_USER=rentoptima
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - TZ=Europe/Moscow
@@ -36,4 +39,3 @@ services:
 
 volumes:
   pgdata:
-
