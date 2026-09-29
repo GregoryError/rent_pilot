@@ -1,7 +1,4 @@
 #!/bin/bash
-# Deploy script executed on server-khqi via SSH from GitHub Actions.
-# Pulls latest feat/channels-mvp and rebuilds staging containers.
-
 set -e
 
 DEPLOY_DIR="/opt/rentoptima-staging"
@@ -38,7 +35,6 @@ docker compose up --build -d
 log "Waiting for container to be ready"
 sleep 10
 
-# Ждём пока Spring Boot стартанёт
 for i in {1..30}; do
     if curl -sf -o /dev/null http://127.0.0.1:8081/login; then
         log "✅ App is responding"

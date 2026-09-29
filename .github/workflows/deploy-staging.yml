@@ -1,0 +1,38 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - feat/channels-mvp
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to staging.optirent.ru
+    runs-on: ubuntu-latest
+    concurrency:
+      group: staging-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=accept-new \
+              ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} \
+              'bash /opt/rentoptima-staging/scripts/deploy.sh'
+
+      - name: Notify success
+        if: success()
+        run: echo "✅ Staging updated at https://staging.optirent.ru"
+
+      - name: Notify failure
+        if: failure()
+        run: echo "❌ Deploy failed. Check server logs."
