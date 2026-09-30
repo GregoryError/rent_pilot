@@ -56,35 +56,37 @@
     </div>
 
     <div th:unless="${empty}" class="grid-wrap">
-        <div class="grid" th:style="'--cols: ' + ${#lists.size(dayHeaders)}">
+        <div class="grid" th:style="|--cols: ${#lists.size(dayHeaders)}|">
 
             <div class="grid__corner">Объект / категория</div>
 
+            <!--
+              Классы собираем через pipe-syntax (|...|). У Thymeleaf это литеральный
+              template — как backtick в JS, — куда ${...} подставляется без ломания
+              парсера на смешении одинарных кавычек и тернарников. Раньше здесь была
+              конкатенация 'grid__daycol' + (${...} ? '...' : ''), парсер иногда
+              спотыкался на второй итерации th:each (см. историю фиксов).
+            -->
             <div th:each="h : ${dayHeaders}"
-                 th:class="'grid__daycol'
-                           + (${h.weekend}  ? ' is-weekend'  : '')
-                           + (${h.holiday}  ? ' is-holiday'  : '')
-                           + (${h.today}    ? ' is-today'    : '')
-                           + (${h.past}     ? ' is-past'     : '')">
+                 th:class="|grid__daycol${h.weekend ? ' is-weekend' : ''}${h.holiday ? ' is-holiday' : ''}${h.today ? ' is-today' : ''}${h.past ? ' is-past' : ''}|">
                 <div class="grid__daycol-dow" th:text="${h.dowShort}">пн</div>
                 <div class="grid__daycol-day" th:text="${h.day}">1</div>
             </div>
 
             <th:block th:each="row : ${rows}">
-                <div th:class="'grid__label' + (${row.firstOfProperty} ? ' grid__label--group' : '')">
+                <div th:class="|grid__label${row.firstOfProperty ? ' grid__label--group' : ''}|">
                     <div th:if="${row.firstOfProperty}" class="grid__prop"
                          th:text="${row.propertyName}">Садовая</div>
                     <div class="grid__unit">
                         <span th:text="${row.unitTypeName}">Основной</span>
                         <span class="grid__cap" th:if="${row.capacity > 1}"
-                              th:text="'/ ' + ${row.capacity}">/ 8</span>
+                              th:text="|/ ${row.capacity}|">/ 8</span>
                     </div>
                 </div>
 
                 <div th:each="c : ${row.cells}"
-                     th:class="'grid__cell grid__cell--' + ${c.status}
-                               + (${c.today} ? ' is-today' : '')"
-                     th:title="${c.date} + ' — занято ' + ${c.busy} + ' из ' + ${row.capacity}">
+                     th:class="|grid__cell grid__cell--${c.status}${c.today ? ' is-today' : ''}|"
+                     th:title="|${c.date} — занято ${c.busy} из ${row.capacity}|">
                     <span th:if="${c.multiUnit and c.hasBusy}" th:text="${c.busy}">3</span>
                 </div>
             </th:block>
