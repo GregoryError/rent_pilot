@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
     <meta name="_csrf" th:content="${_csrf.token}">
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
 </head>
@@ -87,6 +88,11 @@
 
         <div class="sidebar__footer">
             <div sec:authentication="principal.displayName">User</div>
+            <button type="button" class="theme-toggle" onclick="toggleTheme()"
+                    title="Переключить тему оформления">
+                <span class="theme-toggle__to-light">☀ Светлая тема</span>
+                <span class="theme-toggle__to-dark">☾ Тёмная тема</span>
+            </button>
             <form th:action="@{/logout}" method="post" style="display: inline; margin: 0;">
                 <button type="submit" class="muted text-sm"
                         style="background: none; border: none; padding: 0; font: inherit; cursor: pointer; color: inherit; text-align: left;">
