@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Шахматка</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header grid-header">
+        <div>
+            <h1 class="page-title">Шахматка</h1>
+            <p class="page-subtitle" th:text="${rangeLabel}">1 октября — 30 октября 2026</p>
+        </div>
+
+        <div class="grid-controls">
+            <a class="btn btn-ghost"
+               th:href="@{/calendar/grid(from=${prevStart}, days=${span})}"
+               title="Предыдущий период">←</a>
+            <a class="btn btn-ghost"
+               th:href="@{/calendar/grid(days=${span})}"
+               title="К сегодняшнему дню">Сегодня</a>
+            <a class="btn btn-ghost"
+               th:href="@{/calendar/grid(from=${nextStart}, days=${span})}"
+               title="Следующий период">→</a>
+
+            <form method="get" th:action="@{/calendar/grid}" class="grid-controls__form">
+                <input type="hidden" name="from" th:value="${startIso}">
+                <select name="days" onchange="this.form.submit()"
+                        class="form-input form-input--sm grid-controls__span">
+                    <option value="7"  th:selected="${span == 7}">7 дней</option>
+                    <option value="14" th:selected="${span == 14}">14 дней</option>
+                    <option value="30" th:selected="${span == 30}">30 дней</option>
+                    <option value="62" th:selected="${span == 62}">62 дня</option>
+                </select>
+            </form>
+        </div>
+    </div>
+
+    <div th:if="${empty}" class="card">
+        <div class="card__title" th:if="${!hasProperties}">Пока нет объектов</div>
+        <div class="card__title" th:if="${hasProperties}">Нет категорий номеров</div>
+        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;"
+           th:if="${!hasProperties}">
+            Добавьте объект в настройках — шахматка появится сразу после создания
+            первой категории номеров.
+        </p>
+        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;"
+           th:if="${hasProperties}">
+            У ваших объектов пока нет ни одной категории номеров. Для квартиры
+            достаточно одной «Основной» с количеством 1; для мини-отеля — по
+            одной на каждый тип номера.
+        </p>
+        <a class="btn btn-primary" th:href="@{/settings/properties}">К настройкам объектов</a>
+    </div>
+
+    <div th:unless="${empty}" class="grid-wrap">
+        <div class="grid" th:style="'--cols: ' + ${#lists.size(dayHeaders)}">
+
+            <div class="grid__corner">Объект / категория</div>
+
+            <div th:each="h : ${dayHeaders}"
+                 th:class="'grid__daycol'
+                           + (${h.weekend}  ? ' is-weekend'  : '')
+                           + (${h.holiday}  ? ' is-holiday'  : '')
+                           + (${h.today}    ? ' is-today'    : '')
+                           + (${h.past}     ? ' is-past'     : '')">
+                <div class="grid__daycol-dow" th:text="${h.dowShort}">пн</div>
+                <div class="grid__daycol-day" th:text="${h.day}">1</div>
+            </div>
+
+            <th:block th:each="row : ${rows}">
+                <div th:class="'grid__label' + (${row.firstOfProperty} ? ' grid__label--group' : '')">
+                    <div th:if="${row.firstOfProperty}" class="grid__prop"
+                         th:text="${row.propertyName}">Садовая</div>
+                    <div class="grid__unit">
+                        <span th:text="${row.unitTypeName}">Основной</span>
+                        <span class="grid__cap" th:if="${row.capacity > 1}"
+                              th:text="'/ ' + ${row.capacity}">/ 8</span>
+                    </div>
+                </div>
+
+                <div th:each="c : ${row.cells}"
+                     th:class="'grid__cell grid__cell--' + ${c.status}
+                               + (${c.today} ? ' is-today' : '')"
+                     th:title="${c.date} + ' — занято ' + ${c.busy} + ' из ' + ${row.capacity}">
+                    <span th:if="${c.multiUnit and c.hasBusy}" th:text="${c.busy}">3</span>
+                </div>
+            </th:block>
+        </div>
+    </div>
+
+    <div th:unless="${empty}" class="grid-legend">
+        <span class="grid-legend__item">
+            <span class="grid-legend__swatch grid__cell--free"></span> Свободно
+        </span>
+        <span class="grid-legend__item">
+            <span class="grid-legend__swatch grid__cell--partial">2</span> Частично
+        </span>
+        <span class="grid-legend__item">
+            <span class="grid-legend__swatch grid__cell--full"></span> Занято
+        </span>
+        <span class="grid-legend__item">
+            <span class="grid-legend__swatch grid__cell--past"></span> Прошло
+        </span>
+    </div>
+
+</div>
+</body>
+</html>

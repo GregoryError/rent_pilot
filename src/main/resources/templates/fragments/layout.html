@@ -31,8 +31,15 @@
             </a>
 
             <div class="nav-section">Управление</div>
-            <a th:href="@{/calendar}" class="nav-item">
+            <a th:href="@{/calendar}"
+               th:classappend="${activePage == 'calendar'} ? 'nav-item--active'"
+               class="nav-item">
                 <span>▦</span> Календарь
+            </a>
+            <a th:href="@{/calendar/grid}"
+               th:classappend="${activePage == 'grid'} ? 'nav-item--active'"
+               class="nav-item">
+                <span>▤</span> Шахматка
             </a>
             <a th:href="@{/pricing}" class="nav-item">
                 <span>◈</span> Ценообразование
