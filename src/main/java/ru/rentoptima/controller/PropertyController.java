@@ -1,27 +1,39 @@
 package ru.rentoptima.controller;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import ru.rentoptima.entity.Property;
-import ru.rentoptima.entity.Tenant;
 import ru.rentoptima.repository.PropertyRepository;
-import ru.rentoptima.repository.TenantRepository;
 import ru.rentoptima.security.AuthContext;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+/**
+ * Property CRUD.
+ * <p>
+ * Пишем через JdbcTemplate вместо JPA-репозитория намеренно: предыдущая
+ * реализация через {@code propertyRepo.save(p)} после {@code p.setTenant(...)}
+ * давала NULL в колонке tenant_id и падала на NOT NULL — Hibernate по какой-то
+ * причине не забирал id из ManyToOne-ассоциации (воспроизводилось на пустой
+ * staging БД, где нет seed-строк). Явный SQL с bind-параметром tenant_id
+ * убирает неопределённость и не зависит от расхождений маппинга Property.
+ * Список остаётся на JPA — там чтение, никаких сюрпризов с FK нет.
+ */
+@Slf4j
 @Controller
 @RequestMapping("/settings/properties")
 @RequiredArgsConstructor
 public class PropertyController {
 
     private final PropertyRepository propertyRepo;
-    private final TenantRepository tenantRepo;
+    private final JdbcTemplate jdbc;
 
     @GetMapping
     public String list(Model model) {
@@ -31,13 +43,6 @@ public class PropertyController {
         return "pages/settings/properties";
     }
 
-    /**
-     * Транзакция обязательна: без неё tenantRepo.findById возвращал бы уже отсоединённый
-     * Tenant, а последующий propertyRepo.save открывал бы свою сессию — Hibernate биндил
-     * бы tenant_id как null и падал бы на NOT NULL (это и наблюдалось на пустой staging БД).
-     * getReferenceById даёт прокси с уже известным id без похода в БД: для INSERT этого
-     * достаточно, а сам факт наличия tenant проверяется каскадно на FK.
-     */
     @PostMapping
     @Transactional
     public String create(@RequestParam String name,
@@ -45,22 +50,29 @@ public class PropertyController {
                          @RequestParam(required = false) String city,
                          RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        Tenant tenant = tenantRepo.getReferenceById(tenantId);
+        if (tenantId == null) {
+            throw new IllegalStateException("tenantId в сессии не установлен");
+        }
+        String cityValue = (city != null && !city.isBlank()) ? city : "Выборг";
+        String feedbackCode = generateCode();
+        String housekeeperCode = generateCode();
+        Timestamp now = Timestamp.valueOf(LocalDateTime.now());
 
-        Property p = new Property();
-        p.setTenant(tenant);
-        p.setName(name);
-        p.setAddress(address);
-        p.setCity(city != null && !city.isBlank() ? city : "Выборг");
-        // RC ID сознательно не принимаем на форме создания — уходим от привязки к RC.
-        // Для существующих prod-объектов поле остаётся редактируемым в форме edit.
-        p.setRcObjectId(null);
-        p.setFeedbackCode(generateCode());
-        p.setHousekeeperCode(generateCode());
-        p.setActive(true);
-        p.setUpdatedAt(LocalDateTime.now());
+        // housekeeper_pin_hash и rc_object_id не заполняем — оба должны быть nullable
+        // (в стек-трейсе tenant_id было единственным упомянутым NOT-NULL нарушением
+        // при null-значениях в этих колонках).
+        jdbc.update("""
+                INSERT INTO properties
+                    (tenant_id, name, address, city,
+                     feedback_code, housekeeper_code,
+                     active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, ?)
+                """,
+                tenantId, name, address, cityValue,
+                feedbackCode, housekeeperCode,
+                now, now);
 
-        propertyRepo.save(p);
+        log.info("Property создан: tenant={}, name='{}'", tenantId, name);
         redirect.addFlashAttribute("success", "Объект «" + name + "» добавлен");
         return "redirect:/settings/properties";
     }
@@ -74,17 +86,18 @@ public class PropertyController {
                          @RequestParam(required = false) String rcObjectId,
                          RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        propertyRepo.findById(id).ifPresent(p -> {
-            // Мультитенант: не даём отредактировать чужой объект даже по угаданному id.
-            if (p.getTenant() == null || !tenantId.equals(p.getTenant().getId())) return;
-            p.setName(name);
-            p.setAddress(address);
-            p.setCity(city);
-            // rcObjectId правится только через edit, для legacy-объектов; на форме создания его нет.
-            p.setRcObjectId(rcObjectId == null || rcObjectId.isBlank() ? null : rcObjectId.trim());
-            p.setUpdatedAt(LocalDateTime.now());
-            propertyRepo.save(p);
-        });
+        String rcClean = (rcObjectId == null || rcObjectId.isBlank()) ? null : rcObjectId.trim();
+        Timestamp now = Timestamp.valueOf(LocalDateTime.now());
+        // WHERE tenant_id обеспечивает мультитенантную изоляцию — не даёт отредактировать чужой объект.
+        int rows = jdbc.update("""
+                UPDATE properties
+                   SET name = ?, address = ?, city = ?, rc_object_id = ?, updated_at = ?
+                 WHERE id = ? AND tenant_id = ?
+                """,
+                name, address, city, rcClean, now, id, tenantId);
+        if (rows == 0) {
+            log.warn("Property update: 0 строк обновлено (id={}, tenant={})", id, tenantId);
+        }
         redirect.addFlashAttribute("success", "Объект обновлён");
         return "redirect:/settings/properties";
     }
@@ -93,12 +106,13 @@ public class PropertyController {
     @Transactional
     public String delete(@PathVariable Long id, RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        propertyRepo.findById(id).ifPresent(p -> {
-            if (p.getTenant() == null || !tenantId.equals(p.getTenant().getId())) return;
-            p.setActive(false);
-            p.setUpdatedAt(LocalDateTime.now());
-            propertyRepo.save(p);
-        });
+        Timestamp now = Timestamp.valueOf(LocalDateTime.now());
+        jdbc.update("""
+                UPDATE properties
+                   SET active = FALSE, updated_at = ?
+                 WHERE id = ? AND tenant_id = ?
+                """,
+                now, id, tenantId);
         redirect.addFlashAttribute("success", "Объект удалён");
         return "redirect:/settings/properties";
     }
