@@ -4,17 +4,20 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import ru.rentoptima.channel.ChannelSyncException;
 
+import java.net.InetAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Optional;
 
 /**
- * Боевая реализация загрузчика iCal поверх java.net.http.
+ * Загрузка iCal-фида поверх java.net.http с SSRF-защитой.
  * <p>
- * Ограничения выставлены осознанно: внешняя площадка — недоверенный источник,
- * и синхронизация не должна вешать пул планировщика или съедать память.
+ * Автоматические редиректы выключены; каждый Location вручную прогоняется через
+ * UrlSafetyGuard. Все адреса резолва проверяются против чёрного списка приватных
+ * диапазонов.
  */
 @Slf4j
 @Component
@@ -22,32 +25,26 @@ public class HttpICalFeedFetcher implements ICalFeedFetcher {
 
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration READ_TIMEOUT = Duration.ofSeconds(20);
-    /** 5 МБ — заведомо больше любого календаря занятости и защищает от «бесконечного» ответа. */
     private static final int MAX_BYTES = 5 * 1024 * 1024;
+    private static final int MAX_REDIRECTS = 5;
 
     private final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(CONNECT_TIMEOUT)
-            .followRedirects(HttpClient.Redirect.NORMAL)
+            .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
     @Override
     public String fetch(String url) {
-        if (url == null || url.isBlank()) {
-            throw new ChannelSyncException("Не задан import_url канала");
+        URI uri = UrlSafetyGuard.normalizeAndCheckShape(url);
+        return fetchWithRedirects(uri, 0);
+    }
+
+    private String fetchWithRedirects(URI uri, int hop) {
+        if (hop > MAX_REDIRECTS) {
+            throw new ChannelSyncException("Слишком много редиректов: " + hop);
         }
-        URI uri;
-        try {
-            uri = URI.create(url.trim());
-        } catch (IllegalArgumentException e) {
-            throw new ChannelSyncException("Некорректный import_url: " + url, e);
-        }
-        String scheme = uri.getScheme() == null ? "" : uri.getScheme().toLowerCase();
-        // webcal:// — распространённая схема в ссылках площадок, трактуем как https
-        if (scheme.equals("webcal")) {
-            uri = URI.create("https://" + url.trim().substring("webcal://".length()));
-        } else if (!scheme.equals("http") && !scheme.equals("https")) {
-            throw new ChannelSyncException("Недопустимая схема URL: " + scheme);
-        }
+        InetAddress resolved = UrlSafetyGuard.resolveAndCheck(uri.getHost());
+        log.debug("iCal fetch: {} -> {} (hop {})", uri, resolved.getHostAddress(), hop);
 
         try {
             HttpRequest req = HttpRequest.newBuilder(uri)
@@ -58,14 +55,25 @@ public class HttpICalFeedFetcher implements ICalFeedFetcher {
                     .build();
 
             HttpResponse<byte[]> resp = client.send(req, HttpResponse.BodyHandlers.ofByteArray());
-            if (resp.statusCode() / 100 != 2) {
-                throw new ChannelSyncException(
-                        "Фид вернул HTTP " + resp.statusCode() + " для " + uri.getHost());
+            int code = resp.statusCode();
+
+            if (code >= 300 && code < 400) {
+                Optional<String> location = resp.headers().firstValue("Location");
+                if (location.isEmpty()) {
+                    throw new ChannelSyncException("HTTP " + code + " без Location");
+                }
+                URI next = resolveLocation(uri, location.get());
+                URI safeNext = UrlSafetyGuard.normalizeAndCheckShape(next.toString());
+                return fetchWithRedirects(safeNext, hop + 1);
             }
+
+            if (code / 100 != 2) {
+                throw new ChannelSyncException("Фид вернул HTTP " + code + " для " + uri.getHost());
+            }
+
             byte[] body = resp.body();
             if (body.length > MAX_BYTES) {
-                throw new ChannelSyncException(
-                        "Фид больше допустимых " + MAX_BYTES + " байт");
+                throw new ChannelSyncException("Фид больше " + MAX_BYTES + " байт");
             }
             return new String(body, java.nio.charset.StandardCharsets.UTF_8);
 
@@ -75,8 +83,15 @@ public class HttpICalFeedFetcher implements ICalFeedFetcher {
             Thread.currentThread().interrupt();
             throw new ChannelSyncException("Загрузка фида прервана", e);
         } catch (Exception e) {
-            throw new ChannelSyncException(
-                    "Не удалось загрузить фид: " + e.getMessage(), e);
+            throw new ChannelSyncException("Не удалось загрузить фид: " + e.getMessage(), e);
+        }
+    }
+
+    private static URI resolveLocation(URI base, String location) {
+        try {
+            return base.resolve(location.trim());
+        } catch (IllegalArgumentException e) {
+            throw new ChannelSyncException("Некорректный Location: " + location);
         }
     }
 }
