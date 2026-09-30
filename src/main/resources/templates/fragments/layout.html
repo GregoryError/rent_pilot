@@ -17,8 +17,7 @@
     <!-- Sidebar -->
     <aside class="sidebar">
         <div class="sidebar__logo">
-            <img src="/static/images/logo-icon.svg" alt="RentOptima"
-                 style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">
+            <svg th:replace="~{fragments/logo :: mark(24)}"></svg>
             <span>RentOptima</span>
         </div>
 
@@ -41,18 +40,26 @@
                class="nav-item">
                 <span>▤</span> Шахматка
             </a>
-            <a th:href="@{/pricing}" class="nav-item">
+            <a th:href="@{/pricing}"
+               th:classappend="${activePage == 'pricing'} ? 'nav-item--active'"
+               class="nav-item">
                 <span>◈</span> Ценообразование
             </a>
-            <a th:href="@{/expenses}" class="nav-item">
+            <a th:href="@{/expenses}"
+               th:classappend="${activePage == 'expenses'} ? 'nav-item--active'"
+               class="nav-item">
                 <span>◇</span> Расходы
             </a>
 
             <div class="nav-section">Данные</div>
-            <a th:href="@{/feedback-admin}" class="nav-item">
+            <a th:href="@{/feedback-admin}"
+               th:classappend="${activePage == 'feedback'} ? 'nav-item--active'"
+               class="nav-item">
                 <span>◎</span> Отзывы
             </a>
-            <a th:href="@{/chat}" class="nav-item">
+            <a th:href="@{/chat}"
+               th:classappend="${activePage == 'chat'} ? 'nav-item--active'"
+               class="nav-item">
                 <span>◬</span> AI Чат
             </a>
 

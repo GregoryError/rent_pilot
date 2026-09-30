@@ -130,6 +130,11 @@ a:hover { text-decoration: underline; }
     color: var(--accent);
 }
 
+/* Логотип (fragments/logo.html) */
+.logo-mark { display: inline-block; flex-shrink: 0; vertical-align: middle; }
+.logo-mark__bg { fill: var(--accent); }
+.logo-mark__fg { stroke: var(--bg-root); }
+
 .sidebar__nav { flex: 1; }
 
 .nav-item {
