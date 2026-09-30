@@ -8,23 +8,28 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.PropertyRepository;
+import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Property CRUD.
  * <p>
- * Пишем через JdbcTemplate вместо JPA-репозитория намеренно: предыдущая
- * реализация через {@code propertyRepo.save(p)} после {@code p.setTenant(...)}
- * давала NULL в колонке tenant_id и падала на NOT NULL — Hibernate по какой-то
- * причине не забирал id из ManyToOne-ассоциации (воспроизводилось на пустой
- * staging БД, где нет seed-строк). Явный SQL с bind-параметром tenant_id
- * убирает неопределённость и не зависит от расхождений маппинга Property.
- * Список остаётся на JPA — там чтение, никаких сюрпризов с FK нет.
+ * Пишем через JdbcTemplate вместо JPA-репозитория намеренно — см. комментарий
+ * от предыдущего фикса: у Property.java двойной маппинг на tenant_id (ManyToOne
+ * с insertable=false плюс @Column-поле tenantId), и попытка сохранить через
+ * setTenant не работала. Список загружаем через JPA, там читать безопасно.
+ * <p>
+ * unit_types для каждой property подгружаем в модель здесь же, чтобы шаблон
+ * мог показать их под карточкой объекта без дополнительных запросов.
  */
 @Slf4j
 @Controller
@@ -33,13 +38,19 @@ import java.util.UUID;
 public class PropertyController {
 
     private final PropertyRepository propertyRepo;
+    private final UnitTypeRepository unitTypeRepo;
     private final JdbcTemplate jdbc;
 
     @GetMapping
     public String list(Model model) {
         Long tenantId = AuthContext.tenantId();
+        // Группируем unit_type по propertyId — шаблон достанет по ключу для каждой карточки.
+        Map<Long, List<UnitType>> unitTypesByProperty = unitTypeRepo
+                .findByTenantIdAndActiveTrue(tenantId).stream()
+                .collect(Collectors.groupingBy(UnitType::getPropertyId));
         model.addAttribute("activePage", "settings");
         model.addAttribute("properties", propertyRepo.findByTenantIdAndActiveTrue(tenantId));
+        model.addAttribute("unitTypesByProperty", unitTypesByProperty);
         return "pages/settings/properties";
     }
 
@@ -58,9 +69,6 @@ public class PropertyController {
         String housekeeperCode = generateCode();
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
 
-        // housekeeper_pin_hash и rc_object_id не заполняем — оба должны быть nullable
-        // (в стек-трейсе tenant_id было единственным упомянутым NOT-NULL нарушением
-        // при null-значениях в этих колонках).
         jdbc.update("""
                 INSERT INTO properties
                     (tenant_id, name, address, city,
@@ -88,7 +96,6 @@ public class PropertyController {
         Long tenantId = AuthContext.tenantId();
         String rcClean = (rcObjectId == null || rcObjectId.isBlank()) ? null : rcObjectId.trim();
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
-        // WHERE tenant_id обеспечивает мультитенантную изоляцию — не даёт отредактировать чужой объект.
         int rows = jdbc.update("""
                 UPDATE properties
                    SET name = ?, address = ?, city = ?, rc_object_id = ?, updated_at = ?

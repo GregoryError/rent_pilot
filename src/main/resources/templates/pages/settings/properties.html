@@ -9,7 +9,7 @@
     <div class="page-header flex justify-between items-center">
         <div>
             <h1 class="page-title">Объекты</h1>
-            <p class="page-subtitle">Управление квартирами</p>
+            <p class="page-subtitle">Управление квартирами и категориями номеров</p>
         </div>
         <button class="btn btn-primary" onclick="document.getElementById('add-form').style.display='block'">+ Добавить объект</button>
     </div>
@@ -50,7 +50,6 @@
                 <span class="tag tag--green">Активен</span>
             </div>
 
-            <!-- Edit form (collapsible) -->
             <details>
                 <summary style="cursor: pointer; font-size: var(--text-sm); color: var(--accent); margin-bottom: var(--sp-4);">Редактировать</summary>
                 <form th:action="@{'/settings/properties/' + ${prop.id} + '/edit'}" method="post">
@@ -97,6 +96,85 @@
                 <div th:if="${prop.rcObjectId != null and !prop.rcObjectId.isBlank()}" style="grid-column: 1 / -1;">
                     <div class="text-sm muted" style="margin-bottom: var(--sp-1);">RC ID <span style="opacity:0.7">(legacy)</span></div>
                     <code class="text-sm mono" th:text="${prop.rcObjectId}"></code>
+                </div>
+            </div>
+
+            <!-- Unit types -->
+            <div style="margin-top: var(--sp-6); padding-top: var(--sp-4); border-top: 1px solid var(--border-subtle);"
+                 th:with="uts=${unitTypesByProperty != null ? unitTypesByProperty.get(prop.id) : null}">
+                <div class="flex justify-between items-center" style="margin-bottom: var(--sp-3);">
+                    <div class="card__title" style="margin: 0;">Категории номеров</div>
+                    <button type="button" class="btn btn-ghost"
+                            th:onclick="|document.getElementById('ut-form-${prop.id}').style.display='block'|">
+                        + Категория
+                    </button>
+                </div>
+
+                <div th:if="${uts == null or #lists.isEmpty(uts)}" class="muted text-sm"
+                     style="padding: var(--sp-3) 0;">
+                    Пока нет категорий. Для квартиры достаточно одной «Основной» с количеством 1.
+                </div>
+
+                <div class="table-wrap" th:unless="${uts == null or #lists.isEmpty(uts)}">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Название</th>
+                                <th>Кол-во номеров</th>
+                                <th>Базовая цена</th>
+                                <th>Цена выходные</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="ut : ${uts}">
+                                <td th:text="${ut.name}">Основной</td>
+                                <td th:text="${ut.unitCount}">1</td>
+                                <td th:text="${ut.basePrice != null ? ut.basePrice + ' ₽' : '—'}">—</td>
+                                <td th:text="${ut.weekendPrice != null ? ut.weekendPrice + ' ₽' : '—'}">—</td>
+                                <td class="text-right">
+                                    <form style="display:inline;"
+                                          th:action="@{'/settings/properties/' + ${prop.id} + '/unit-types/' + ${ut.id} + '/delete'}"
+                                          method="post"
+                                          onsubmit="return confirm('Удалить категорию? Каналы, привязанные к ней, останутся, но перестанут синхронизироваться до перепривязки.');">
+                                        <button type="submit" class="btn btn-ghost" style="color: var(--red);">Удалить</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Add unit_type form (per-property, скрыта по умолчанию) -->
+                <div th:id="'ut-form-' + ${prop.id}" style="display:none; margin-top: var(--sp-4);
+                     background: var(--bg-raised); padding: var(--sp-4); border-radius: var(--radius-sm);">
+                    <form th:action="@{'/settings/properties/' + ${prop.id} + '/unit-types'}" method="post">
+                        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: var(--sp-3);">
+                            <div class="form-group">
+                                <label class="form-label">Название *</label>
+                                <input type="text" name="name" class="form-input form-input--sm" required placeholder="Основной">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Кол-во</label>
+                                <input type="number" name="unitCount" class="form-input form-input--sm" min="1" value="1">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Цена, ₽</label>
+                                <input type="number" name="basePrice" class="form-input form-input--sm" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Выходные, ₽</label>
+                                <input type="number" name="weekendPrice" class="form-input form-input--sm" step="0.01">
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: var(--sp-3);">
+                            <button type="submit" class="btn btn-primary">Создать</button>
+                            <button type="button" class="btn btn-ghost"
+                                    th:onclick="|document.getElementById('ut-form-${prop.id}').style.display='none'|">
+                                Отмена
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
