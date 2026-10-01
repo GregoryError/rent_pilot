@@ -1,0 +1,54 @@
+name: Deploy to Partner Staging
+
+on:
+  push:
+    branches:
+      - feat/design-refresh
+      - feat/community-forum
+      - feat/site-builder
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy'
+        required: true
+        default: 'feat/design-refresh'
+
+jobs:
+  deploy:
+    name: Deploy to partner.optirent.ru
+    runs-on: ubuntu-latest
+    concurrency:
+      group: partner-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Determine branch
+        id: branch
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "name=${{ inputs.branch }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o StrictHostKeyChecking=accept-new \
+              ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} \
+              "PARTNER_BRANCH='${{ steps.branch.outputs.name }}' bash /opt/rentoptima-partner/scripts/deploy-partner.sh"
+
+      - name: Notify success
+        if: success()
+        run: echo "✅ Partner updated at https://partner.optirent.ru (branch ${{ steps.branch.outputs.name }})"
+
+      - name: Notify failure
+        if: failure()
+        run: echo "❌ Partner deploy failed."
