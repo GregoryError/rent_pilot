@@ -23,14 +23,15 @@ import java.util.Map;
 /**
  * Шахматка — визуализация занятости всех unit_type тенанта на горизонте дней.
  * <p>
- * Строится строго поверх {@link AvailabilityService#occupancyGrid}, чтобы
- * источник правды о занятости был один для iCal-фидов и для UI. Если завтра
- * поменяется логика «что считать занятым» (например, тентативные брони),
- * достаточно поправить AvailabilityService — шахматка обновится сама.
+ * Строится поверх {@link AvailabilityService#occupancyGrid}, чтобы источник правды
+ * о занятости был один для iCal-фидов и для UI.
  * <p>
- * Локализация подписей (месяцы, дни недели) — вручную, как и в
- * {@code CalendarController}: Thymeleaf-i18n в проекте не настроен,
- * и договорённость такая же.
+ * CSS-классы для ячеек, заголовков дней и подписей собираются ЗДЕСЬ, в контроллере,
+ * а не в шаблоне. Thymeleaf-парсер плохо справляется с конкатенацией строк и
+ * тернарников внутри th:class — независимо от стиля (плюсы и ${...}, pipe-syntax,
+ * mixed). После нескольких неудачных попыток перенёс всю строковую сборку на сервер:
+ * шаблон теперь только подставляет готовые строки через th:class="${x.cssClasses}".
+ * Это надёжнее и, честно говоря, читается лучше.
  */
 @Controller
 @RequestMapping("/calendar/grid")
@@ -58,7 +59,6 @@ public class OccupancyGridController {
         LocalDate endExclusive = start.plusDays(span);
         LocalDate lastDay = endExclusive.minusDays(1);
 
-        // Все объекты + категории тенанта, в порядке property → unit_types.
         List<Property> properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
         Map<Long, List<UnitType>> unitTypesByProperty = new LinkedHashMap<>();
         List<Long> allUnitTypeIds = new ArrayList<>();
@@ -68,8 +68,6 @@ public class OccupancyGridController {
             for (UnitType ut : uts) allUnitTypeIds.add(ut.getId());
         }
 
-        // Один запрос на всю сетку — важнее, чем красота кода: с 5-6 unit_type
-        // и 30 днями это 150-200 ячеек, ходить в БД по каждой мы не будем.
         Map<Long, Map<LocalDate, Integer>> occByUnit =
                 allUnitTypeIds.isEmpty()
                         ? Map.of()
@@ -77,21 +75,30 @@ public class OccupancyGridController {
 
         Map<LocalDate, String> holidays = prodCalendar.getHolidaysInRange(start, lastDay);
 
-        // Заголовки колонок.
+        // Заголовки колонок с готовыми CSS-классами.
         List<DayHeader> dayHeaders = new ArrayList<>(span);
         for (int i = 0; i < span; i++) {
             LocalDate d = start.plusDays(i);
             int dow = d.getDayOfWeek().getValue();
+            boolean weekend = dow >= 6;
+            boolean holiday = holidays.containsKey(d);
+            boolean isToday = d.equals(today);
+            boolean past = d.isBefore(today);
+
+            StringBuilder cls = new StringBuilder("grid__daycol");
+            if (weekend)  cls.append(" is-weekend");
+            if (holiday)  cls.append(" is-holiday");
+            if (isToday)  cls.append(" is-today");
+            if (past)     cls.append(" is-past");
+
             dayHeaders.add(new DayHeader(
-                    d, d.getDayOfMonth(), dow, russianDowShort(dow),
-                    dow >= 6,
-                    holidays.containsKey(d),
-                    d.equals(today),
-                    d.isBefore(today)
-            ));
+                    d, d.getDayOfMonth(), russianDowShort(dow),
+                    isToday, cls.toString()));
         }
 
-        // Ряды: сохраняем группировку по property (первый ряд группы рисует заголовок объекта).
+        boolean empty = allUnitTypeIds.isEmpty();
+        boolean hasProperties = !properties.isEmpty();
+
         List<Row> rows = new ArrayList<>();
         for (Property p : properties) {
             List<UnitType> uts = unitTypesByProperty.getOrDefault(p.getId(), List.of());
@@ -100,41 +107,45 @@ public class OccupancyGridController {
                 int capacity = ut.getUnitCount() == null ? 1 : Math.max(1, ut.getUnitCount());
                 Map<LocalDate, Integer> occ = occByUnit.getOrDefault(ut.getId(), Map.of());
 
+                boolean firstOfProperty = idx == 0;
+                String labelClasses = firstOfProperty
+                        ? "grid__label grid__label--group"
+                        : "grid__label";
+
                 List<Cell> cells = new ArrayList<>(span);
                 for (DayHeader h : dayHeaders) {
                     int busy = occ.getOrDefault(h.date(), 0);
+                    boolean past = h.date().isBefore(today);
+                    String status = statusOf(busy, capacity, past);
+
+                    StringBuilder cellCls = new StringBuilder("grid__cell grid__cell--");
+                    cellCls.append(status);
+                    if (h.today()) cellCls.append(" is-today");
+
+                    String title = h.date() + " — занято " + busy + " из " + capacity;
+
                     cells.add(new Cell(
-                            h.date(), busy, capacity,
-                            statusOf(busy, capacity, h.past()),
-                            h.today()
-                    ));
+                            busy, capacity, capacity > 1 && busy > 0,
+                            cellCls.toString(), title));
                 }
                 rows.add(new Row(
-                        p.getId(), p.getName(),
-                        ut.getId(), ut.getName(), capacity,
-                        idx == 0,
-                        cells
-                ));
+                        p.getName(), ut.getName(), capacity,
+                        firstOfProperty, labelClasses, cells));
             }
         }
 
         model.addAttribute("activePage", "grid");
         model.addAttribute("dayHeaders", dayHeaders);
         model.addAttribute("rows", rows);
-        model.addAttribute("start", start);
         model.addAttribute("startIso", start.toString());
-        model.addAttribute("lastDay", lastDay);
         model.addAttribute("span", span);
         model.addAttribute("prevStart", start.minusDays(span));
         model.addAttribute("nextStart", start.plusDays(span));
-        model.addAttribute("today", today);
         model.addAttribute("rangeLabel", russianRange(start, lastDay));
-        model.addAttribute("empty", allUnitTypeIds.isEmpty());
-        model.addAttribute("hasProperties", !properties.isEmpty());
+        model.addAttribute("empty", empty);
+        model.addAttribute("hasProperties", hasProperties);
         return "pages/calendar/grid";
     }
-
-    /* Локализованные форматтеры — намеренно без i18n, см. class javadoc. */
 
     private static String russianDowShort(int dow) {
         return switch (dow) {
@@ -180,17 +191,13 @@ public class OccupancyGridController {
         return Math.max(lo, Math.min(hi, v));
     }
 
-    public record DayHeader(LocalDate date, int day, int dayOfWeek,
-                            String dowShort,
-                            boolean weekend, boolean holiday,
-                            boolean today, boolean past) {}
+    public record DayHeader(LocalDate date, int day, String dowShort,
+                            boolean today, String cssClasses) {}
 
-    public record Cell(LocalDate date, int busy, int capacity, String status, boolean today) {
-        public boolean multiUnit() { return capacity > 1; }
-        public boolean hasBusy() { return busy > 0; }
-    }
+    public record Cell(int busy, int capacity, boolean showBusyBadge,
+                       String cssClasses, String title) {}
 
-    public record Row(Long propertyId, String propertyName,
-                      Long unitTypeId, String unitTypeName, int capacity,
-                      boolean firstOfProperty, List<Cell> cells) {}
+    public record Row(String propertyName, String unitTypeName, int capacity,
+                      boolean firstOfProperty, String labelCssClasses,
+                      List<Cell> cells) {}
 }
