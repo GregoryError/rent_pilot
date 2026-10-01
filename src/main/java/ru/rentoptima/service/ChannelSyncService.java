@@ -24,22 +24,12 @@ import java.util.Optional;
 
 /**
  * Оркестратор синхронизации каналов.
- * <p>
- * Отвечает за то, что одинаково для всех площадок: собрать контекст, выбрать
- * адаптер, выполнить прогон, записать в {@code channels} время и итог,
- * не дать ошибке одного канала остановить остальные. Специфика площадки живёт
- * исключительно в адаптерах.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChannelSyncService {
 
-    /**
-     * Горизонт синхронизации по умолчанию. Назад — на две недели, чтобы
-     * подхватить правки задним числом по уже заехавшим гостям; вперёд — на год,
-     * этого хватает для посуточной аренды и не приводит к гигантским фидам.
-     */
     private static final int DEFAULT_PAST_DAYS = 14;
     private static final int DEFAULT_FUTURE_DAYS = 365;
 
@@ -50,7 +40,6 @@ public class ChannelSyncService {
     private final PropertyRepository propertyRepo;
     private final ChannelAdapterRegistry registry;
 
-    /** Синхронизировать все включённые каналы тенанта. */
     public int syncTenant(Long tenantId) {
         List<Channel> channels = channelRepo.findByTenantIdAndActiveTrueAndSyncEnabledTrue(tenantId);
         int ok = 0;
@@ -61,13 +50,6 @@ public class ChannelSyncService {
         return ok;
     }
 
-    /**
-     * Синхронизировать один канал.
-     *
-     * @return результат прогона или {@code Optional.empty()}, если канал не
-     *         поддерживает импорт либо прогон завершился ошибкой (она записана
-     *         в {@code channels.last_error})
-     */
     public Optional<ChannelSyncResult> syncChannel(Long channelId) {
         Channel channel = channelRepo.findById(channelId).orElse(null);
         if (channel == null) {
@@ -99,7 +81,6 @@ public class ChannelSyncService {
                     channel.getId(), channel.getChannelType(), result);
             return Optional.of(result);
         } catch (Exception e) {
-            // Ошибка одной площадки не должна ронять прогон остальных.
             log.warn("Channel {} ({}) — ошибка синхронизации: {}",
                     channel.getId(), channel.getChannelType(), e.getMessage());
             recordError(channel, e.getMessage());
@@ -121,11 +102,6 @@ public class ChannelSyncService {
                 today.plusDays(DEFAULT_FUTURE_DAYS));
     }
 
-    /*
-     * Без @Transactional намеренно: метод вызывается изнутри этого же бина,
-     * и Spring-прокси всё равно не перехватил бы такой вызов. Репозиторный
-     * save() открывает собственную транзакцию, и для одной записи этого хватает.
-     */
     private void recordSuccess(Channel channel, ChannelSyncResult result) {
         channel.setLastSyncAt(LocalDateTime.now());
         channel.setLastError(null);
@@ -135,7 +111,6 @@ public class ChannelSyncService {
         channelRepo.save(channel);
     }
 
-    /* См. комментарий к recordSuccess — транзакция не нужна. */
     private void recordError(Channel channel, String message) {
         channel.setLastSyncAt(LocalDateTime.now());
         channel.setLastError(truncate(message));
@@ -143,11 +118,6 @@ public class ChannelSyncService {
         channelRepo.save(channel);
     }
 
-    /**
-     * Выдать каналу секрет для публичного iCal-фида, если его ещё нет.
-     * 192 бита энтропии — URL фида по сути является bearer-токеном, и подобрать
-     * его перебором должно быть нереально.
-     */
     @Transactional
     public String ensureExportSecret(Long channelId) {
         Channel channel = channelRepo.findById(channelId)
@@ -155,13 +125,29 @@ public class ChannelSyncService {
         if (channel.getExportSecret() != null && !channel.getExportSecret().isBlank()) {
             return channel.getExportSecret();
         }
-        byte[] buf = new byte[24];
-        RANDOM.nextBytes(buf);
-        String secret = Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
+        String secret = generateSecret();
         channel.setExportSecret(secret);
         channel.setUpdatedAt(LocalDateTime.now());
         channelRepo.save(channel);
         return secret;
+    }
+
+    @Transactional
+    public String regenerateExportSecret(Long channelId) {
+        Channel channel = channelRepo.findById(channelId)
+                .orElseThrow(() -> new IllegalArgumentException("Канал не найден: " + channelId));
+        String secret = generateSecret();
+        channel.setExportSecret(secret);
+        channel.setUpdatedAt(LocalDateTime.now());
+        channelRepo.save(channel);
+        log.info("Channel {} export secret regenerated", channelId);
+        return secret;
+    }
+
+    private static String generateSecret() {
+        byte[] buf = new byte[24];
+        RANDOM.nextBytes(buf);
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
     }
 
     private static String truncate(String s) {

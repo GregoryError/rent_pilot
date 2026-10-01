@@ -17,4 +17,7 @@ public interface ChannelRepository extends JpaRepository<Channel, Long> {
     List<Channel> findByChannelTypeAndActiveTrue(Channel.ChannelType channelType);
 
     Optional<Channel> findByExportSecret(String exportSecret);
+
+    /** Для планировщика: все активные каналы с включённой синхронизацией, кросс-тенант. */
+    List<Channel> findByActiveTrueAndSyncEnabledTrue();
 }

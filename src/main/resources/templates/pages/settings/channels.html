@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head><title>Каналы</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Каналы</h1>
+            <p class="page-subtitle">iCal-подключения к площадкам, экспорт занятости</p>
+        </div>
+        <button class="btn btn-primary" type="button" id="btn-add-channel"
+                th:attr="disabled=${!hasUnitTypes} ? 'disabled'">+ Подключить канал</button>
+    </div>
+
+    <div th:if="${error}" class="card"
+         style="border-left: 3px solid var(--red); background: var(--red-dim); margin-bottom: var(--sp-4);">
+        <div th:text="${error}" style="color: var(--red);"></div>
+    </div>
+
+    <div class="card" id="add-form" style="display:none;" th:if="${hasUnitTypes}">
+        <div class="card__title" style="margin-bottom: var(--sp-5);">Новый канал iCal</div>
+        <form th:action="@{/settings/channels}" method="post">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label">Название *</label>
+                    <input type="text" name="name" class="form-input" required
+                           placeholder="Суточно — Садовая">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Категория номеров *</label>
+                    <select name="unitTypeId" class="form-input" required>
+                        <option th:each="ut : ${unitTypes}"
+                                th:value="${ut.id}" th:text="${ut.label}">Садовая / Основной</option>
+                    </select>
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label class="form-label">URL импорта (iCal-фид площадки) *</label>
+                    <input type="url" name="importUrl" class="form-input" required
+                           placeholder="https://sutochno.ru/ical/your-feed.ics">
+                    <div class="form-hint">
+                        Публичный URL без логина/пароля. Площадка даёт его в разделе «Синхронизация календарей».
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Интервал опроса, минут</label>
+                    <input type="number" name="syncIntervalMinutes" class="form-input"
+                           value="30" min="15" max="1440">
+                    <div class="form-hint">Минимум 15. По умолчанию 30.</div>
+                </div>
+            </div>
+            <div style="display: flex; gap: var(--sp-3); margin-top: var(--sp-2);">
+                <button type="submit" class="btn btn-primary">Подключить</button>
+                <button type="button" class="btn btn-ghost" id="btn-cancel-add">Отмена</button>
+            </div>
+        </form>
+    </div>
+
+    <div th:unless="${hasUnitTypes}" class="card">
+        <div class="card__title">Сначала добавьте категорию номеров</div>
+        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
+            Канал привязывается к категории внутри объекта. Создайте хотя бы одну
+            категорию у любой квартиры в разделе «Объекты».
+        </p>
+        <a class="btn btn-primary" th:href="@{/settings/properties}">К объектам</a>
+    </div>
+
+    <div th:each="c : ${channels}" class="card">
+        <div class="flex justify-between items-center" style="margin-bottom: var(--sp-3);">
+            <div>
+                <div style="font-size: var(--text-lg); font-weight: var(--weight-semibold);"
+                     th:text="${c.name}">Канал</div>
+                <div class="text-sm muted">
+                    <span th:text="${c.channelType}">ICAL</span>
+                    · <span th:text="${c.unitTypeLabel}">Садовая / Основной</span>
+                    · опрос каждые <span th:text="${c.syncIntervalMinutes}">30</span> мин
+                </div>
+            </div>
+            <span class="tag" th:classappend="${c.statusCssClass}" th:text="${c.statusText}">OK</span>
+        </div>
+
+        <div class="text-sm" style="margin-bottom: var(--sp-4); color: var(--text-secondary);">
+            <div>
+                Последняя синхронизация:
+                <span th:text="${c.lastSyncRelative}">никогда</span>
+                <span class="muted" th:if="${c.lastSyncExact != null}" th:text="|(${c.lastSyncExact})|"></span>
+            </div>
+            <div th:if="${c.lastSyncImported != null and c.lastSyncImported > 0}">
+                Импортировано/обновлено: <span th:text="${c.lastSyncImported}">0</span>
+                <span th:if="${c.lastSyncRemoved != null and c.lastSyncRemoved > 0}">
+                    , снято: <span th:text="${c.lastSyncRemoved}">0</span>
+                </span>
+            </div>
+            <div th:if="${c.lastError != null and !c.lastError.isBlank()}"
+                 style="color: var(--red); margin-top: var(--sp-2);">
+                Ошибка: <span th:text="${c.lastError}"></span>
+            </div>
+        </div>
+
+        <div class="form-group" th:if="${c.importUrl != null}">
+            <label class="form-label">URL импорта (откуда берём занятость)</label>
+            <div style="display: flex; gap: var(--sp-2);">
+                <input type="text" readonly th:id="${c.importUrlInputId}"
+                       th:value="${c.importUrl}"
+                       class="form-input form-input--sm" style="flex: 1;">
+                <button type="button" class="btn btn-ghost copy-btn"
+                        th:data-target="${c.importUrlInputId}">Копировать</button>
+            </div>
+        </div>
+
+        <div class="form-group" th:if="${c.exportUrl != null}">
+            <label class="form-label">URL экспорта (отдаём площадкам)</label>
+            <div style="display: flex; gap: var(--sp-2); align-items: center;">
+                <input type="text" readonly th:id="${c.exportUrlInputId}"
+                       th:value="${c.exportUrl}"
+                       class="form-input form-input--sm" style="flex: 1;">
+                <button type="button" class="btn btn-ghost copy-btn"
+                        th:data-target="${c.exportUrlInputId}">Копировать</button>
+                <form style="display: inline;" method="post"
+                      th:action="@{'/settings/channels/' + ${c.id} + '/regenerate-secret'}"
+                      onsubmit="return confirm('Перевыпустить секрет? Старый URL сразу перестанет работать — площадкам придётся его обновить.');">
+                    <button type="submit" class="btn btn-ghost" style="color: var(--amber);">Перевыпустить</button>
+                </form>
+            </div>
+            <div class="form-hint">
+                Вставьте этот URL в раздел «Импорт календаря» площадки, чтобы она видела
+                занятость, импортированную из других каналов.
+            </div>
+        </div>
+
+        <div style="display: flex; gap: var(--sp-3); margin-top: var(--sp-4); flex-wrap: wrap;">
+            <form style="display: inline;" method="post" th:if="${c.canSyncNow}"
+                  th:action="@{'/settings/channels/' + ${c.id} + '/sync'}">
+                <button type="submit" class="btn btn-primary">Синхронизировать сейчас</button>
+            </form>
+            <form style="display: inline;" method="post"
+                  th:action="@{'/settings/channels/' + ${c.id} + '/toggle'}">
+                <button type="submit" class="btn btn-ghost"
+                        th:text="${c.syncEnabled} ? 'Выключить авто-синхронизацию' : 'Включить авто-синхронизацию'">Toggle</button>
+            </form>
+            <form style="display: inline; margin-left: auto;" method="post"
+                  th:action="@{'/settings/channels/' + ${c.id} + '/delete'}"
+                  onsubmit="return confirm('Отключить канал? Он перестанет синхронизироваться; история останется.');">
+                <button type="submit" class="btn btn-ghost" style="color: var(--red);">Отключить</button>
+            </form>
+        </div>
+    </div>
+
+    <div th:if="${hasUnitTypes and #lists.isEmpty(channels)}" class="card"
+         style="text-align: center; padding: var(--sp-10);">
+        <div class="muted">Пока нет подключённых каналов. Нажмите «Подключить канал» выше.</div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="scripts">
+    <script>
+        (function() {
+            const addForm = document.getElementById('add-form');
+            const btnAdd = document.getElementById('btn-add-channel');
+            const btnCancel = document.getElementById('btn-cancel-add');
+            if (btnAdd && addForm) {
+                btnAdd.addEventListener('click', () => { addForm.style.display = 'block'; });
+            }
+            if (btnCancel && addForm) {
+                btnCancel.addEventListener('click', () => { addForm.style.display = 'none'; });
+            }
+            document.querySelectorAll('.copy-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const target = btn.dataset.target;
+                    const input = document.getElementById(target);
+                    if (!input) return;
+                    navigator.clipboard.writeText(input.value).then(() => {
+                        const original = btn.textContent;
+                        btn.textContent = 'Скопировано';
+                        setTimeout(() => { btn.textContent = original; }, 2000);
+                    });
+                });
+            });
+        })();
+    </script>
+</th:block>
+</body>
+</html>
