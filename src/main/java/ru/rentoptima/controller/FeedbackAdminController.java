@@ -35,6 +35,7 @@ public class FeedbackAdminController {
 
     @GetMapping
     public String page(Model model) {
+        model.addAttribute("activePage", "feedback");
         Long tenantId = AuthContext.tenantId();
         List<Property> properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
         Property property = properties.isEmpty() ? null : properties.get(0);

@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
     <meta name="_csrf" th:content="${_csrf.token}">
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <style>
@@ -111,7 +112,7 @@
 
 <div class="register-box">
     <div class="register-title">
-        <img src="/static/images/logo-icon.svg" alt="" style="width: 30px; height: 30px;">
+        <svg th:replace="~{fragments/logo :: mark(30)}"></svg>
         <span>RentOptima</span>
     </div>
     <div class="register-subtitle">Регистрация нового аккаунта</div>

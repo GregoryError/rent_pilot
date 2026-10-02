@@ -5,6 +5,8 @@
 
 /* --- Tokens --- */
 :root {
+    color-scheme: dark;
+
     /* Palette */
     --bg-root:      #0e0f11;
     --bg-surface:   #16171b;
@@ -71,6 +73,38 @@
     --duration: 200ms;
 }
 
+/* --- Light theme ---
+   Включается атрибутом <html data-theme="light"> (static/js/theme.js).
+   Переопределяется только палитра; размеры, шрифты, отступы общие.
+   Контраст на --bg-surface: текст ≥ 7:1, статусы и accent ≥ 4.5:1 (WCAG AA). */
+:root[data-theme="light"] {
+    color-scheme: light;
+
+    --bg-root:      #f6f5f2;
+    --bg-surface:   #ffffff;
+    --bg-raised:    #efeee9;
+    --bg-hover:     #e9e7e1;
+    --bg-active:    #e1dfd8;
+
+    --border:       #dcdad3;
+    --border-subtle:#e9e7e1;
+
+    --text-primary: #1c1c1a;
+    --text-secondary:#57564f;
+    --text-muted:   #78766e;
+
+    --accent:       #3d5fd9;
+    --accent-dim:   #2f4bb3;
+    --accent-glow:  rgba(61,95,217,0.10);
+
+    --green:        #15803d;
+    --green-dim:    rgba(21,128,61,0.10);
+    --red:          #dc2626;
+    --red-dim:      rgba(220,38,38,0.10);
+    --amber:        #b45309;
+    --amber-dim:    rgba(180,83,9,0.12);
+}
+
 /* --- Reset --- */
 *, *::before, *::after {
     box-sizing: border-box;
@@ -130,6 +164,11 @@ a:hover { text-decoration: underline; }
     color: var(--accent);
 }
 
+/* Логотип (fragments/logo.html) */
+.logo-mark { display: inline-block; flex-shrink: 0; vertical-align: middle; }
+.logo-mark__bg { fill: var(--accent); }
+.logo-mark__fg { stroke: var(--bg-root); }
+
 .sidebar__nav { flex: 1; }
 
 .nav-item {
@@ -172,6 +211,25 @@ a:hover { text-decoration: underline; }
     font-size: var(--text-xs);
     color: var(--text-muted);
 }
+
+/* Переключатель темы (sidebar footer). Подпись меняется через CSS,
+   без JS: видна та, что соответствует текущей теме. */
+.theme-toggle {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin: var(--sp-2) 0;
+    padding: 0;
+    background: none;
+    border: none;
+    font: inherit;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+.theme-toggle:hover { color: var(--text-primary); }
+.theme-toggle__to-dark { display: none; }
+:root[data-theme="light"] .theme-toggle__to-light { display: none; }
+:root[data-theme="light"] .theme-toggle__to-dark  { display: inline; }
 
 /* --- Main content --- */
 .main-content {
