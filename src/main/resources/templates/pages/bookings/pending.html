@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head><title>Заявки</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Заявки на бронь</h1>
+        <p class="page-subtitle">Приходят со страницы бронирования. Свяжитесь с гостем и подтвердите — или отклоните, чтобы освободить даты</p>
+    </div>
+
+    <div class="card" th:if="${#lists.isEmpty(pending)}">
+        <div class="card__title">Новых заявок нет</div>
+        <p class="muted" style="margin: var(--sp-3) 0 0 0;">
+            Заявки появятся здесь, когда гости начнут бронировать по вашей ссылке.
+            Ссылку можно взять в разделе <a th:href="@{/settings/widgets}">Страница брони</a>.
+        </p>
+    </div>
+
+    <div th:each="r : ${pending}" class="card">
+        <div class="flex justify-between items-center" style="gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-3);">
+            <div>
+                <div class="card__title" th:text="${r.dates}">12.11.2026 — 14.11.2026</div>
+                <div class="text-sm muted">
+                    <span th:text="${r.widgetTitle}">Квартира на Садовой</span>
+                    · ночей: <span th:text="${r.nights}">2</span>
+                    · гостей: <span th:text="${r.guests}">2</span>
+                    · <span th:text="${r.amount}">9000 ₽</span>
+                </div>
+            </div>
+            <span th:class="${r.statusCss}" th:text="${r.status}">даты держатся до 05.10 14:00</span>
+        </div>
+
+        <div class="text-sm" style="color: var(--text-secondary); margin-bottom: var(--sp-4);">
+            <div>Гость: <strong th:text="${r.guestName}">И.</strong>,
+                телефон <strong th:text="${r.guestPhone}">+79000000000</strong></div>
+            <div th:if="${!#strings.isEmpty(r.notes)}" th:text="${r.notes}" style="white-space: pre-line;"></div>
+            <div class="muted">Заявка от <span th:text="${r.createdAt}">04.10 14:00</span></div>
+        </div>
+
+        <div style="display: flex; gap: var(--sp-3); flex-wrap: wrap;">
+            <form method="post" th:action="@{'/bookings/pending/' + ${r.id} + '/confirm'}" style="margin: 0;">
+                <button type="submit" class="btn btn-primary">Подтвердить бронь</button>
+            </form>
+            <form method="post" th:action="@{'/bookings/pending/' + ${r.id} + '/decline'}" style="margin: 0;"
+                  onsubmit="return confirm('Отклонить заявку? Даты снова станут свободными.');">
+                <button type="submit" class="btn btn-ghost">Отклонить</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="card" th:unless="${#lists.isEmpty(history)}">
+        <div class="card__header">
+            <div class="card__title">Обработанные заявки</div>
+            <div class="text-sm muted">Последние 20</div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Даты</th><th>Страница</th><th>Гость</th><th>Сумма</th><th>Итог</th></tr></thead>
+                <tbody>
+                <tr th:each="r : ${history}">
+                    <td th:text="${r.dates}" style="white-space: nowrap;">12.11.2026 — 14.11.2026</td>
+                    <td th:text="${r.widgetTitle}">Квартира на Садовой</td>
+                    <td><span th:text="${r.guestName}">И.</span>, <span th:text="${r.guestPhone}">+79000000000</span></td>
+                    <td th:text="${r.amount}" style="white-space: nowrap;">9000 ₽</td>
+                    <td><span th:class="${r.statusCss}" th:text="${r.status}">Подтверждена</span></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

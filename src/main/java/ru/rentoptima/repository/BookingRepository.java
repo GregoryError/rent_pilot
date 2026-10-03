@@ -112,6 +112,22 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findActiveByUnitTypesInRange(java.util.List<Long> unitTypeIds,
                                                LocalDate from, LocalDate to);
 
+    Optional<Booking> findByChannelIdAndExternalId(Long channelId, String externalId);
+
+    /** Заявки с виджета, ожидающие решения хоста. */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.tenant.id = :tenantId
+          AND b.dataSource = 'WIDGET'
+          AND b.status = 'PENDING'
+        ORDER BY b.createdAt
+    """)
+    List<Booking> findPendingWidgetRequests(Long tenantId);
+
+    /** Недавняя история заявок с виджета: подтверждённые, отклонённые, истёкшие. */
+    List<Booking> findTop20ByTenantIdAndDataSourceAndStatusNotOrderByCreatedAtDesc(
+            Long tenantId, String dataSource, String status);
+
     /** Заведённые в UI брони категории, пересекающие окно [from, to). Для отмены из шахматки. */
     @Query("""
         SELECT b FROM Booking b

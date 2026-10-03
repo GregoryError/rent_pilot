@@ -49,5 +49,10 @@ app:
     base-url: ${RC_BASE_URL:https://realtycalendar.ru}
     locale: ru
 
+  # hCaptcha для заявок с виджета бронирования. Пусто — капча выключена.
+  hcaptcha:
+    site-key: ${HCAPTCHA_SITE_KEY:}
+    secret: ${HCAPTCHA_SECRET:}
+
 encryption:
   key: ${ENCRYPTION_KEY:}

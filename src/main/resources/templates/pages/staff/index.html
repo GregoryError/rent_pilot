@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head><title>Сотрудники</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Сотрудники</h1>
+        <p class="page-subtitle">Доступ горничной: график выездов и отзывы, которые вы ей открыли</p>
+    </div>
+
+    <div class="card" th:if="${#lists.isEmpty(items)}">
+        <div class="card__title">Пока нет объектов</div>
+        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
+            Ссылка для горничной создаётся вместе с объектом.
+        </p>
+        <a class="btn btn-primary" th:href="@{/settings/properties}">К настройкам объектов</a>
+    </div>
+
+    <div th:each="it : ${items}" class="card">
+        <div class="flex justify-between items-center" style="margin-bottom: var(--sp-4); gap: var(--sp-3); flex-wrap: wrap;">
+            <div>
+                <div class="card__title" th:text="${it.propertyName}">Садовая</div>
+                <div class="text-sm muted">Страница горничной</div>
+            </div>
+            <span th:class="${it.pinStatusCss}" th:text="${it.pinStatus}">PIN установлен</span>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label">Ссылка для горничной</label>
+            <div style="display: flex; gap: var(--sp-2);">
+                <input type="text" readonly th:id="${it.inputId}" th:value="${it.url}"
+                       class="form-input form-input--sm" style="flex: 1; min-width: 0;">
+                <button type="button" class="btn btn-ghost" th:data-copy="${it.inputId}">Копировать</button>
+            </div>
+            <div class="form-hint">Отправьте ссылку горничной. Чтобы войти, ей понадобится PIN.</div>
+        </div>
+
+        <form method="post" th:action="@{'/staff/' + ${it.propertyId} + '/pin'}">
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Новый PIN (от 4 символов)</label>
+                <div style="display: flex; gap: var(--sp-2);">
+                    <input type="text" name="pin" required minlength="4" autocomplete="off"
+                           class="form-input form-input--sm" style="flex: 1; min-width: 0; max-width: 240px;">
+                    <button type="submit" class="btn btn-ghost" th:text="${it.pinButton}">Сменить PIN</button>
+                </div>
+                <div class="form-hint">
+                    PIN хранится в зашифрованном виде, посмотреть действующий нельзя — только задать новый.
+                    После смены горничной нужно войти заново.
+                </div>
+            </div>
+        </form>
+    </div>
+
+</div>
+</body>
+</html>

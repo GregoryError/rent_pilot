@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head><title>Страница бронирования</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header flex justify-between items-center" style="gap: var(--sp-3); flex-wrap: wrap;">
+        <div>
+            <h1 class="page-title" th:text="${w.title}">Квартира на Садовой</h1>
+            <p class="page-subtitle" th:text="${unitLabel}">Садовая / Основной</p>
+        </div>
+        <a class="btn btn-ghost" th:href="@{/settings/widgets}">← Все страницы</a>
+    </div>
+
+    <!-- Три способа использования -->
+    <div class="card">
+        <div class="card__title" style="margin-bottom: var(--sp-4);">Как дать гостям забронировать</div>
+        <div class="embed-tabs" style="display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-4);">
+            <button type="button" class="btn btn-primary" data-embed-tab="link">Прямая ссылка</button>
+            <button type="button" class="btn btn-ghost" data-embed-tab="iframe">Встраивание на сайт</button>
+            <button type="button" class="btn btn-ghost" data-embed-tab="js">Для разработчиков</button>
+        </div>
+
+        <div data-embed-panel="link">
+            <div style="display: flex; gap: var(--sp-2);">
+                <input type="text" readonly id="embed-link" th:value="${directLink}"
+                       class="form-input form-input--sm" style="flex: 1; min-width: 0;">
+                <button type="button" class="btn btn-ghost" data-copy="embed-link">Копировать</button>
+                <a class="btn btn-ghost" th:href="${directLink}" target="_blank" rel="noopener">Открыть</a>
+            </div>
+            <div class="form-hint">Отправьте эту ссылку в WhatsApp, Telegram или Instagram.</div>
+        </div>
+        <div data-embed-panel="iframe" style="display: none;">
+            <div style="display: flex; gap: var(--sp-2); align-items: flex-start;">
+                <textarea readonly id="embed-iframe" rows="2" class="form-input form-input--sm"
+                          style="flex: 1; min-width: 0; font-family: var(--font-mono);" th:text="${iframeCode}"></textarea>
+                <button type="button" class="btn btn-ghost" data-copy="embed-iframe">Копировать</button>
+            </div>
+            <div class="form-hint">Вставьте этот код на свой сайт в любое место.</div>
+        </div>
+        <div data-embed-panel="js" style="display: none;">
+            <div style="display: flex; gap: var(--sp-2); align-items: flex-start;">
+                <textarea readonly id="embed-js" rows="3" class="form-input form-input--sm"
+                          style="flex: 1; min-width: 0; font-family: var(--font-mono);" th:text="${jsCode}"></textarea>
+                <button type="button" class="btn btn-ghost" data-copy="embed-js">Копировать</button>
+            </div>
+            <div class="form-hint">Для разработчиков: форма встраивается прямо в страницу, без iframe.</div>
+        </div>
+    </div>
+
+    <form method="post" th:action="@{'/settings/widgets/' + ${w.id} + '/update'}">
+        <div class="card">
+            <div class="card__title" style="margin-bottom: var(--sp-4);">Условия бронирования</div>
+            <div class="form-group">
+                <label class="form-label">Название — его увидят гости</label>
+                <input type="text" name="title" required maxlength="255" th:value="${w.title}" class="form-input">
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label">Минимум ночей</label>
+                    <input type="number" name="minNights" min="1" max="365" required th:value="${w.minNights}" class="form-input form-input--sm">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Максимум ночей</label>
+                    <input type="number" name="maxNights" min="1" max="365" required th:value="${w.maxNights}" class="form-input form-input--sm">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Максимум гостей</label>
+                    <input type="number" name="maxGuests" min="1" max="50" required th:value="${w.maxGuests}" class="form-input form-input--sm">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Бронь открыта на, дней вперёд</label>
+                    <input type="number" name="bookingWindowDays" min="7" max="540" required th:value="${w.bookingWindowDays}" class="form-input form-input--sm">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Заезд с</label>
+                    <input type="time" name="checkinTime" required th:value="${checkin}" class="form-input form-input--sm">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Выезд до</label>
+                    <input type="time" name="checkoutTime" required th:value="${checkout}" class="form-input form-input--sm">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Держать даты по заявке, часов</label>
+                    <input type="number" name="holdHours" min="1" max="168" required th:value="${w.holdHours}" class="form-input form-input--sm">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Оформление</label>
+                    <select name="theme" class="form-input form-input--sm">
+                        <option value="light" th:selected="${w.theme == 'light'}">Светлое</option>
+                        <option value="dark" th:selected="${w.theme == 'dark'}">Тёмное</option>
+                        <option value="auto" th:selected="${w.theme == 'auto'}">Как у гостя в системе</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" name="showPrice" value="true" th:checked="${w.showPrice}">
+                    Показывать гостю стоимость</label>
+                <div class="form-hint">Цена берётся из шахматки: плановая цена на дату, иначе базовая цена категории.</div>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label><input type="checkbox" name="showPoweredBy" value="true" th:checked="${w.showPoweredBy}">
+                    Показывать подпись «Работает на OptiRent»</label>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__title">Что увидит гость по ссылке</div>
+            <div class="text-sm muted" style="margin-bottom: var(--sp-4);">Все поля необязательные. Не указывайте точный адрес — только ориентир.</div>
+            <div class="form-group">
+                <label class="form-label">Где находится (ориентир)</label>
+                <input type="text" name="addressHint" maxlength="255" th:value="${w.addressHint}" class="form-input form-input--sm"
+                       placeholder="Центр, 5 минут до набережной">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Описание</label>
+                <textarea name="description" rows="5" class="form-input form-input--sm" th:text="${w.description}"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Правила проживания</label>
+                <textarea name="rules" rows="3" class="form-input form-input--sm" th:text="${w.rules}"></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Условия отмены</label>
+                <textarea name="cancellationPolicy" rows="3" class="form-input form-input--sm" th:text="${w.cancellationPolicy}"></textarea>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Фотографии — прямые ссылки, по одной в строке</label>
+                <textarea name="photos" rows="4" class="form-input form-input--sm" th:text="${photosText}"
+                          placeholder="https://…/photo1.jpg"></textarea>
+                <div class="form-hint">До 10 ссылок, только https. Первая фотография попадёт в превью ссылки в мессенджере.</div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-bottom: var(--sp-6);">Сохранить</button>
+    </form>
+
+    <div class="card">
+        <div class="card__title" style="margin-bottom: var(--sp-3);">Ссылка и удаление</div>
+        <div style="display: flex; gap: var(--sp-3); flex-wrap: wrap;">
+            <form method="post" th:action="@{'/settings/widgets/' + ${w.id} + '/regenerate'}" style="margin: 0;"
+                  onsubmit="return confirm('Перевыпустить ссылку? Старая ссылка и код на сайте сразу перестанут работать.');">
+                <button type="submit" class="btn btn-ghost" style="color: var(--amber);">Перевыпустить ссылку</button>
+            </form>
+            <form method="post" th:action="@{'/settings/widgets/' + ${w.id} + '/delete'}" style="margin: 0;"
+                  onsubmit="return confirm('Удалить страницу бронирования? Ссылка перестанет открываться, уже полученные заявки останутся.');">
+                <button type="submit" class="btn btn-ghost" style="color: var(--red);">Удалить страницу</button>
+            </form>
+        </div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="scripts">
+    <script>
+        document.querySelectorAll('[data-embed-tab]').forEach(function (tab) {
+            tab.addEventListener('click', function () {
+                document.querySelectorAll('[data-embed-tab]').forEach(function (t) {
+                    var on = t === tab;
+                    t.classList.toggle('btn-primary', on);
+                    t.classList.toggle('btn-ghost', !on);
+                });
+                document.querySelectorAll('[data-embed-panel]').forEach(function (p) {
+                    p.style.display = p.dataset.embedPanel === tab.dataset.embedTab ? '' : 'none';
+                });
+            });
+        });
+    </script>
+</th:block>
+</body>
+</html>

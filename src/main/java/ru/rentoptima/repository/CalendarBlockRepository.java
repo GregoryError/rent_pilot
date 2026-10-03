@@ -53,6 +53,9 @@ public interface CalendarBlockRepository extends JpaRepository<CalendarBlock, Lo
     /** Последние импортированные с канала блокировки. Для диагностики каналов. */
     List<CalendarBlock> findTop10ByChannelIdOrderByCreatedAtDesc(Long channelId);
 
+    /** Просроченные резервы, кросс-тенант. Для WidgetBookingService. */
+    List<CalendarBlock> findByExpiresAtBefore(java.time.LocalDateTime moment);
+
     /** Найти все пересечения для одного unit_type — для детектора конфликтов. */
     @Query("""
         SELECT b FROM CalendarBlock b

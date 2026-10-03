@@ -41,6 +41,16 @@
                class="nav-item">
                 <span>▤</span> Шахматка
             </a>
+            <a th:href="@{/bookings/pending}"
+               th:classappend="${activePage == 'pending'} ? 'nav-item--active'"
+               class="nav-item">
+                <span>✉</span> Заявки
+            </a>
+            <a th:href="@{/settings/widgets}"
+               th:classappend="${activePage == 'widgets'} ? 'nav-item--active'"
+               class="nav-item">
+                <span>⌂</span> Страница брони
+            </a>
             <a th:href="@{/settings/channels}"
                th:classappend="${activePage == 'channels'} ? 'nav-item--active'"
                class="nav-item">
@@ -62,6 +72,11 @@
                th:classappend="${activePage == 'feedback'} ? 'nav-item--active'"
                class="nav-item">
                 <span>◎</span> Отзывы
+            </a>
+            <a th:href="@{/staff}"
+               th:classappend="${activePage == 'staff'} ? 'nav-item--active'"
+               class="nav-item">
+                <span>☺</span> Сотрудники
             </a>
             <a th:href="@{/chat}"
                th:classappend="${activePage == 'chat'} ? 'nav-item--active'"
@@ -474,6 +489,28 @@ async function fcSend() {
     if (toast) setTimeout(() => toast.style.display = 'none', 3000);
     const toastError = document.getElementById('toast-error');
     if (toastError) setTimeout(() => toastError.style.display = 'none', 6000);
+
+    // Кнопки «Копировать»: <button data-copy="id поля">
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-copy]');
+        if (!btn) return;
+        const input = document.getElementById(btn.dataset.copy);
+        if (!input) return;
+        const done = () => {
+            if (btn.dataset.label === undefined) btn.dataset.label = btn.textContent;
+            btn.textContent = 'Скопировано';
+            setTimeout(() => { btn.textContent = btn.dataset.label; }, 2000);
+        };
+        const text = input.value !== undefined ? input.value : input.textContent;
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.writeText(text).then(done);
+        } else {
+            // http или старый браузер: копируем через выделение
+            input.select();
+            document.execCommand('copy');
+            done();
+        }
+    });
 </script>
 <script layout:fragment="scripts"></script>
 </body>

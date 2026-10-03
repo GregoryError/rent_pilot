@@ -212,7 +212,8 @@ public class DashboardController {
         List<ChannelChip> chips = new ArrayList<>();
         LocalDateTime nowTime = LocalDateTime.now();
         for (Channel ch : channelRepo.findByTenantIdAndActiveTrue(tenantId)) {
-            if (ch.getChannelType() == Channel.ChannelType.MANUAL) continue;
+            if (ch.getChannelType() == Channel.ChannelType.MANUAL
+                    || ch.getChannelType() == Channel.ChannelType.WIDGET) continue;
             String state;
             String status;
             if (!Boolean.TRUE.equals(ch.getSyncEnabled())) {

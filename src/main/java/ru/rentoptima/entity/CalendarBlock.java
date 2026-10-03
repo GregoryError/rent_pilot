@@ -69,6 +69,10 @@ public class CalendarBlock {
     @Column(name = "created_by_user_id")
     private Long createdByUserId;
 
+    /** Для HOLD по заявке с виджета: когда резерв снимается сам. null — бессрочно. */
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt = LocalDateTime.now();
 

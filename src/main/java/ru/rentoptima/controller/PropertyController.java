@@ -42,8 +42,10 @@ public class PropertyController {
     private final JdbcTemplate jdbc;
 
     @GetMapping
-    public String list(Model model) {
+    public String list(Model model, jakarta.servlet.http.HttpServletRequest request) {
         Long tenantId = AuthContext.tenantId();
+        model.addAttribute("baseUrl", org.springframework.web.servlet.support.ServletUriComponentsBuilder
+                .fromContextPath(request).build().toUriString());
         // Группируем unit_type по propertyId — шаблон достанет по ключу для каждой карточки.
         Map<Long, List<UnitType>> unitTypesByProperty = unitTypeRepo
                 .findByTenantIdAndActiveTrue(tenantId).stream()

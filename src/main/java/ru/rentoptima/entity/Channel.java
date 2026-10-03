@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
  * - AVITO: официальный API Авито
  * - ICAL: iCal-подключение к любой площадке (Sutochno, Ostrovok, Booking, etc.)
  * - MANUAL: ручные брони (не тянутся ни откуда, но экспортируются в iCal)
+ * - WIDGET: прямые брони через страницу/виджет бронирования (см. BookingWidget)
  * <p>
  * config_json содержит специфичные для канала параметры:
  * - RC: null (rc_object_id хранится в properties)
@@ -93,6 +94,7 @@ public class Channel {
         RC,
         AVITO,
         ICAL,
-        MANUAL
+        MANUAL,
+        WIDGET
     }
 }

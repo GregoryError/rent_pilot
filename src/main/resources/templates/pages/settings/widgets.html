@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head><title>Страница бронирования</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Страница бронирования</h1>
+        <p class="page-subtitle">Своя ссылка для прямых броней без комиссии площадок: отправляйте гостям в мессенджерах или встраивайте на сайт</p>
+    </div>
+
+    <div th:each="w : ${widgets}" class="card">
+        <div class="flex justify-between items-center" style="gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-4);">
+            <div>
+                <div class="card__title" th:text="${w.title}">Квартира на Садовой</div>
+                <div class="text-sm muted" th:text="${w.unitLabel}">Садовая / Основной</div>
+            </div>
+            <a class="btn btn-ghost" th:href="@{'/settings/widgets/' + ${w.id}}">Настроить и получить код</a>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <label class="form-label">Ссылка для гостей</label>
+            <div style="display: flex; gap: var(--sp-2);">
+                <input type="text" readonly th:id="${w.inputId}" th:value="${w.link}"
+                       class="form-input form-input--sm" style="flex: 1; min-width: 0;">
+                <button type="button" class="btn btn-ghost" th:data-copy="${w.inputId}">Копировать</button>
+                <a class="btn btn-ghost" th:href="${w.link}" target="_blank" rel="noopener">Открыть</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" th:if="${#lists.isEmpty(unitTypes)}">
+        <div class="card__title">Сначала добавьте объект</div>
+        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
+            Страница бронирования привязывается к категории номеров объекта.
+        </p>
+        <a class="btn btn-primary" th:href="@{/settings/properties}">К настройкам объектов</a>
+    </div>
+
+    <div class="card" th:unless="${#lists.isEmpty(unitTypes)}">
+        <div class="card__title" style="margin-bottom: var(--sp-4);">Новая страница бронирования</div>
+        <form method="post" th:action="@{/settings/widgets/create}">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label">Название — его увидят гости</label>
+                    <input type="text" name="title" required maxlength="255" class="form-input"
+                           placeholder="Квартира на Садовой">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Что бронируют</label>
+                    <select name="unitTypeId" required class="form-input">
+                        <option th:each="ut : ${unitTypes}" th:value="${ut.id}" th:text="${ut.label}">Садовая / Основной</option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="btn btn-primary">Создать</button>
+        </form>
+    </div>
+
+</div>
+</body>
+</html>

@@ -49,7 +49,10 @@ public class ChannelController {
     @GetMapping
     public String list(Model model, HttpServletRequest request) {
         Long tenantId = AuthContext.tenantId();
-        List<Channel> channels = channelRepo.findByTenantIdAndActiveTrue(tenantId);
+        // Канал виджета настраивается в «Странице бронирования», здесь ему делать нечего
+        List<Channel> channels = channelRepo.findByTenantIdAndActiveTrue(tenantId).stream()
+                .filter(c -> c.getChannelType() != Channel.ChannelType.WIDGET)
+                .toList();
         List<UnitType> unitTypes = unitTypeRepo.findByTenantIdAndActiveTrue(tenantId);
         List<Property> properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
 
