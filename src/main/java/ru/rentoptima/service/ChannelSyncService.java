@@ -105,6 +105,7 @@ public class ChannelSyncService {
     private void recordSuccess(Channel channel, ChannelSyncResult result) {
         channel.setLastSyncAt(LocalDateTime.now());
         channel.setLastError(null);
+        channel.setConsecutiveErrors(0);
         channel.setLastSyncImported(result.imported() + result.updated());
         channel.setLastSyncRemoved(result.removed());
         channel.setUpdatedAt(LocalDateTime.now());
@@ -114,6 +115,8 @@ public class ChannelSyncService {
     private void recordError(Channel channel, String message) {
         channel.setLastSyncAt(LocalDateTime.now());
         channel.setLastError(truncate(message));
+        int errors = channel.getConsecutiveErrors() == null ? 0 : channel.getConsecutiveErrors();
+        channel.setConsecutiveErrors(errors + 1);
         channel.setUpdatedAt(LocalDateTime.now());
         channelRepo.save(channel);
     }

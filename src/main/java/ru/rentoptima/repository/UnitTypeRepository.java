@@ -10,4 +10,7 @@ public interface UnitTypeRepository extends JpaRepository<UnitType, Long> {
     List<UnitType> findByTenantIdAndActiveTrue(Long tenantId);
 
     List<UnitType> findByPropertyIdAndActiveTrue(Long propertyId);
+
+    /** Для детектора конфликтов: все активные категории, кросс-тенант. */
+    List<UnitType> findByActiveTrue();
 }

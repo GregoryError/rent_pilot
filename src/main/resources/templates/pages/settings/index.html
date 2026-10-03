@@ -81,7 +81,7 @@
                 <div class="card__title">Интеграции</div>
             </div>
             <div th:each="setting : ${settings}"
-                 th:if="${#lists.contains({'anthropic_api_key','tg_bot_token'}, setting.key)}"
+                 th:if="${#lists.contains({'anthropic_api_key'}, setting.key)}"
                  class="form-group">
                 <label class="form-label" th:text="${setting.description}"></label>
                 <input class="form-input form-input--sm"
@@ -91,6 +91,10 @@
                        style="max-width: 500px;"
                        placeholder="••••••••">
                 <div class="form-hint">Значение скрыто. Введите новое для обновления.</div>
+            </div>
+            <div class="form-hint">
+                Telegram-бот для уведомлений настраивается в разделе
+                <a th:href="@{/settings/integrations}">Интеграции</a>.
             </div>
         </div>
 

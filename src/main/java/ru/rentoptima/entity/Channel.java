@@ -69,6 +69,10 @@ public class Channel {
     @Column(name = "last_sync_removed")
     private Integer lastSyncRemoved;
 
+    /** Сколько синхронизаций подряд упало; сбрасывается первой успешной. Для алертов. */
+    @Column(name = "consecutive_errors", nullable = false)
+    private Integer consecutiveErrors = 0;
+
     /**
      * Публичный секрет для iCal-экспорта: /ical/{export_secret}.ics
      * 192 бита энтропии, base64-url-encoded (~32 символа).

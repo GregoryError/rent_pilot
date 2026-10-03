@@ -91,6 +91,91 @@
         <div id="test-result" style="margin-top: var(--sp-4); display: none;"></div>
     </div>
 
+    <!-- Telegram alerts card -->
+    <div class="card" style="margin-bottom: var(--sp-6);">
+        <div class="card__header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <div class="card__title">Уведомления в Telegram</div>
+                <div class="text-sm muted">Пересечения броней и сбои синхронизации каналов</div>
+            </div>
+            <div>
+                <span th:if="${tgConfigured}" class="tag tag--green">Подключено</span>
+                <span th:unless="${tgConfigured}" class="tag tag--muted">Не подключено</span>
+            </div>
+        </div>
+
+        <ol class="text-sm" style="margin: var(--sp-4) 0; padding-left: var(--sp-5); color: var(--text-secondary); line-height: 1.8;">
+            <li>В Telegram откройте <strong>@BotFather</strong>, отправьте <code>/newbot</code> и скопируйте токен бота сюда.</li>
+            <li>Сохраните токен, откройте своего бота и отправьте ему <code>/start</code>
+                (или добавьте бота в группу, куда должны приходить уведомления).</li>
+            <li>Нажмите «Найти чат» — придёт проверочное сообщение.</li>
+        </ol>
+
+        <form method="post" th:action="@{/settings/integrations/telegram}">
+            <div class="form-group">
+                <label class="form-label">Токен бота</label>
+                <input type="password" name="tgToken" class="form-input form-input--sm" autocomplete="off"
+                       style="max-width: 500px;"
+                       th:placeholder="${tgHasToken ? '••••••••  (оставьте пустым, чтобы не менять)' : '123456789:AA…'}">
+                <div class="form-hint">Хранится в зашифрованном виде.</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">ID чата</label>
+                <input type="text" name="tgChatId" th:value="${tgChatId}" class="form-input form-input--sm"
+                       style="max-width: 500px;" placeholder="Заполнится кнопкой «Найти чат»">
+            </div>
+
+            <div style="display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap;">
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <button type="submit" form="tg-detect-form" class="btn btn-ghost"
+                        th:if="${tgHasToken}">Найти чат</button>
+                <button type="submit" form="tg-test-form" class="btn btn-ghost"
+                        th:if="${tgConfigured}">Отправить тест</button>
+                <button type="submit" form="tg-check-form" class="btn btn-ghost">Проверить сейчас</button>
+                <button type="submit" form="tg-clear-form" class="btn btn-ghost"
+                        style="color: var(--red); margin-left: auto;"
+                        onclick="return confirm('Отключить уведомления в Telegram?')"
+                        th:if="${tgHasToken}">Отключить</button>
+            </div>
+        </form>
+
+        <form method="post" id="tg-detect-form" th:action="@{/settings/integrations/telegram/detect}"></form>
+        <form method="post" id="tg-test-form" th:action="@{/settings/integrations/telegram/test}"></form>
+        <form method="post" id="tg-check-form" th:action="@{/settings/integrations/telegram/check}"></form>
+        <form method="post" id="tg-clear-form" th:action="@{/settings/integrations/telegram/clear}"></form>
+
+        <div class="form-hint" style="margin-top: var(--sp-4);">
+            Проверка идёт автоматически каждые 5 минут. Об одной и той же проблеме сообщение приходит один раз.
+            Сервис только уведомляет — сам ничего не меняет ни в бронях, ни на площадках.
+        </div>
+    </div>
+
+    <!-- Alert journal -->
+    <div class="card" style="margin-bottom: var(--sp-6);">
+        <div class="card__header">
+            <div class="card__title">Журнал уведомлений</div>
+            <div class="text-sm muted">Последние 20 записей. Ведётся и без подключённого Telegram.</div>
+        </div>
+        <p class="muted text-sm" th:if="${#lists.isEmpty(alerts)}" style="margin: var(--sp-3) 0 0 0;">
+            Пока пусто: пересечений и сбоев каналов не было.
+        </p>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(alerts)}">
+            <table>
+                <thead>
+                <tr><th>Замечено</th><th>Тип</th><th>Что случилось</th><th>Статус</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="a : ${alerts}">
+                    <td th:text="${a.time}" style="white-space: nowrap;">04.10 12:30</td>
+                    <td th:text="${a.type}" style="white-space: nowrap;">Пересечение</td>
+                    <td th:text="${a.message}">Садовая / Основной: 12–14 октября</td>
+                    <td><span th:class="${a.statusCss}" th:text="${a.status}">Открыт</span></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
 
 <div layout:fragment="scripts">

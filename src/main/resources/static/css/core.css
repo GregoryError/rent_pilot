@@ -133,7 +133,9 @@ a:hover { text-decoration: underline; }
 /* --- Layout --- */
 .app-layout {
     display: grid;
-    grid-template-columns: 240px 1fr;
+    /* minmax(0, …): иначе колонка растягивается под самое широкое содержимое
+       (шахматку) и горизонтально скроллится вся страница, а не сама сетка */
+    grid-template-columns: 240px minmax(0, 1fr);
     min-height: 100vh;
 }
 
@@ -238,6 +240,8 @@ a:hover { text-decoration: underline; }
 }
 /* Страницы с шахматкой занимают всю ширину: сетке нужен каждый пиксель */
 .main-content:has(.grid-shell) { max-width: none; }
+/* В разделе «Шахматка» правого поля почти нет — больше дней на экране */
+.main-content:has(.grid-header) { padding-right: var(--sp-4); }
 
 .page-header {
     margin-bottom: var(--sp-10);
