@@ -12,8 +12,12 @@ import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.AvailabilityService;
+import ru.rentoptima.service.EffectivePriceService;
+import ru.rentoptima.service.EffectivePriceService.DateUnitKey;
 import ru.rentoptima.service.ProductionCalendarService;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -21,17 +25,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Шахматка — визуализация занятости всех unit_type тенанта на горизонте дней.
+ * Шахматка.
  * <p>
- * Строится поверх {@link AvailabilityService#occupancyGrid}, чтобы источник правды
- * о занятости был один для iCal-фидов и для UI.
- * <p>
- * CSS-классы для ячеек, заголовков дней и подписей собираются ЗДЕСЬ, в контроллере,
- * а не в шаблоне. Thymeleaf-парсер плохо справляется с конкатенацией строк и
- * тернарников внутри th:class — независимо от стиля (плюсы и ${...}, pipe-syntax,
- * mixed). После нескольких неудачных попыток перенёс всю строковую сборку на сервер:
- * шаблон теперь только подставляет готовые строки через th:class="${x.cssClasses}".
- * Это надёжнее и, честно говоря, читается лучше.
+ * Строится поверх AvailabilityService.occupancyGrid (источник правды об занятости)
+ * и EffectivePriceService (источник правды о цене на день). Все CSS-классы и
+ * форматированные строки собираются сервером — шаблон только подставляет
+ * готовые значения, см. комментарий у предыдущей итерации.
  */
 @Controller
 @RequestMapping("/calendar/grid")
@@ -46,6 +45,7 @@ public class OccupancyGridController {
     private final UnitTypeRepository unitTypeRepo;
     private final AvailabilityService availability;
     private final ProductionCalendarService prodCalendar;
+    private final EffectivePriceService effectivePrice;
 
     @GetMapping
     public String grid(@RequestParam(required = false) String from,
@@ -73,9 +73,13 @@ public class OccupancyGridController {
                         ? Map.of()
                         : availability.occupancyGrid(allUnitTypeIds, start, endExclusive);
 
+        Map<DateUnitKey, BigDecimal> prices =
+                allUnitTypeIds.isEmpty()
+                        ? Map.of()
+                        : effectivePrice.resolveBatch(allUnitTypeIds, start, lastDay);
+
         Map<LocalDate, String> holidays = prodCalendar.getHolidaysInRange(start, lastDay);
 
-        // Заголовки колонок с готовыми CSS-классами.
         List<DayHeader> dayHeaders = new ArrayList<>(span);
         for (int i = 0; i < span; i++) {
             LocalDate d = start.plusDays(i);
@@ -122,11 +126,18 @@ public class OccupancyGridController {
                     cellCls.append(status);
                     if (h.today()) cellCls.append(" is-today");
 
-                    String title = h.date() + " — занято " + busy + " из " + capacity;
+                    BigDecimal price = prices.get(new DateUnitKey(ut.getId(), h.date()));
+                    String priceText = formatPrice(price);
+
+                    String title = h.date() + " — занято " + busy + " из " + capacity
+                            + (priceText.isEmpty() ? "" : "; план цены " + priceText);
 
                     cells.add(new Cell(
                             busy, capacity, capacity > 1 && busy > 0,
-                            cellCls.toString(), title));
+                            cellCls.toString(), title,
+                            h.date().toString(),         // ISO date для клика → модалка
+                            ut.getId(),                   // unit_type_id для модалки
+                            priceText));
                 }
                 rows.add(new Row(
                         p.getName(), ut.getName(), capacity,
@@ -145,6 +156,11 @@ public class OccupancyGridController {
         model.addAttribute("empty", empty);
         model.addAttribute("hasProperties", hasProperties);
         return "pages/calendar/grid";
+    }
+
+    private static String formatPrice(BigDecimal price) {
+        if (price == null) return "";
+        return price.setScale(0, RoundingMode.HALF_UP).toPlainString() + "₽";
     }
 
     private static String russianDowShort(int dow) {
@@ -195,7 +211,8 @@ public class OccupancyGridController {
                             boolean today, String cssClasses) {}
 
     public record Cell(int busy, int capacity, boolean showBusyBadge,
-                       String cssClasses, String title) {}
+                       String cssClasses, String title,
+                       String dateIso, Long unitTypeId, String priceText) {}
 
     public record Row(String propertyName, String unitTypeName, int capacity,
                       boolean firstOfProperty, String labelCssClasses,

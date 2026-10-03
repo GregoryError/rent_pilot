@@ -4,6 +4,64 @@
       layout:decorate="~{fragments/layout}">
 <head>
     <title>Шахматка</title>
+    <style>
+        .grid__cell { position: relative; cursor: pointer; }
+        .grid__cell:hover { outline: 1px solid var(--accent); outline-offset: -1px; }
+        .grid__cell__price {
+            position: absolute;
+            bottom: 2px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            font-size: 9px;
+            font-weight: 400;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+        .grid__cell--full .grid__cell__price,
+        .grid__cell--partial .grid__cell__price { color: inherit; opacity: 0.75; }
+
+        .action-dialog {
+            padding: 0;
+            border: none;
+            border-radius: var(--radius);
+            max-width: 520px;
+            width: 90%;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            background: var(--bg-surface);
+            color: var(--text-primary);
+        }
+        .action-dialog::backdrop { background: rgba(0,0,0,0.4); }
+        .action-dialog__header {
+            padding: var(--sp-5) var(--sp-5) var(--sp-3);
+            border-bottom: 1px solid var(--border-subtle);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .action-dialog__title { font-size: var(--text-lg); font-weight: var(--weight-semibold); margin: 0; }
+        .action-dialog__close {
+            background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-muted);
+            line-height: 1; padding: 0 var(--sp-2);
+        }
+        .action-dialog__body { padding: var(--sp-5); max-height: 70vh; overflow-y: auto; }
+        .action-dialog__footer {
+            padding: var(--sp-3) var(--sp-5);
+            border-top: 1px solid var(--border-subtle);
+            display: flex;
+            gap: var(--sp-3);
+            justify-content: flex-end;
+        }
+        .action-section {
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            padding: var(--sp-4);
+            margin-top: var(--sp-4);
+        }
+        .action-section__header { font-weight: var(--weight-semibold); margin-bottom: var(--sp-3); }
+        .action-section__body { display: none; margin-top: var(--sp-3); }
+        .action-section--open .action-section__body { display: block; }
+    </style>
 </head>
 <body>
 <div layout:fragment="content">
@@ -78,8 +136,15 @@
 
                 <div th:each="c : ${row.cells}"
                      th:class="${c.cssClasses}"
-                     th:title="${c.title}">
+                     th:title="${c.title}"
+                     th:data-date="${c.dateIso}"
+                     th:data-unit-type-id="${c.unitTypeId}"
+                     th:data-unit-name="${row.unitTypeName}"
+                     th:data-property-name="${row.propertyName}"
+                     th:data-price="${c.priceText}">
                     <span th:if="${c.showBusyBadge}" th:text="${c.busy}">3</span>
+                    <span class="grid__cell__price" th:if="${!#strings.isEmpty(c.priceText)}"
+                          th:text="${c.priceText}">3000₽</span>
                 </div>
             </th:block>
         </div>
@@ -100,6 +165,184 @@
         </span>
     </div>
 
+    <!-- Модальное окно действия на дате -->
+    <dialog id="action-dialog" class="action-dialog">
+        <form method="post" th:action="@{/calendar/grid/action}" id="action-form">
+            <div class="action-dialog__header">
+                <div>
+                    <div class="action-dialog__title" id="action-title">Действие на дату</div>
+                    <div class="text-sm muted" id="action-subtitle"></div>
+                </div>
+                <button type="button" class="action-dialog__close"
+                        onclick="document.getElementById('action-dialog').close()">×</button>
+            </div>
+
+            <div class="action-dialog__body">
+
+                <input type="hidden" name="unitTypeId" id="action-unit-type-id">
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3);">
+                    <div class="form-group">
+                        <label class="form-label">С даты</label>
+                        <input type="date" name="fromDate" id="action-from-date" required
+                               class="form-input form-input--sm">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">По дату (включительно)</label>
+                        <input type="date" name="toDate" id="action-to-date" required
+                               class="form-input form-input--sm">
+                    </div>
+                </div>
+
+                <!-- Секция: закрыть даты -->
+                <div class="action-section" id="action-entry-section">
+                    <div class="action-section__header">
+                        <label>
+                            <input type="checkbox" name="createEntry" id="action-create-entry"
+                                   value="true">
+                            Закрыть/заблокировать даты
+                        </label>
+                    </div>
+                    <div class="action-section__body">
+                        <div class="form-group">
+                            <label class="form-label">Тип</label>
+                            <select name="entryType" id="action-entry-type" class="form-input form-input--sm">
+                                <option value="MANUAL_BOOKING">Ручная бронь</option>
+                                <option value="MAINTENANCE">Ремонт</option>
+                                <option value="OWNER_USE">Личное использование</option>
+                                <option value="HOLD">Hold (предварительный резерв)</option>
+                            </select>
+                        </div>
+
+                        <div id="action-booking-fields">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3);">
+                                <div class="form-group">
+                                    <label class="form-label">Имя гостя (опц.)</label>
+                                    <input type="text" name="guestName" class="form-input form-input--sm">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Телефон (опц.)</label>
+                                    <input type="text" name="guestPhone" class="form-input form-input--sm">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Гостей</label>
+                                    <input type="number" name="guestCount" min="1"
+                                           class="form-input form-input--sm">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Сумма, ₽ (опц.)</label>
+                                    <input type="number" name="amount" step="0.01" min="0"
+                                           class="form-input form-input--sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Комментарий (опц.)</label>
+                            <textarea name="reason" rows="2" class="form-input form-input--sm"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Секция: задать цену -->
+                <div class="action-section" id="action-price-section">
+                    <div class="action-section__header">
+                        <label>
+                            <input type="checkbox" name="setPrice" id="action-set-price" value="true">
+                            Задать запланированную цену на эти даты
+                        </label>
+                    </div>
+                    <div class="action-section__body">
+                        <div class="form-group">
+                            <label class="form-label">Цена, ₽/сутки</label>
+                            <input type="number" name="plannedPrice" step="0.01" min="0"
+                                   class="form-input form-input--sm">
+                            <div class="form-hint">
+                                Эта цена будет показываться на шахматке и использоваться в прогнозе выручки
+                                (пока вы сами выставляете её на площадках).
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="action-dialog__footer">
+                <button type="button" class="btn btn-ghost"
+                        onclick="document.getElementById('action-dialog').close()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </dialog>
+
 </div>
+
+<th:block layout:fragment="scripts">
+    <script>
+        (function() {
+            const dialog = document.getElementById('action-dialog');
+            if (!dialog) return;
+
+            const entrySection = document.getElementById('action-entry-section');
+            const entryCheckbox = document.getElementById('action-create-entry');
+            const entryType = document.getElementById('action-entry-type');
+            const bookingFields = document.getElementById('action-booking-fields');
+            const priceSection = document.getElementById('action-price-section');
+            const priceCheckbox = document.getElementById('action-set-price');
+            const title = document.getElementById('action-title');
+            const subtitle = document.getElementById('action-subtitle');
+            const fromDateInput = document.getElementById('action-from-date');
+            const toDateInput = document.getElementById('action-to-date');
+            const unitTypeIdInput = document.getElementById('action-unit-type-id');
+
+            function toggleSection(section, checkbox) {
+                section.classList.toggle('action-section--open', checkbox.checked);
+            }
+            function toggleBookingFields() {
+                bookingFields.style.display = entryType.value === 'MANUAL_BOOKING' ? '' : 'none';
+            }
+
+            entryCheckbox.addEventListener('change', () => toggleSection(entrySection, entryCheckbox));
+            priceCheckbox.addEventListener('change', () => toggleSection(priceSection, priceCheckbox));
+            entryType.addEventListener('change', toggleBookingFields);
+
+            document.querySelectorAll('.grid__cell').forEach(cell => {
+                cell.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const date = cell.dataset.date;
+                    const unitTypeId = cell.dataset.unitTypeId;
+                    const unitName = cell.dataset.unitName || '';
+                    const propName = cell.dataset.propertyName || '';
+                    if (!date || !unitTypeId) return;
+
+                    fromDateInput.value = date;
+                    toDateInput.value = date;
+                    unitTypeIdInput.value = unitTypeId;
+
+                    title.textContent = `Действие на ${date}`;
+                    const parts = [];
+                    if (propName) parts.push(propName);
+                    if (unitName) parts.push(unitName);
+                    subtitle.textContent = parts.join(' / ');
+
+                    // Сброс состояния формы
+                    entryCheckbox.checked = false;
+                    priceCheckbox.checked = false;
+                    toggleSection(entrySection, entryCheckbox);
+                    toggleSection(priceSection, priceCheckbox);
+                    entryType.value = 'MANUAL_BOOKING';
+                    toggleBookingFields();
+
+                    dialog.showModal();
+                });
+            });
+
+            // Клик по backdrop закрывает диалог
+            dialog.addEventListener('click', (e) => {
+                if (e.target === dialog) dialog.close();
+            });
+        })();
+    </script>
+</th:block>
 </body>
 </html>

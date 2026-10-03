@@ -82,6 +82,16 @@ public class Booking extends BaseEntity {
     @Column(name = "external_id")
     private String externalId;
 
+    /**
+     * Классификатор источника данных брони для дашборда и моделирования выручки.
+     * V19: 'RC' | 'ICAL' | 'AVITO' | 'MANUAL'. Все исторические строки backfill'ены как 'RC'.
+     * <p>
+     * Используется для различения «реальная сумма» (RC, AVITO) и «моделируем по
+     * запланированной цене» (ICAL, MANUAL без указанной суммы).
+     */
+    @Column(name = "data_source", length = 30)
+    private String dataSource;
+
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
 }
