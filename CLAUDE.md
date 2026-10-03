@@ -197,6 +197,236 @@ AI-режим — только рекомендации. Никаких авто
 
 ---
 
+## Блок 4.9 — Booking Widget MVP (запланировано)
+
+**Приоритет:** после закрытия 4.5-4.8. Виджет опирается на надёжность iCal-синхронизации — делать до пилота на Садовой рискованно.
+
+### Назначение
+
+Виджет / страница бронирования для хоста. Три способа использования, один backend. Гости отправляют заявки на бронь напрямую, минуя комиссии площадок. Хост получает уведомление, связывается с гостем, подтверждает в админке → автоматический экспорт в iCal всех каналов (anti-echo из коробки).
+
+### Три способа использования — равнозначны
+
+Хосты 1-2 квартир часто **не имеют своего сайта** — их канал общения с клиентами это Instagram DM, WhatsApp, Telegram. Поэтому прямая ссылка — первичный сценарий, виджет на сайте — вторичный. Один `BookingWidget` entity обслуживает все три:
+
+**1. Прямая ссылка (landing-страница)** — для рассылки клиентам в мессенджерах. Хост даёт URL в WhatsApp/Telegram/Instagram DM, клиент тыкает — открывается полноценная страница с метаданными, OpenGraph preview, описанием объекта, фото.
+
+URL: `GET /book/{secret}`
+
+Обязательно:
+- OpenGraph теги для красивого preview при расшаривании (это критично для конверсии в мессенджерах)
+- Title, описание объекта, фото (если хост загрузил)
+- Правила заселения, checkin/checkout время, cancellation policy
+- Контакты хоста опционально (можно скрыть до подтверждения)
+
+**2. Встраиваемый виджет (iframe)** — для сайта хоста. Минимальная HTML-обёртка без лишних метаданных.
+
+URL: `GET /widget/{secret}` → вставка через iframe:
+```html
+<iframe src="https://optirent.ru/widget/{secret}"
+        width="100%" height="600" frameborder="0"></iframe>
+```
+
+**3. JS-вставка** — для глубокой интеграции в сайт хоста. Загружает виджет в div без iframe.
+
+```html
+<div id="optirent-widget" data-secret="abc123xyz"></div>
+<script src="https://optirent.ru/widget.js" async></script>
+```
+
+Все три используют одни и те же API-endpoints для availability/price/request. Отличается только HTML-обёртка.
+
+### Архитектурное обоснование — виджет как ещё один Channel
+
+Виджет — это `ChannelType.WIDGET`. Все заявки/брони проходят через существующую Channel abstraction. Это значит:
+
+- Брони автоматически попадают в шахматку
+- Экспортируются в iCal других каналов через excludeChannelId
+- Учитываются в статистике и AI-рекомендациях
+- Используется AvailabilityService для расчёта свободных дат
+
+Не плодить параллельных моделей.
+
+### Три режима работы
+
+1. **REQUEST** (MVP) — заявка. Создаётся CalendarBlock HOLD на 24ч + Booking со status=PENDING. Хост подтверждает/отклоняет вручную. Никаких платежей на нашей стороне.
+2. **HOLD** — то же, но hold-период настраивается.
+3. **PAY** (далеко) — интеграция с ЮKassa/Robokassa, автоматическая бронь после оплаты.
+
+MVP = только REQUEST.
+
+### UI — flatpickr
+
+Для календаря использовать **flatpickr** (flatpickr.js.org):
+- `mode: "range"` — выбор check-in/check-out одним пикером
+- `disable: [...]` — массив занятых дат из AvailabilityService
+- `minDate: "today"` + `maxDate` по booking_window_days
+- Встроенная русская локаль
+- MIT, ~15KB gzipped, vanilla JS
+
+Положить self-hosted в `src/main/resources/static/libs/flatpickr/`, чтобы виджет не падал если CDN лёг (критично — виджет работает на чужих сайтах).
+
+### Миграция V20
+
+```sql
+CREATE TABLE booking_widgets (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id),
+    channel_id BIGINT NOT NULL REFERENCES channels(id),
+    secret VARCHAR(64) UNIQUE NOT NULL,         -- 192 бита, base64url
+    title VARCHAR(255) NOT NULL,
+    unit_type_ids BIGINT[] NOT NULL,             -- в MVP один, модель расширяема
+    min_nights INTEGER NOT NULL DEFAULT 1,
+    max_nights INTEGER NOT NULL DEFAULT 30,
+    booking_window_days INTEGER NOT NULL DEFAULT 180,
+    checkin_time TIME NOT NULL DEFAULT '14:00',
+    checkout_time TIME NOT NULL DEFAULT '12:00',
+    mode VARCHAR(20) NOT NULL DEFAULT 'REQUEST',
+    hold_hours INTEGER NOT NULL DEFAULT 24,
+    show_price BOOLEAN NOT NULL DEFAULT true,
+    show_powered_by BOOLEAN NOT NULL DEFAULT true,
+    custom_css TEXT,
+    theme VARCHAR(20) DEFAULT 'light',           -- light, dark, auto
+
+    -- Поля для landing-режима (GET /book/{secret})
+    description TEXT,
+    rules TEXT,                                   -- правила заселения
+    cancellation_policy TEXT,
+    address_hint VARCHAR(255),                    -- "Центр, у метро X" — без точного адреса
+    photos_json JSONB,                            -- массив URL фото (пока ссылки, позже свой сторадж)
+    show_host_contact BOOLEAN DEFAULT false,
+
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE UNIQUE INDEX idx_booking_widgets_secret ON booking_widgets(secret);
+CREATE INDEX idx_booking_widgets_tenant ON booking_widgets(tenant_id);
+```
+
+Расширить `ChannelType` enum: добавить `WIDGET`.
+Для Booking: `source = 'DIRECT_WIDGET'`, `external_id = UUID заявки`.
+
+Поля для landing-режима опциональны. Если хост их не заполняет, landing-страница просто без них (минимальный вид = как iframe-виджет).
+
+### Endpoints
+
+**Админские (под auth, tenant isolation):**
+```
+GET  /settings/widgets                  - список
+POST /settings/widgets/create           - создать (+ auto-create Channel)
+GET  /settings/widgets/{id}             - просмотр + embed code
+POST /settings/widgets/{id}/update
+POST /settings/widgets/{id}/regenerate  - новый secret (ломает старые ссылки)
+POST /settings/widgets/{id}/delete      - soft delete
+```
+
+**Публичные (без auth, rate-limited 60/мин на IP):**
+```
+GET  /book/{secret}                     - полная landing-страница (OpenGraph, фото, описание)
+GET  /widget/{secret}                   - минимальная HTML-обёртка (для iframe)
+GET  /widget.js                         - JS-лоадер для вставки через <script>
+GET  /widget/{secret}/availability?from=&to=
+     → { busyDays: [...], minNights, maxNights, maxDate }
+GET  /widget/{secret}/price?from=&to=&guests=
+     → { price, nights, breakdown: [...] }
+POST /widget/{secret}/request
+     body: { from, to, guests, name, phone, email, note, captchaToken }
+     → { status, holdExpiresAt, message }
+```
+
+Все три frontend-варианта (`/book/`, `/widget/`, `/widget.js`) используют одни и те же `/availability`, `/price`, `/request`.
+
+### OpenGraph для landing-страницы
+
+Критично для конверсии — когда хост скидывает ссылку в WhatsApp/Telegram, мессенджер делает preview с картинкой и заголовком. Без OpenGraph preview выглядит убого (просто URL).
+
+```html
+<meta property="og:title" th:content="${widget.title}">
+<meta property="og:description" th:content="${widget.description}">
+<meta property="og:image" th:content="${firstPhoto}">
+<meta property="og:url" th:content="${currentUrl}">
+<meta property="og:type" content="website">
+```
+
+### Обработка заявки (REQUEST)
+
+```
+POST /widget/{secret}/request
+  ↓
+1. CAPTCHA проверка (hCaptcha)
+2. Валидация формы (даты, контакты, min_nights)
+3. Проверка доступности через AvailabilityService (anti-race)
+4. Транзакция:
+   - CalendarBlock { type=HOLD, channel_id=widget, expires_at=now+hold_hours }
+   - Booking { status=PENDING, channel_id=widget, external_id=UUID,
+               guest_name (анонимизированный!), guest_phone (с согласием) }
+5. Уведомление хосту: email + Telegram (с кнопками Подтвердить/Отклонить)
+6. Ответ гостю
+```
+
+Админка: страница `/bookings/pending` — список заявок, кнопки Подтвердить/Отклонить. Подтверждение → status=BOOKED, HOLD снимается, бронь в iCal export.
+
+### Anti-echo в iCal
+
+- HOLD-блокировки от виджета **экспортируются** в iCal других каналов
+- Подтверждённые брони (BOOKED) тоже экспортируются
+- Отклонённые / истёкшие HOLD — физически удаляются
+- Экспорт в iCal самого виджета не нужен (виджет сам читает из AvailabilityService)
+
+### Admin UI — три секции кода для встраивания
+
+На странице виджета показывать все три варианта в табах:
+
+1. **Прямая ссылка** — `https://optirent.ru/book/{secret}` + кнопка "Копировать" + подпись "Отправьте эту ссылку в WhatsApp/Telegram/Instagram"
+2. **Встраивание на сайт** — iframe-код + кнопка "Копировать" + подпись "Вставьте этот код на свой сайт в любое место"
+3. **Advanced JS** — JS-вставка + кнопка "Копировать" + подпись "Для разработчиков: гибкая интеграция в сайт"
+
+### Rate limiting + защита
+
+- IP-based rate limit 60/мин на публичные endpoints
+- hCaptcha на /request (не SmartCaptcha — приватнее, не зависит от Яндекса, работает на зарубежных IP)
+- CSRF стандартный на POST
+- Валидация дат: from < to, from >= today, to <= today + window
+- AvailabilityService проверка ПЕРЕД созданием HOLD (защита от гонки)
+
+### Что НЕ в MVP
+
+- Платежи (это Mode=PAY)
+- Автоматическое подтверждение
+- CSS-редактор кастомизации (пока theme light/dark + custom_css как текст)
+- Статистика виджета (список заявок хватит)
+- A/B варианты
+- Multi-unit выбор в одной заявке
+- Виджет на нескольких языках (только русский)
+- Собственный сторадж фото (пока хост даёт прямые URL)
+
+### Открытые вопросы
+
+1. **Таймзоны:** у нас всё в Europe/Moscow. В виджете показывать время по таймзоне объекта или гостя?
+2. **Антифрод:** нужен ли blocklist для повторных спам-заявок с одного IP с разными именами?
+3. **"Powered by OptiRent":** бесплатно = с бейджем, за $5/мес = без. На лендинге пока не анонсируем.
+4. **Предоплата через виджет:** можно добавить поле "комментарий для гостя" где хост пишет реквизиты — быстрый workaround до PAY-режима.
+5. **Фото:** в MVP — прямые URL (хост сам хостит на Яндекс.Диске/Imgur). Позже свой сторадж через S3-compatible storage.
+
+### Стратегическое значение
+
+На лендинге формулировка:
+> "Получите красивую страницу бронирования со своей ссылкой. Отправляйте её клиентам в Instagram, WhatsApp, Telegram, или встраивайте на сайт. Прямые брони без комиссии площадок. Бесплатно."
+
+Создаёт network effect через "Powered by OptiRent" на страницах/сайтах. Первый лёгкий путь к будущей монетизации (платная опция без бейджа) без ломки бесплатного ядра.
+
+### Пустая ниша на рынке
+
+Западные решения (Lodgify, Hostaway, Beds24, BookingSync, OwnerRez) — платные $20-200/мес, виджет зашит в комплект с channel manager.
+
+Российские (ТУРЫ.РФ, TravelLine, Bnovo, RealtyCalendar) — для отелей/агентств, дорого, сложно.
+
+**Простого бесплатного виджета/страницы бронирования для хоста 1-2 квартир с TG-каналом нет.** Это ниша OptiRent.
+
+---
+
 ## Нюансы деплоя
 
 ### Три окружения на одном сервере
