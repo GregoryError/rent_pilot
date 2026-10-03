@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<!--
+    Шахматка как переиспользуемый виджет: /calendar/grid и /dashboard.
+    Модель — OccupancyGridService.GridView. Все классы собраны на сервере.
+    Странице нужно подключить /js/grid.js во фрагменте scripts.
+-->
+<body>
+
+    <div th:fragment="empty(grid)" th:if="${grid.empty}" class="card">
+        <div class="card__title" th:if="${!grid.hasProperties}">Пока нет объектов</div>
+        <div class="card__title" th:if="${grid.hasProperties}">Нет категорий номеров</div>
+        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;"
+           th:if="${!grid.hasProperties}">
+            Добавьте объект в настройках — шахматка появится сразу после создания
+            первой категории номеров.
+        </p>
+        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;"
+           th:if="${grid.hasProperties}">
+            У ваших объектов пока нет ни одной категории номеров. Для квартиры
+            достаточно одной «Основной» с количеством 1; для мини-отеля — по
+            одной на каждый тип номера.
+        </p>
+        <a class="btn btn-primary" th:href="@{/settings/properties}">К настройкам объектов</a>
+    </div>
+
+
+    <div th:fragment="shell(grid, prevUrl, nextUrl)" th:unless="${grid.empty}" class="grid-shell" id="grid-shell"
+         th:data-prev-url="${prevUrl}" th:data-next-url="${nextUrl}">
+      <button type="button" class="grid-arrow grid-arrow--left" id="grid-arrow-left">‹</button>
+      <button type="button" class="grid-arrow grid-arrow--right" id="grid-arrow-right">›</button>
+
+      <div class="grid-wrap" id="grid-wrap">
+        <div class="grid" id="grid" th:style="'--cols: ' + ${#lists.size(grid.dayHeaders)}">
+
+            <div class="grid__corner">Объект / категория</div>
+
+            <div th:each="h : ${grid.dayHeaders}" th:class="${h.cssClasses}"
+                 th:data-date="${h.date}" th:data-label="${h.fullLabel}">
+                <div class="grid__daycol-month" th:text="${h.monthLabel}">окт</div>
+                <div class="grid__daycol-dow" th:text="${h.dowShort}">пн</div>
+                <div class="grid__daycol-day" th:text="${h.day}">1</div>
+            </div>
+
+            <th:block th:each="row : ${grid.rows}">
+                <div th:class="${row.labelCssClasses}">
+                    <div th:if="${row.firstOfProperty}" class="grid__prop"
+                         th:text="${row.propertyName}">Садовая</div>
+                    <div class="grid__unit">
+                        <span th:text="${row.unitTypeName}">Основной</span>
+                        <span class="grid__cap" th:if="${row.capacity > 1}"
+                              th:text="'/ ' + ${row.capacity}">/ 8</span>
+                    </div>
+                </div>
+
+                <div th:each="c : ${row.cells}"
+                     th:class="${c.cssClasses}"
+                     th:data-info="${c.info}"
+                     th:data-date="${c.dateIso}"
+                     th:data-unit-type-id="${c.unitTypeId}"
+                     th:data-unit-name="${row.unitTypeName}"
+                     th:data-property-name="${row.propertyName}"
+                     th:data-price="${c.priceText}">
+                    <span th:if="${c.showBusyBadge}" th:text="${c.busy}">3</span>
+                    <span class="grid__cell__price" th:if="${!#strings.isEmpty(c.priceText)}"
+                          th:text="${c.priceShort}">3000</span>
+                </div>
+            </th:block>
+        </div>
+      </div>
+
+      <div class="grid-hoverbar" id="grid-hoverbar">
+          <span class="grid-hoverbar__hint" id="hb-hint">Наведите на день или выберите его стрелками — здесь появятся детали</span>
+          <span class="grid-hoverbar__date" id="hb-date"></span>
+          <span id="hb-unit"></span>
+          <span class="grid-hoverbar__info" id="hb-info"></span>
+          <span class="grid-hoverbar__price" id="hb-price"></span>
+      </div>
+    </div>
+
+
+    <div th:fragment="legend(grid)" th:unless="${grid.empty}" class="grid-legend">
+        <span class="grid-legend__item">
+            <span class="grid-legend__swatch grid__cell--free"></span> Свободно
+        </span>
+        <span class="grid-legend__item">
+            <span class="grid-legend__swatch grid__cell--partial">2</span> Частично
+        </span>
+        <span class="grid-legend__item">
+            <span class="grid-legend__swatch grid__cell--full"></span> Занято
+        </span>
+        <span class="grid-legend__item">
+            <span class="grid-legend__swatch grid__cell--past"></span> Прошло
+        </span>
+        <span class="grid-legend__item">
+            <span class="grid-legend__swatch grid-legend__swatch--conflict"></span> Конфликт: ручная запись + площадка
+        </span>
+        <span class="grid-legend__item muted">← ↑ ↓ → — по дням, Home/End — край строки, Enter — действия</span>
+    </div>
+
+
+    <!-- Модальное окно действия на дате -->
+    <dialog th:fragment="dialog(viewFrom, viewDays, returnMonth)" id="action-dialog" class="action-dialog"
+            th:data-entries-url="@{/calendar/grid/action/entries}"
+            th:data-delete-url="@{/calendar/grid/action/delete}">
+        <form method="post" th:action="@{/calendar/grid/action}" id="action-form">
+            <div class="action-dialog__header">
+                <div>
+                    <div class="action-dialog__title" id="action-title">Действие на дату</div>
+                    <div class="text-sm muted" id="action-subtitle"></div>
+                </div>
+                <button type="button" class="action-dialog__close"
+                        onclick="document.getElementById('action-dialog').close()">×</button>
+            </div>
+
+            <div class="action-dialog__body">
+
+                <input type="hidden" name="unitTypeId" id="action-unit-type-id">
+                <!-- чтобы после сохранения вернуться на тот же вид шахматки -->
+                <input type="hidden" name="viewFrom" th:value="${viewFrom}">
+                <input type="hidden" name="viewDays" th:value="${viewDays}">
+                <input type="hidden" name="returnMonth" th:value="${returnMonth}">
+
+                <!-- Уже заведённые вручную записи на этот день: заполняет grid.js -->
+                <div class="action-entries" id="action-entries" style="display: none;">
+                    <div class="action-entries__title">Ручные записи на этот день</div>
+                    <div id="action-entries-list"></div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3);">
+                    <div class="form-group">
+                        <label class="form-label">С даты</label>
+                        <input type="date" name="fromDate" id="action-from-date" required
+                               class="form-input form-input--sm">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">По дату (включительно)</label>
+                        <input type="date" name="toDate" id="action-to-date" required
+                               class="form-input form-input--sm">
+                    </div>
+                </div>
+
+                <!-- Секция: закрыть даты -->
+                <div class="action-section" id="action-entry-section">
+                    <div class="action-section__header">
+                        <label>
+                            <input type="checkbox" name="createEntry" id="action-create-entry"
+                                   value="true">
+                            Закрыть/заблокировать даты
+                        </label>
+                    </div>
+                    <div class="action-section__body">
+                        <div class="form-group">
+                            <label class="form-label">Тип</label>
+                            <select name="entryType" id="action-entry-type" class="form-input form-input--sm">
+                                <option value="MANUAL_BOOKING">Ручная бронь</option>
+                                <option value="MAINTENANCE">Ремонт</option>
+                                <option value="OWNER_USE">Личное использование</option>
+                                <option value="HOLD">Hold (предварительный резерв)</option>
+                            </select>
+                        </div>
+
+                        <div id="action-booking-fields">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3);">
+                                <div class="form-group">
+                                    <label class="form-label">Имя гостя (опц.)</label>
+                                    <input type="text" name="guestName" class="form-input form-input--sm">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Телефон (опц.)</label>
+                                    <input type="text" name="guestPhone" class="form-input form-input--sm">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Гостей</label>
+                                    <input type="number" name="guestCount" min="1"
+                                           class="form-input form-input--sm">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Сумма, ₽ (опц.)</label>
+                                    <input type="number" name="amount" step="0.01" min="0"
+                                           class="form-input form-input--sm">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Комментарий (опц.)</label>
+                            <textarea name="reason" rows="2" class="form-input form-input--sm"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Секция: задать цену -->
+                <div class="action-section" id="action-price-section">
+                    <div class="action-section__header">
+                        <label>
+                            <input type="checkbox" name="setPrice" id="action-set-price" value="true">
+                            Задать запланированную цену на эти даты
+                        </label>
+                    </div>
+                    <div class="action-section__body">
+                        <div class="form-group">
+                            <label class="form-label">Цена, ₽/сутки</label>
+                            <input type="number" name="plannedPrice" step="0.01" min="0"
+                                   class="form-input form-input--sm">
+                            <div class="form-hint">
+                                Эта цена будет показываться на шахматке и использоваться в прогнозе выручки
+                                (пока вы сами выставляете её на площадках).
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="action-dialog__footer">
+                <button type="button" class="btn btn-ghost"
+                        onclick="document.getElementById('action-dialog').close()">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </dialog>
+
+
+</body>
+</html>

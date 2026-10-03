@@ -11,7 +11,10 @@ import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.CalendarBlockRepository;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -194,7 +197,8 @@ public class AvailabilityService {
                         new ManualKey(b.getUnitTypeId(), b.getCheckIn(), b.getCheckOut()),
                         1, Integer::sum);
             }
-            addOccupant(m, new Occupant(true, manual, b.getChannelId(), null, b.getDataSource()),
+            addOccupant(m, new Occupant(true, manual, b.getChannelId(), null, b.getDataSource(),
+                            "booking:" + b.getId(), b.getCheckIn(), nightlyAmount(b)),
                     b.getCheckIn(), b.getCheckOut(), from, to);
         }
         for (CalendarBlock b : blocks) {
@@ -209,7 +213,8 @@ public class AvailabilityService {
                     continue;
                 }
             }
-            addOccupant(m, new Occupant(false, manual, b.getChannelId(), b.getBlockType(), null),
+            addOccupant(m, new Occupant(false, manual, b.getChannelId(), b.getBlockType(), null,
+                            "block:" + b.getId(), b.getFromDate(), null),
                     b.getFromDate(), b.getToDate(), from, to);
         }
         return grid;
@@ -219,6 +224,15 @@ public class AvailabilityService {
     private static boolean isManual(Booking b) {
         if (b.getDataSource() != null) return "MANUAL".equals(b.getDataSource());
         return b.getChannelId() == null && b.getRcBookingId() == null;
+    }
+
+    /** Сумма брони в пересчёте на ночь; null, если суммы нет (iCal, закрытие, бронь без цены). */
+    private static BigDecimal nightlyAmount(Booking b) {
+        if (b.getAmount() == null || b.getAmount().signum() <= 0) return null;
+        if (b.getCheckIn() == null || b.getCheckOut() == null) return null;
+        long nights = ChronoUnit.DAYS.between(b.getCheckIn(), b.getCheckOut());
+        if (nights <= 0) return null;
+        return b.getAmount().divide(BigDecimal.valueOf(nights), 2, RoundingMode.HALF_UP);
     }
 
     private static void addOccupant(Map<LocalDate, DayOccupancy> target, Occupant occupant,
@@ -243,9 +257,26 @@ public class AvailabilityService {
      * @param manual     завёл человек в UI (а не пришло с площадки/RC)
      * @param blockType  тип блокировки; null для броней
      * @param dataSource bookings.data_source; null для блокировок
+     * @param key        стабильный идентификатор записи ("booking:12" / "block:7") —
+     *                   чтобы считать брони, а не занятые ночи
+     * @param start      первая ночь записи (может лежать раньше окна)
+     * @param nightlyAmount сумма на ночь; null, если денег в записи нет
      */
     public record Occupant(boolean booking, boolean manual, Long channelId,
-                           CalendarBlock.BlockType blockType, String dataSource) {}
+                           CalendarBlock.BlockType blockType, String dataSource,
+                           String key, LocalDate start, BigDecimal nightlyAmount) {
+
+        /**
+         * Запись — продажа без известной суммы: её выручку оцениваем по плановой цене.
+         * Ремонт, личное использование, hold и «ручные закрытия» из RC деньгами не считаем.
+         */
+        public boolean estimatedSale() {
+            if (nightlyAmount != null) return false;
+            if (booking) return !"RC".equals(dataSource);
+            return blockType == CalendarBlock.BlockType.CHANNEL_SYNC
+                    || blockType == CalendarBlock.BlockType.MANUAL_BOOKING;
+        }
+    }
 
     public record DayOccupancy(List<Occupant> occupants) {
 

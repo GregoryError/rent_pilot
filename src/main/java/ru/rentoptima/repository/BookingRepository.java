@@ -112,4 +112,18 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findActiveByUnitTypesInRange(java.util.List<Long> unitTypeIds,
                                                LocalDate from, LocalDate to);
 
+    /** Заведённые в UI брони категории, пересекающие окно [from, to). Для отмены из шахматки. */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.tenant.id = :tenantId
+          AND b.unitTypeId = :unitTypeId
+          AND b.status = 'BOOKED'
+          AND b.dataSource = 'MANUAL'
+          AND b.checkOut > :from
+          AND b.checkIn < :to
+        ORDER BY b.checkIn
+    """)
+    List<Booking> findManualOverlapping(Long tenantId, Long unitTypeId,
+                                        LocalDate from, LocalDate to);
+
 }

@@ -27,7 +27,7 @@
             <a th:href="@{/dashboard}"
                th:classappend="${activePage == 'dashboard'} ? 'nav-item--active'"
                class="nav-item">
-                <span>◉</span> Dashboard
+                <span>◉</span> Главная
             </a>
 
             <div class="nav-section">Управление</div>
@@ -113,6 +113,10 @@
         <!-- Flash messages -->
         <div th:if="${success}" class="toast" id="toast">
             <span th:text="${success}"></span>
+        </div>
+
+        <div th:if="${error}" class="toast toast--error" id="toast-error">
+            <span th:text="${error}"></span>
         </div>
 
         <div layout:fragment="content"></div>
@@ -468,6 +472,8 @@ async function fcSend() {
     // Auto-hide toast
     const toast = document.getElementById('toast');
     if (toast) setTimeout(() => toast.style.display = 'none', 3000);
+    const toastError = document.getElementById('toast-error');
+    if (toastError) setTimeout(() => toastError.style.display = 'none', 6000);
 </script>
 <script layout:fragment="scripts"></script>
 </body>

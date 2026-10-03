@@ -2,20 +2,25 @@
 <html xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
-<head><title>Dashboard</title></head>
+<head><title>Главная</title></head>
 <body>
 <div layout:fragment="content">
 
-    <div class="page-header flex justify-between items-center">
+    <div class="dash-header">
         <div>
-            <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Показатели системы</p>
+            <h1 class="page-title">Главная</h1>
+            <p class="page-subtitle">
+                Прогноз и занятость за месяц
+                <button type="button" id="grid-conflicts" class="tag tag--red grid-conflicts"
+                        th:if="${grid.conflictCount > 0}"
+                        title="Перейти к первому конфликту"
+                        th:text="'Конфликты: ' + ${grid.conflictCount} + ' дн.'">Конфликты: 2 дн.</button>
+            </p>
         </div>
-        <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1.5rem;">
-            <a th:href="@{/dashboard(m=${prevMonth})}" class="btn btn-sm">‹ Пред</a>
-            <span style="font-family: var(--font-mono); font-size: 1.1rem; text-transform: capitalize;"
-                  th:text="${monthLabel}">Октябрь 2026</span>
-            <a th:href="@{/dashboard(m=${nextMonth})}" class="btn btn-sm">След ›</a>
+        <div class="dash-month">
+            <a th:href="@{/dashboard(m=${prevMonth})}" class="btn btn-ghost" title="Предыдущий месяц">←</a>
+            <span class="dash-month__label" th:text="${monthLabel}">Октябрь 2026</span>
+            <a th:href="@{/dashboard(m=${nextMonth})}" class="btn btn-ghost" title="Следующий месяц">→</a>
         </div>
         <div th:switch="${autopilotMode}">
             <span th:case="'OFF'" class="autopilot-badge autopilot-badge--off"><span
@@ -25,6 +30,144 @@
             <span th:case="'FULL'" class="autopilot-badge autopilot-badge--full"><span
                     class="autopilot-badge__dot"></span> Автопилот: полный</span>
         </div>
+    </div>
+
+    <!-- Hero-метрики месяца -->
+    <div class="hero-row">
+        <div class="hero">
+            <div class="hero__label">
+                Прогноз выручки
+                <span class="est-badge" th:if="${hero.revenueEstimated}"
+                      title="Часть суммы — оценка: занятые ночи без суммы посчитаны по плановой цене">estimated</span>
+            </div>
+            <div class="hero__value" th:text="${hero.revenue}">84 000 ₽</div>
+            <div class="hero__note" th:text="${hero.revenueNote}">по броням 60 000 ₽ + оценка 24 000 ₽</div>
+        </div>
+        <div class="hero">
+            <div class="hero__label">Занятость</div>
+            <div class="hero__value" th:text="${hero.occupancy}">72%</div>
+            <div class="hero__note" th:text="${hero.occupancyNote}">22 из 31 ночей</div>
+        </div>
+        <div class="hero">
+            <div class="hero__label">Броней</div>
+            <div class="hero__value" th:text="${hero.stays}">7</div>
+            <div class="hero__note">с заездом в этом месяце</div>
+        </div>
+        <div class="hero">
+            <div class="hero__label">
+                Потенциал
+                <span class="est-badge" title="Оценка: свободные ночи по вашим текущим ценам">estimated</span>
+            </div>
+            <div class="hero__value" th:text="${hero.potential}">28 000 ₽</div>
+            <div class="hero__note" th:text="${hero.potentialNote}">свободно ночей: 9, по вашим ценам</div>
+        </div>
+    </div>
+
+    <!-- Статусы каналов -->
+    <div class="channel-strip" th:if="${!#lists.isEmpty(channelChips)}">
+        <span>Каналы:</span>
+        <span th:each="ch : ${channelChips}" th:class="${ch.cssClasses}">
+            <span class="channel-chip__dot"></span>
+            <span class="channel-chip__name" th:text="${ch.name}">Суточно</span>
+            <span th:text="${ch.status}">обновлён 12 мин назад</span>
+        </span>
+        <a th:href="@{/settings/channels}">Настроить</a>
+    </div>
+
+    <!-- Шахматка месяца -->
+    <div class="dash-section">
+        <div class="dash-section__title">
+            <span>Шахматка</span>
+            <a class="text-sm" th:href="@{/calendar/grid}">Открыть на 160 дней →</a>
+        </div>
+
+        <div th:replace="~{fragments/occupancy-grid :: empty(${grid})}"></div>
+
+        <th:block th:with="prevUrl=@{/dashboard(m=${prevMonth})}, nextUrl=@{/dashboard(m=${nextMonth})}">
+            <div th:replace="~{fragments/occupancy-grid :: shell(${grid}, ${prevUrl}, ${nextUrl})}"></div>
+        </th:block>
+
+        <div th:replace="~{fragments/occupancy-grid :: legend(${grid})}"></div>
+
+        <dialog th:replace="~{fragments/occupancy-grid :: dialog('', '', ${currentMonth})}"></dialog>
+    </div>
+
+    <div class="dash-cols">
+        <!-- Выручка по дням -->
+        <div class="card">
+            <div class="card__header">
+                <div class="card__title">
+                    Выручка по дням
+                    <span class="est-badge" title="Будущие дни и ночи без суммы — оценка">estimated</span>
+                </div>
+                <span class="rev-chart__max" th:if="${hasRevenue}" th:text="'макс. ' + ${revenueMax}">макс. 4 200 ₽</span>
+            </div>
+            <p class="muted text-sm" th:unless="${hasRevenue}">
+                В этом месяце пока нет занятых ночей с суммой или плановой ценой.
+            </p>
+            <div th:if="${hasRevenue}" id="rev-chart">
+                <div class="rev-chart__readout" id="rev-chart-readout">Наведите на столбец — покажем сумму за день</div>
+                <div class="rev-chart__plot">
+                    <div th:each="b : ${revenueBars}" th:class="${b.cssClasses}"
+                         th:data-readout="${b.readout}">
+                        <div class="rev-chart__seg rev-chart__seg--actual"
+                             th:if="${b.hasActual}" th:style="${b.actualStyle}"></div>
+                        <div class="rev-chart__seg rev-chart__seg--estimated"
+                             th:if="${b.hasEstimated}" th:style="${b.estimatedStyle}"></div>
+                    </div>
+                </div>
+                <div class="rev-chart__axis">
+                    <span th:each="b : ${revenueBars}" th:text="${b.axisLabel}">5</span>
+                </div>
+                <div class="rev-chart__legend">
+                    <span><i class="rev-chart__swatch rev-chart__seg--actual"></i> по суммам броней</span>
+                    <span><i class="rev-chart__swatch rev-chart__seg--estimated"></i> оценка по плановой цене</span>
+                    <span><i class="rev-chart__swatch" style="border: 1px dashed var(--accent);"></i> будущие дни</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Потенциал оптимизации -->
+        <div class="card">
+            <div class="card__header">
+                <div class="card__title">
+                    Потенциал оптимизации
+                    <span class="est-badge" title="Расчёт системы, не гарантия">estimated</span>
+                </div>
+            </div>
+            <p class="muted text-sm" th:if="${optimization == null}">
+                Сравнивать пока не с чем: в этом месяце нет свободных будущих ночей
+                с вашей ценой и рекомендацией системы.
+            </p>
+            <div th:if="${optimization != null}">
+                <div class="opt__row">
+                    <div class="opt__row-head">
+                        <span>Ваши цены</span><strong th:text="${optimization.userTotal}">28 000 ₽</strong>
+                    </div>
+                    <div class="opt__track"><div class="opt__bar" th:style="${optimization.userStyle}"></div></div>
+                </div>
+                <div class="opt__row">
+                    <div class="opt__row-head">
+                        <span>Рекомендованные</span><strong th:text="${optimization.recommendedTotal}">33 500 ₽</strong>
+                    </div>
+                    <div class="opt__track"><div class="opt__bar opt__bar--rec" th:style="${optimization.recommendedStyle}"></div></div>
+                </div>
+                <div class="opt__uplift">
+                    <span th:text="${optimization.uplift}">+5 500 ₽</span>
+                    <span th:class="${optimization.upliftCss}"
+                          th:text="'ночей: ' + ${optimization.nights}">ночей: 9</span>
+                </div>
+                <p class="text-sm muted" th:text="${optimization.verdict}"></p>
+                <p class="text-sm" style="margin-top: var(--sp-3);">
+                    <a th:href="@{/pricing}">Рекомендации по дням →</a>
+                </p>
+                <p class="form-hint">Система только советует: цены на площадках вы меняете сами.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-section__title" style="margin-top: var(--sp-10);">
+        <span>Факт по броням за месяц</span>
     </div>
 
     <!-- KPI Row -->
@@ -254,5 +397,23 @@ async function cancelOverride(btn) {
         </div>
     </div>
 </div>
+
+<th:block layout:fragment="scripts">
+    <script th:src="@{/js/grid.js}"></script>
+    <script>
+        // График выручки: строка-подсказка вместо tooltip
+        (function() {
+            const chart = document.getElementById('rev-chart');
+            const readout = document.getElementById('rev-chart-readout');
+            if (!chart || !readout) return;
+            const hint = readout.textContent;
+            chart.addEventListener('mouseover', (e) => {
+                const col = e.target.closest('.rev-chart__col');
+                if (col) readout.textContent = col.dataset.readout;
+            });
+            chart.addEventListener('mouseleave', () => { readout.textContent = hint; });
+        })();
+    </script>
+</th:block>
 </body>
 </html>
