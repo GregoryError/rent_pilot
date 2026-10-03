@@ -46,6 +46,13 @@ public interface CalendarBlockRepository extends JpaRepository<CalendarBlock, Lo
                                                 @Param("from") LocalDate from,
                                                 @Param("to") LocalDate to);
 
+    /** Ручные записи категории, заведённые после указанного момента. Для диагностики каналов. */
+    List<CalendarBlock> findByUnitTypeIdAndChannelIdIsNullAndCreatedAtAfter(
+            Long unitTypeId, java.time.LocalDateTime since);
+
+    /** Последние импортированные с канала блокировки. Для диагностики каналов. */
+    List<CalendarBlock> findTop10ByChannelIdOrderByCreatedAtDesc(Long channelId);
+
     /** Найти все пересечения для одного unit_type — для детектора конфликтов. */
     @Query("""
         SELECT b FROM CalendarBlock b

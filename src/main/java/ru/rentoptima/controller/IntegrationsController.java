@@ -49,7 +49,8 @@ public class IntegrationsController {
         model.addAttribute("tgHasToken", telegram.hasToken(tenantId));
         model.addAttribute("tgChatId", chatId != null ? chatId : "");
         model.addAttribute("tgConfigured", telegram.isConfigured(tenantId));
-        model.addAttribute("alerts", alertRepo.findTop20ByTenantIdOrderByFirstSeenAtDesc(tenantId)
+        model.addAttribute("alerts", alertRepo.findTop20ByTenantIdAndAlertTypeNotOrderByFirstSeenAtDesc(
+                        tenantId, AlertEvent.AlertType.OVERLAP)
                 .stream().map(IntegrationsController::toView).toList());
         return "pages/settings/integrations";
     }
@@ -126,7 +127,9 @@ public class IntegrationsController {
         Long tenantId = AuthContext.tenantId();
         try {
             alertScheduler.checkTenant(tenantId);
-            long open = alertRepo.findByTenantIdAndResolvedAtIsNull(tenantId).size();
+            long open = alertRepo.findByTenantIdAndResolvedAtIsNull(tenantId).stream()
+                    .filter(a -> a.getAlertType() != AlertEvent.AlertType.OVERLAP)
+                    .count();
             redirect.addFlashAttribute("success", open == 0
                     ? "Проверка выполнена: пересечений и сбоев каналов нет"
                     : "Проверка выполнена. Открытых проблем: " + open);

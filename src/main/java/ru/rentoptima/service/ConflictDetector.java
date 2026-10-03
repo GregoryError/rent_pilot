@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 
 /**
  * Склеивает конфликтные дни категории в периоды — для алертов.
@@ -29,6 +30,26 @@ public final class ConflictDetector {
     public static List<ConflictPeriod> findPeriods(Long unitTypeId, int capacity,
                                                    Map<LocalDate, DayOccupancy> days,
                                                    LocalDate today) {
+        return merge(unitTypeId, days, today, day -> day.conflict(capacity));
+    }
+
+    /**
+     * Наложения, которые конфликтом не считаются: день занят сверх вместимости, но
+     * ручной записи среди занимающих нет — пересеклись две площадки (или площадка и RC).
+     * Почти всегда это эхо, поэтому в Telegram не идёт, а пишется в журнал: по нему на
+     * пилоте видно, какая площадка возвращает нам нашу же занятость.
+     */
+    public static List<ConflictPeriod> findOverlaps(Long unitTypeId, int capacity,
+                                                    Map<LocalDate, DayOccupancy> days,
+                                                    LocalDate today) {
+        return merge(unitTypeId, days, today,
+                day -> day.busy() > capacity && !day.conflict(capacity));
+    }
+
+    private static List<ConflictPeriod> merge(Long unitTypeId,
+                                              Map<LocalDate, DayOccupancy> days,
+                                              LocalDate today,
+                                              Predicate<DayOccupancy> matches) {
         List<ConflictPeriod> periods = new ArrayList<>();
         LocalDate start = null;
         LocalDate prev = null;
@@ -36,7 +57,7 @@ public final class ConflictDetector {
 
         for (Map.Entry<LocalDate, DayOccupancy> e : new TreeMap<>(days).entrySet()) {
             LocalDate d = e.getKey();
-            if (d.isBefore(today) || !e.getValue().conflict(capacity)) continue;
+            if (d.isBefore(today) || !matches.test(e.getValue())) continue;
 
             if (start != null && !d.equals(prev.plusDays(1))) {
                 periods.add(new ConflictPeriod(unitTypeId, start, prev.plusDays(1), channels));

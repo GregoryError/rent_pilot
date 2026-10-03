@@ -8,10 +8,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import ru.rentoptima.channel.ical.ICalWriter;
 import ru.rentoptima.entity.Channel;
+import ru.rentoptima.entity.ChannelFeedFetch;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.entity.UnitType;
+import ru.rentoptima.repository.ChannelFeedFetchRepository;
 import ru.rentoptima.repository.ChannelRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
@@ -45,9 +48,12 @@ public class ICalFeedController {
     private final UnitTypeRepository unitTypeRepo;
     private final PropertyRepository propertyRepo;
     private final AvailabilityService availability;
+    private final ChannelFeedFetchRepository fetchRepo;
 
     @GetMapping(value = "/ical/{secret}.ics", produces = "text/calendar;charset=UTF-8")
-    public ResponseEntity<byte[]> feed(@PathVariable String secret) {
+    public ResponseEntity<byte[]> feed(@PathVariable String secret,
+                                       @RequestHeader(value = HttpHeaders.USER_AGENT, required = false)
+                                       String userAgent) {
         Channel channel = channelRepo.findByExportSecret(secret).orElse(null);
 
         // Одинаковый 404 и для несуществующего, и для выключенного канала —
@@ -77,6 +83,7 @@ public class ICalFeedController {
         String body = ICalWriter.write(calendarName, periods, "rentoptima.ru");
 
         log.debug("iCal feed отдан: channel={}, периодов={}", channel.getId(), periods.size());
+        recordFetch(channel, userAgent, periods.size());
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/calendar;charset=UTF-8"))
@@ -86,5 +93,21 @@ public class ICalFeedController {
                 // но не считают его надолго актуальным.
                 .header(HttpHeaders.CACHE_CONTROL, "public, max-age=60")
                 .body(body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** Журнал обращений — для диагностики; его сбой не должен ломать отдачу фида. */
+    private void recordFetch(Channel channel, String userAgent, int periods) {
+        try {
+            ChannelFeedFetch fetch = new ChannelFeedFetch();
+            fetch.setTenantId(channel.getTenantId());
+            fetch.setChannelId(channel.getId());
+            fetch.setPeriodsCount(periods);
+            if (userAgent != null && !userAgent.isBlank()) {
+                fetch.setUserAgent(userAgent.length() > 255 ? userAgent.substring(0, 255) : userAgent);
+            }
+            fetchRepo.save(fetch);
+        } catch (Exception e) {
+            log.warn("Не удалось записать обращение к фиду канала {}: {}", channel.getId(), e.getMessage());
+        }
     }
 }

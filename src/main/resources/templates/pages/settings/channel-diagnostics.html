@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head><title>Диагностика каналов</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Диагностика каналов</h1>
+            <p class="page-subtitle">Как быстро занятость расходится между OptiRent и площадками. Данные за 30 дней.</p>
+        </div>
+        <a class="btn btn-ghost" th:href="@{/settings/channels}">← К каналам</a>
+    </div>
+
+    <div class="card" th:if="${#lists.isEmpty(report.channels)}">
+        <div class="card__title">Нет iCal-каналов</div>
+        <p class="muted" style="margin: var(--sp-3) 0 0 0;">
+            Подключите площадку в разделе «Каналы» — здесь появится статистика обмена.
+        </p>
+    </div>
+
+    <div th:each="c : ${report.channels}" class="card">
+        <div class="flex justify-between items-center" style="margin-bottom: var(--sp-4);">
+            <div>
+                <div style="font-size: var(--text-lg); font-weight: var(--weight-semibold);"
+                     th:text="${c.name}">Суточно — Садовая</div>
+                <div class="text-sm muted" th:text="${c.unitLabel}">Садовая / Основной</div>
+            </div>
+            <span th:class="${c.exportStatusCss}" th:text="${c.exportStatus}">Площадка забирает наш фид</span>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--sp-6);">
+
+            <div>
+                <div class="form-label">От нас к площадке</div>
+                <div class="text-sm" style="color: var(--text-secondary); line-height: 1.8;">
+                    <div>Обращений к фиду: <strong th:text="${c.fetchesTotal}">0</strong>,
+                        за сутки: <strong th:text="${c.fetches24h}">0</strong></div>
+                    <div>Последнее: <span th:text="${c.lastFetch}">—</span></div>
+                    <div>Интервал опроса: обычно <strong th:text="${c.gapMedian}">—</strong>,
+                        максимум <strong th:text="${c.gapMax}">—</strong></div>
+                    <div class="muted" style="word-break: break-all;">Кто забирал: <span th:text="${c.lastFetchAgent}">—</span></div>
+                </div>
+            </div>
+
+            <div>
+                <div class="form-label">Ручная запись → площадка забрала фид</div>
+                <div class="text-sm" style="color: var(--text-secondary); line-height: 1.8;">
+                    <div>Ручных записей за период: <strong th:text="${c.manualChanges}">0</strong></div>
+                    <div>Задержка: обычно <strong th:text="${c.outMedian}">—</strong>,
+                        максимум <strong th:text="${c.outMax}">—</strong></div>
+                    <div th:if="${c.pendingChanges > 0}" style="color: var(--amber);">
+                        Ещё не забрано площадкой: <span th:text="${c.pendingChanges}">0</span>
+                    </div>
+                    <div class="muted">Это время до запроса фида. Когда площадка закроет даты у себя, зависит от неё.</div>
+                </div>
+            </div>
+
+            <div>
+                <div class="form-label">От площадки к нам</div>
+                <div class="text-sm" style="color: var(--text-secondary); line-height: 1.8;">
+                    <div>Опрашиваем каждые <strong th:text="${c.syncIntervalMinutes}">30</strong> мин</div>
+                    <div>Последняя синхронизация: <span th:text="${c.lastSync}">—</span></div>
+                    <div class="muted">Бронь на площадке мы увидим не позже чем через этот интервал
+                        плюс время, за которое площадка обновит свой фид.</div>
+                </div>
+            </div>
+        </div>
+
+        <div th:unless="${#lists.isEmpty(c.imports)}" style="margin-top: var(--sp-5);">
+            <div class="form-label">Последние блокировки с площадки</div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Даты</th><th>Впервые увидели</th></tr></thead>
+                    <tbody>
+                    <tr th:each="i : ${c.imports}">
+                        <td th:text="${i.dates}">12.10 — 14.10</td>
+                        <td th:text="${i.firstSeen}">04.10 12:30</td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="form-hint">Сверьте «впервые увидели» со временем уведомления площадки о брони — разница и есть задержка в нашу сторону.</div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__header">
+            <div class="card__title">Журнал пересечений дат</div>
+            <div class="text-sm muted">Последние 50 записей: конфликты, наложения площадок и сбои каналов.</div>
+        </div>
+        <p class="muted text-sm" th:if="${#lists.isEmpty(report.journal)}" style="margin: var(--sp-3) 0 0 0;">
+            Пересечений не было.
+        </p>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(report.journal)}">
+            <table>
+                <thead><tr><th>Замечено</th><th>Тип</th><th>Что случилось</th><th>Состояние</th></tr></thead>
+                <tbody>
+                <tr th:each="j : ${report.journal}">
+                    <td th:text="${j.time}" style="white-space: nowrap;">04.10 12:30</td>
+                    <td><span th:class="${j.typeCss}" th:text="${j.type}">Конфликт</span></td>
+                    <td th:text="${j.message}">Садовая / Основной: 12–14 октября</td>
+                    <td th:text="${j.lasted}" style="white-space: nowrap;">открыт</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="form-hint" style="margin-top: var(--sp-3);">
+            «Наложение без ручной записи» — на одни даты пришла занятость из двух источников.
+            Обычно площадка возвращает в своём фиде то, что сама импортировала у нас. В Telegram такие записи не уходят.
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

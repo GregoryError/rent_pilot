@@ -11,8 +11,11 @@
             <h1 class="page-title">Каналы</h1>
             <p class="page-subtitle">iCal-подключения к площадкам, экспорт занятости</p>
         </div>
-        <button class="btn btn-primary" type="button" id="btn-add-channel"
-                th:attr="disabled=${!hasUnitTypes} ? 'disabled'">+ Подключить канал</button>
+        <div style="display: flex; gap: var(--sp-3);">
+            <a class="btn btn-ghost" th:href="@{/settings/channels/diagnostics}">Диагностика</a>
+            <button class="btn btn-primary" type="button" id="btn-add-channel"
+                    th:attr="disabled=${!hasUnitTypes} ? 'disabled'">+ Подключить канал</button>
+        </div>
     </div>
 
     <div th:if="${error}" class="card"

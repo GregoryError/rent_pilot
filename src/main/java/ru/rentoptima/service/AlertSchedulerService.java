@@ -127,6 +127,17 @@ public class AlertSchedulerService {
                 a.setMessage(conflictText(unitLabels.get(ut.getId()), p, channelNames));
                 found.add(a);
             }
+            for (ConflictPeriod p : ConflictDetector.findOverlaps(ut.getId(), capacity, days, today)) {
+                AlertEvent a = new AlertEvent();
+                a.setTenantId(tenantId);
+                a.setAlertType(AlertType.OVERLAP);
+                a.setDedupKey(p.dedupKey());
+                a.setUnitTypeId(ut.getId());
+                a.setFromDate(p.from());
+                a.setToDate(p.toExclusive());
+                a.setMessage(conflictText(unitLabels.get(ut.getId()), p, channelNames));
+                found.add(a);
+            }
         }
         return found;
     }
@@ -185,7 +196,8 @@ public class AlertSchedulerService {
         if (!telegram.isConfigured(tenantId)) return;
 
         List<AlertEvent> pending = reconciled.open().stream()
-                .filter(a -> a.getNotifiedAt() == null)
+                // OVERLAP — только журнал, в Telegram не отправляется
+                .filter(a -> a.getNotifiedAt() == null && a.getAlertType() != AlertType.OVERLAP)
                 .toList();
         if (!pending.isEmpty()) {
             String text = composeMessage(pending, baseUrl(tenantId));
