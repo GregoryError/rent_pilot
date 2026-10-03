@@ -14,14 +14,20 @@
             right: 0;
             text-align: center;
             font-size: 9px;
-            font-weight: 400;
-            color: var(--text-muted);
+            line-height: 1;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+            color: var(--text-secondary);
             pointer-events: none;
         }
+        /* На занятых плитках цвет статуса на цветной же подложке не читается */
         .grid__cell--full .grid__cell__price,
-        .grid__cell--partial .grid__cell__price { color: inherit; opacity: 0.75; }
+        .grid__cell--partial .grid__cell__price { color: var(--text-primary); }
 
         .action-dialog {
+            /* reset в core.css обнуляет margin у всего, включая <dialog>, —
+               без auto он прилипает к левому верхнему углу */
+            margin: auto;
             padding: 0;
             border: none;
             border-radius: var(--radius);
@@ -69,7 +75,13 @@
     <div class="page-header grid-header">
         <div>
             <h1 class="page-title">Шахматка</h1>
-            <p class="page-subtitle" th:text="${rangeLabel}">1 октября — 30 октября 2026</p>
+            <p class="page-subtitle">
+                <span th:text="${rangeLabel}">1 октября — 30 октября 2026</span>
+                <button type="button" id="grid-conflicts" class="tag tag--red grid-conflicts"
+                        th:if="${conflictCount > 0}"
+                        title="Перейти к первому конфликту"
+                        th:text="'Конфликты: ' + ${conflictCount} + ' дн.'">Конфликты: 2 дн.</button>
+            </p>
         </div>
 
         <div class="grid-controls">
@@ -87,12 +99,39 @@
                 <input type="hidden" name="from" th:value="${startIso}">
                 <select name="days" onchange="this.form.submit()"
                         class="form-input form-input--sm grid-controls__span">
-                    <option value="7"  th:selected="${span == 7}">7 дней</option>
-                    <option value="14" th:selected="${span == 14}">14 дней</option>
-                    <option value="30" th:selected="${span == 30}">30 дней</option>
-                    <option value="62" th:selected="${span == 62}">62 дня</option>
+                    <option th:each="o : ${spanOptions}" th:value="${o.days}"
+                            th:selected="${o.selected}" th:text="${o.label}">30 дней</option>
                 </select>
             </form>
+
+            <div class="grid-jump" id="grid-jump"
+                 th:data-base-url="@{/calendar/grid}"
+                 th:data-start="${startIso}" th:data-end="${endIso}" th:data-span="${span}">
+                <button type="button" class="btn btn-ghost" id="grid-jump-toggle"
+                        title="Перейти к месяцу или задать свой период">Месяц ▾</button>
+                <div class="grid-jump__panel">
+                    <div class="grid-jump__year">
+                        <button type="button" id="grid-jump-prev" title="Предыдущий год">‹</button>
+                        <span id="grid-jump-year">2026</span>
+                        <button type="button" id="grid-jump-next" title="Следующий год">›</button>
+                    </div>
+                    <div class="grid-jump__months" id="grid-jump-months"></div>
+
+                    <form method="get" th:action="@{/calendar/grid}" class="grid-jump__range">
+                        <div class="form-group">
+                            <label class="form-label">С даты</label>
+                            <input type="date" name="from" th:value="${startIso}" required
+                                   class="form-input form-input--sm">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">По дату</label>
+                            <input type="date" name="to" th:value="${endIso}" required
+                                   class="form-input form-input--sm">
+                        </div>
+                        <button type="submit" class="btn btn-ghost">Показать период</button>
+                    </form>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -113,12 +152,20 @@
         <a class="btn btn-primary" th:href="@{/settings/properties}">К настройкам объектов</a>
     </div>
 
-    <div th:unless="${empty}" class="grid-wrap">
-        <div class="grid" th:style="'--cols: ' + ${#lists.size(dayHeaders)}">
+    <div th:unless="${empty}" class="grid-shell" id="grid-shell"
+         th:data-prev-url="@{/calendar/grid(from=${prevStart}, days=${span})}"
+         th:data-next-url="@{/calendar/grid(from=${nextStart}, days=${span})}">
+      <button type="button" class="grid-arrow grid-arrow--left" id="grid-arrow-left">‹</button>
+      <button type="button" class="grid-arrow grid-arrow--right" id="grid-arrow-right">›</button>
+
+      <div class="grid-wrap" id="grid-wrap">
+        <div class="grid" id="grid" th:style="'--cols: ' + ${#lists.size(dayHeaders)}">
 
             <div class="grid__corner">Объект / категория</div>
 
-            <div th:each="h : ${dayHeaders}" th:class="${h.cssClasses}">
+            <div th:each="h : ${dayHeaders}" th:class="${h.cssClasses}"
+                 th:data-date="${h.date}" th:data-label="${h.fullLabel}">
+                <div class="grid__daycol-month" th:text="${h.monthLabel}">окт</div>
                 <div class="grid__daycol-dow" th:text="${h.dowShort}">пн</div>
                 <div class="grid__daycol-day" th:text="${h.day}">1</div>
             </div>
@@ -136,7 +183,7 @@
 
                 <div th:each="c : ${row.cells}"
                      th:class="${c.cssClasses}"
-                     th:title="${c.title}"
+                     th:data-info="${c.info}"
                      th:data-date="${c.dateIso}"
                      th:data-unit-type-id="${c.unitTypeId}"
                      th:data-unit-name="${row.unitTypeName}"
@@ -144,10 +191,19 @@
                      th:data-price="${c.priceText}">
                     <span th:if="${c.showBusyBadge}" th:text="${c.busy}">3</span>
                     <span class="grid__cell__price" th:if="${!#strings.isEmpty(c.priceText)}"
-                          th:text="${c.priceText}">3000₽</span>
+                          th:text="${c.priceShort}">3000</span>
                 </div>
             </th:block>
         </div>
+      </div>
+
+      <div class="grid-hoverbar" id="grid-hoverbar">
+          <span class="grid-hoverbar__hint" id="hb-hint">Наведите на день или выберите его стрелками — здесь появятся детали</span>
+          <span class="grid-hoverbar__date" id="hb-date"></span>
+          <span id="hb-unit"></span>
+          <span class="grid-hoverbar__info" id="hb-info"></span>
+          <span class="grid-hoverbar__price" id="hb-price"></span>
+      </div>
     </div>
 
     <div th:unless="${empty}" class="grid-legend">
@@ -163,6 +219,10 @@
         <span class="grid-legend__item">
             <span class="grid-legend__swatch grid__cell--past"></span> Прошло
         </span>
+        <span class="grid-legend__item">
+            <span class="grid-legend__swatch grid-legend__swatch--conflict"></span> Конфликт: ручная запись + площадка
+        </span>
+        <span class="grid-legend__item muted">← ↑ ↓ → — по дням, Home/End — край строки, Enter — действия</span>
     </div>
 
     <!-- Модальное окно действия на дате -->
@@ -180,6 +240,9 @@
             <div class="action-dialog__body">
 
                 <input type="hidden" name="unitTypeId" id="action-unit-type-id">
+                <!-- чтобы после сохранения вернуться на тот же вид шахматки -->
+                <input type="hidden" name="viewFrom" th:value="${startIso}">
+                <input type="hidden" name="viewDays" th:value="${span}">
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3);">
                     <div class="form-group">
@@ -279,9 +342,82 @@
 
 <th:block layout:fragment="scripts">
     <script>
+        // Мини-календарь: прыжок на месяц. Работает и на пустой шахматке.
+        (function() {
+            const jump = document.getElementById('grid-jump');
+            if (!jump) return;
+
+            const MONTHS = ['янв', 'фев', 'мар', 'апр', 'май', 'июн',
+                            'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+            const toggle = document.getElementById('grid-jump-toggle');
+            const yearLabel = document.getElementById('grid-jump-year');
+            const monthsBox = document.getElementById('grid-jump-months');
+            const startYm = jump.dataset.start.slice(0, 7);
+            const endYm = jump.dataset.end.slice(0, 7);
+            const now = new Date();
+            const currentYm = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+            let year = parseInt(startYm.slice(0, 4), 10);
+
+            function jumpTo(iso) {
+                const wrap = document.getElementById('grid-wrap');
+                const header = document.querySelector('.grid__daycol[data-date="' + iso + '"]');
+                if (wrap && header) {
+                    // Месяц уже загружен — просто прокручиваем к его первому дню
+                    const corner = document.querySelector('.grid__corner');
+                    const left = wrap.scrollLeft
+                        + header.getBoundingClientRect().left
+                        - wrap.getBoundingClientRect().left
+                        - (corner ? corner.offsetWidth : 0);
+                    wrap.scrollTo({ left: left, behavior: 'smooth' });
+                    jump.classList.remove('is-open');
+                    return;
+                }
+                window.location.href = jump.dataset.baseUrl
+                    + '?from=' + iso + '&days=' + jump.dataset.span;
+            }
+
+            function render() {
+                yearLabel.textContent = year;
+                monthsBox.innerHTML = '';
+                MONTHS.forEach((name, i) => {
+                    const ym = year + '-' + String(i + 1).padStart(2, '0');
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'grid-jump__month';
+                    btn.textContent = name;
+                    if (ym === currentYm) btn.classList.add('is-current');
+                    if (ym >= startYm && ym <= endYm) btn.classList.add('is-inview');
+                    btn.addEventListener('click', () => jumpTo(ym + '-01'));
+                    monthsBox.appendChild(btn);
+                });
+            }
+
+            toggle.addEventListener('click', () => {
+                jump.classList.toggle('is-open');
+                if (jump.classList.contains('is-open')) render();
+            });
+            document.getElementById('grid-jump-prev').addEventListener('click', () => { year--; render(); });
+            document.getElementById('grid-jump-next').addEventListener('click', () => { year++; render(); });
+            document.addEventListener('click', (e) => {
+                if (!jump.contains(e.target)) jump.classList.remove('is-open');
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') jump.classList.remove('is-open');
+            });
+        })();
+
+        // Сетка: модалка действий, клавиатура, hover-строка, боковые стрелки.
         (function() {
             const dialog = document.getElementById('action-dialog');
-            if (!dialog) return;
+            const shell = document.getElementById('grid-shell');
+            if (!dialog || !shell) return;
+
+            const wrap = document.getElementById('grid-wrap');
+            const grid = document.getElementById('grid');
+            const headers = Array.from(grid.querySelectorAll('.grid__daycol'));
+            const cells = Array.from(grid.querySelectorAll('.grid__cell'));
+            const cols = headers.length;
+            if (!cols || !cells.length) return;
 
             const entrySection = document.getElementById('action-entry-section');
             const entryCheckbox = document.getElementById('action-create-entry');
@@ -306,41 +442,169 @@
             priceCheckbox.addEventListener('change', () => toggleSection(priceSection, priceCheckbox));
             entryType.addEventListener('change', toggleBookingFields);
 
-            document.querySelectorAll('.grid__cell').forEach(cell => {
-                cell.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const date = cell.dataset.date;
-                    const unitTypeId = cell.dataset.unitTypeId;
-                    const unitName = cell.dataset.unitName || '';
-                    const propName = cell.dataset.propertyName || '';
-                    if (!date || !unitTypeId) return;
+            function unitLabel(cell) {
+                const parts = [];
+                if (cell.dataset.propertyName) parts.push(cell.dataset.propertyName);
+                if (cell.dataset.unitName) parts.push(cell.dataset.unitName);
+                return parts.join(' / ');
+            }
 
-                    fromDateInput.value = date;
-                    toDateInput.value = date;
-                    unitTypeIdInput.value = unitTypeId;
+            function openDialog(cell) {
+                const date = cell.dataset.date;
+                const unitTypeId = cell.dataset.unitTypeId;
+                if (!date || !unitTypeId) return;
 
-                    title.textContent = `Действие на ${date}`;
-                    const parts = [];
-                    if (propName) parts.push(propName);
-                    if (unitName) parts.push(unitName);
-                    subtitle.textContent = parts.join(' / ');
+                fromDateInput.value = date;
+                toDateInput.value = date;
+                unitTypeIdInput.value = unitTypeId;
 
-                    // Сброс состояния формы
-                    entryCheckbox.checked = false;
-                    priceCheckbox.checked = false;
-                    toggleSection(entrySection, entryCheckbox);
-                    toggleSection(priceSection, priceCheckbox);
-                    entryType.value = 'MANUAL_BOOKING';
-                    toggleBookingFields();
+                title.textContent = `Действие на ${date}`;
+                subtitle.textContent = unitLabel(cell);
 
-                    dialog.showModal();
-                });
-            });
+                // Сброс состояния формы
+                entryCheckbox.checked = false;
+                priceCheckbox.checked = false;
+                toggleSection(entrySection, entryCheckbox);
+                toggleSection(priceSection, priceCheckbox);
+                entryType.value = 'MANUAL_BOOKING';
+                toggleBookingFields();
+
+                dialog.showModal();
+            }
 
             // Клик по backdrop закрывает диалог
             dialog.addEventListener('click', (e) => {
                 if (e.target === dialog) dialog.close();
             });
+
+            // --- Hover-строка с деталями дня
+            const hbHint = document.getElementById('hb-hint');
+            const hbDate = document.getElementById('hb-date');
+            const hbUnit = document.getElementById('hb-unit');
+            const hbInfo = document.getElementById('hb-info');
+            const hbPrice = document.getElementById('hb-price');
+
+            function showInfo(cell) {
+                if (!cell) return;
+                hbHint.style.display = 'none';
+                hbDate.textContent = headers[cell._idx % cols].dataset.label || cell.dataset.date;
+                hbUnit.textContent = unitLabel(cell);
+                hbInfo.textContent = cell.dataset.info || '';
+                hbInfo.classList.toggle('is-conflict', cell.classList.contains('is-conflict'));
+                hbPrice.textContent = cell.dataset.price ? cell.dataset.price + ' / сутки' : '';
+            }
+
+            // --- Активная ячейка (roving tabindex)
+            cells.forEach((c, i) => { c._idx = i; c.tabIndex = -1; });
+            let active = cells.find(c => c.classList.contains('is-today')) || cells[0];
+            active.tabIndex = 0;
+
+            function setActive(cell, focus) {
+                active.tabIndex = -1;
+                active.classList.remove('is-active');
+                active = cell;
+                active.tabIndex = 0;
+                if (focus) {
+                    active.focus({ preventScroll: true });
+                    active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+                }
+                showInfo(active);
+            }
+
+            grid.addEventListener('mouseover', (e) => {
+                const cell = e.target.closest('.grid__cell');
+                if (cell) showInfo(cell);
+            });
+            // Ушли мышью с сетки — возвращаем детали выбранного с клавиатуры дня
+            grid.addEventListener('mouseleave', () => {
+                if (document.activeElement === active) showInfo(active);
+            });
+            grid.addEventListener('focusin', (e) => {
+                const cell = e.target.closest('.grid__cell');
+                if (cell && cell !== active) setActive(cell, false);
+                else if (cell) showInfo(cell);
+            });
+
+            grid.addEventListener('click', (e) => {
+                const cell = e.target.closest('.grid__cell');
+                if (!cell) return;
+                setActive(cell, false);
+                openDialog(cell);
+            });
+
+            grid.addEventListener('keydown', (e) => {
+                const cell = e.target.closest('.grid__cell');
+                if (!cell) return;
+                const i = cell._idx;
+                const col = i % cols;
+                const rowStart = i - col;
+                let next = null;
+
+                switch (e.key) {
+                    case 'ArrowLeft':  if (col > 0) next = i - 1; break;
+                    case 'ArrowRight': if (col < cols - 1) next = i + 1; break;
+                    case 'ArrowUp':    if (i - cols >= 0) next = i - cols; break;
+                    case 'ArrowDown':  if (i + cols < cells.length) next = i + cols; break;
+                    case 'Home':       next = rowStart; break;
+                    case 'End':        next = rowStart + cols - 1; break;
+                    case 'PageUp':     next = rowStart + Math.max(0, col - 7); break;
+                    case 'PageDown':   next = rowStart + Math.min(cols - 1, col + 7); break;
+                    case 'Enter':
+                    case ' ':
+                        e.preventDefault();
+                        openDialog(cell);
+                        return;
+                    default:
+                        return;
+                }
+                // preventDefault и на краю сетки — иначе стрелка прокрутит страницу
+                e.preventDefault();
+                if (next !== null && next !== i) setActive(cells[next], true);
+            });
+
+            // --- Переход к первому конфликту
+            const conflictsBtn = document.getElementById('grid-conflicts');
+            if (conflictsBtn) {
+                conflictsBtn.addEventListener('click', () => {
+                    const first = grid.querySelector('.grid__cell.is-conflict');
+                    if (!first) return;
+                    setActive(first, true);
+                    first.classList.add('is-active');
+                });
+            }
+
+            // --- Боковые стрелки: прокрутка, а на краю — соседний период
+            const arrowLeft = document.getElementById('grid-arrow-left');
+            const arrowRight = document.getElementById('grid-arrow-right');
+            const corner = grid.querySelector('.grid__corner');
+
+            function atLeftEdge() { return wrap.scrollLeft <= 1; }
+            function atRightEdge() {
+                return wrap.scrollLeft + wrap.clientWidth >= wrap.scrollWidth - 1;
+            }
+            function updateArrows() {
+                const l = atLeftEdge(), r = atRightEdge();
+                arrowLeft.classList.toggle('is-edge', l);
+                arrowRight.classList.toggle('is-edge', r);
+                arrowLeft.title = l ? 'Предыдущий период' : 'Прокрутить назад';
+                arrowRight.title = r ? 'Следующий период' : 'Прокрутить вперёд';
+            }
+            function scrollStep(direction) {
+                const visible = wrap.clientWidth - (corner ? corner.offsetWidth : 0);
+                wrap.scrollBy({ left: direction * Math.max(120, visible * 0.8), behavior: 'smooth' });
+            }
+
+            arrowLeft.addEventListener('click', () => {
+                if (atLeftEdge()) window.location.href = shell.dataset.prevUrl;
+                else scrollStep(-1);
+            });
+            arrowRight.addEventListener('click', () => {
+                if (atRightEdge()) window.location.href = shell.dataset.nextUrl;
+                else scrollStep(1);
+            });
+            wrap.addEventListener('scroll', updateArrows, { passive: true });
+            window.addEventListener('resize', updateArrows);
+            updateArrows();
         })();
     </script>
 </th:block>

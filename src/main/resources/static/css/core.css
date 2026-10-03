@@ -569,7 +569,7 @@ tr:hover td { background: var(--bg-hover); }
 
 .grid {
     display: grid;
-    grid-template-columns: 220px repeat(var(--cols, 30), minmax(30px, 1fr));
+    grid-template-columns: var(--grid-label-w, 220px) repeat(var(--cols, 30), minmax(30px, 1fr));
     min-width: fit-content;
     font-variant-numeric: tabular-nums;
 }
@@ -671,6 +671,161 @@ tr:hover td { background: var(--bg-hover); }
         var(--border-subtle) 4px, var(--border-subtle) 5px
     );
 }
+
+/* Разделитель месяцев и подпись месяца в шапке — ориентир на длинном горизонте */
+.grid__daycol.is-month-start,
+.grid__cell.is-month-start { border-left: 1px solid var(--border); }
+.grid__daycol-month {
+    min-height: 11px;
+    font-size: 9px;
+    line-height: 11px;
+    font-weight: var(--weight-semibold);
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+/* Конфликт: ручная запись и площадка на одном дне сверх вместимости */
+.grid__cell.is-conflict,
+.grid-legend__swatch--conflict { box-shadow: inset 0 0 0 2px var(--red); }
+.grid__cell.is-conflict.is-today {
+    box-shadow: inset 0 0 0 2px var(--red), inset 4px 0 0 var(--accent);
+}
+.grid-conflicts {
+    margin-left: var(--sp-3);
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+/* Клавиатурная навигация: липкие шапка и колонка названий не должны накрывать фокус */
+.grid__cell {
+    scroll-margin-left: var(--grid-label-w, 220px);
+    scroll-margin-top: 64px;
+}
+.grid__cell:focus { outline: none; }
+.grid__cell:focus-visible,
+.grid__cell.is-active {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+/* Оболочка шахматки: стрелки по бокам + строка деталей дня снизу */
+.grid-shell {
+    --grid-label-w: 220px;
+    position: relative;
+}
+.grid-shell .grid-wrap {
+    border-radius: var(--radius) var(--radius) 0 0;
+    max-height: calc(100vh - 300px);
+}
+.grid-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 4;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--bg-raised);
+    color: var(--text-primary);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    opacity: 0.75;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    transition: opacity var(--duration) var(--ease), background var(--duration) var(--ease);
+}
+.grid-arrow:hover { opacity: 1; background: var(--bg-hover); }
+.grid-arrow--left  { left: calc(var(--grid-label-w) + var(--sp-2)); }
+.grid-arrow--right { right: var(--sp-2); }
+/* На краю диапазона стрелка не прокручивает, а грузит соседний период */
+.grid-arrow.is-edge { color: var(--accent); border-color: var(--accent); }
+
+.grid-hoverbar {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    min-height: 40px;
+    padding: var(--sp-2) var(--sp-4);
+    background: var(--bg-raised);
+    border: 1px solid var(--border-subtle);
+    border-top: 1px solid var(--border);
+    border-radius: 0 0 var(--radius) var(--radius);
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+}
+.grid-hoverbar__hint { color: var(--text-muted); }
+.grid-hoverbar__date { color: var(--text-primary); font-weight: var(--weight-semibold); }
+.grid-hoverbar__info { overflow: hidden; text-overflow: ellipsis; }
+.grid-hoverbar__info.is-conflict { color: var(--red); }
+.grid-hoverbar__price {
+    margin-left: auto;
+    color: var(--text-primary);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Мини-календарь: прыжок на месяц + произвольный период */
+.grid-jump { position: relative; }
+.grid-jump__panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + var(--sp-2));
+    right: 0;
+    z-index: 20;
+    width: 280px;
+    padding: var(--sp-4);
+    background: var(--bg-raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+}
+.grid-jump.is-open .grid-jump__panel { display: block; }
+.grid-jump__year {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--sp-3);
+    font-weight: var(--weight-semibold);
+    color: var(--text-primary);
+}
+.grid-jump__year button,
+.grid-jump__month {
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: var(--text-sm);
+    cursor: pointer;
+    padding: var(--sp-2);
+}
+.grid-jump__year button:hover,
+.grid-jump__month:hover { background: var(--bg-hover); color: var(--text-primary); }
+.grid-jump__months {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--sp-1);
+}
+.grid-jump__month.is-inview  { background: var(--accent-glow); color: var(--text-primary); }
+.grid-jump__month.is-current { border-color: var(--accent); }
+.grid-jump__range {
+    margin-top: var(--sp-4);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--border-subtle);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--sp-2);
+}
+.grid-jump__range .btn { grid-column: 1 / -1; justify-content: center; }
 
 .grid-legend {
     display: flex;

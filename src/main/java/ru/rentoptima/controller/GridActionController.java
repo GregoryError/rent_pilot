@@ -70,6 +70,8 @@ public class GridActionController {
             @RequestParam(required = false) String reason,
             @RequestParam(required = false, defaultValue = "false") boolean setPrice,
             @RequestParam(required = false) BigDecimal plannedPrice,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate viewFrom,
+            @RequestParam(required = false) Integer viewDays,
             RedirectAttributes redirect) {
 
         Long tenantId = AuthContext.tenantId();
@@ -81,7 +83,7 @@ public class GridActionController {
         }
         if (toDate.isBefore(fromDate)) {
             redirect.addFlashAttribute("error", "Дата конца раньше начала");
-            return "redirect:/calendar/grid?from=" + fromDate;
+            return backToGrid(viewFrom, viewDays, fromDate);
         }
 
         int blocksCreated = 0;
@@ -94,7 +96,7 @@ public class GridActionController {
                 type = CalendarBlock.BlockType.valueOf(entryType);
             } catch (IllegalArgumentException e) {
                 redirect.addFlashAttribute("error", "Неизвестный тип: " + entryType);
-                return "redirect:/calendar/grid?from=" + fromDate;
+                return backToGrid(viewFrom, viewDays, fromDate);
             }
 
             // CalendarBlock хранит интервал как полуоткрытый [from, toExclusive).
@@ -182,7 +184,16 @@ public class GridActionController {
 
         log.info("Grid action: tenant={}, unitType={}, [{}..{}], blocks={}, bookings={}, prices={}",
                 tenantId, unitTypeId, fromDate, toDate, blocksCreated, bookingsCreated, pricesSet);
-        return "redirect:/calendar/grid?from=" + fromDate;
+        return backToGrid(viewFrom, viewDays, fromDate);
+    }
+
+    /**
+     * Возврат на тот же вид шахматки, с которого открыли модалку. Без этого после
+     * сохранения сетка прыгала на дату действия и сбрасывала горизонт на дефолтный.
+     */
+    private static String backToGrid(LocalDate viewFrom, Integer viewDays, LocalDate fallbackFrom) {
+        String url = "redirect:/calendar/grid?from=" + (viewFrom != null ? viewFrom : fallbackFrom);
+        return viewDays != null ? url + "&days=" + viewDays : url;
     }
 
     private String cleanOrNull(String s) {

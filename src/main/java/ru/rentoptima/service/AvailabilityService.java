@@ -155,6 +155,122 @@ public class AvailabilityService {
         return grid;
     }
 
+    /**
+     * То же, что {@link #occupancyGrid}, но с расшифровкой «кто занимает день» —
+     * для hover-строки шахматки и индикатора конфликтов.
+     * <p>
+     * В отличие от occupancyGrid, не удваивает ручную бронь: GridActionController
+     * заводит на неё и CalendarBlock, и Booking с одинаковыми датами, здесь такая
+     * пара считается одной занятой единицей.
+     */
+    @Transactional(readOnly = true)
+    public Map<Long, Map<LocalDate, DayOccupancy>> occupancyDetails(List<Long> unitTypeIds,
+                                                                     LocalDate from,
+                                                                     LocalDate to) {
+        if (unitTypeIds.isEmpty()) return new HashMap<>();
+        return buildDetails(unitTypeIds,
+                bookingRepo.findActiveByUnitTypesInRange(unitTypeIds, from, to),
+                blockRepo.findByUnitTypesInRange(unitTypeIds, from, to),
+                from, to);
+    }
+
+    static Map<Long, Map<LocalDate, DayOccupancy>> buildDetails(List<Long> unitTypeIds,
+                                                                 List<Booking> bookings,
+                                                                 List<CalendarBlock> blocks,
+                                                                 LocalDate from,
+                                                                 LocalDate to) {
+        Map<Long, Map<LocalDate, DayOccupancy>> grid = new HashMap<>();
+        for (Long id : unitTypeIds) grid.put(id, new TreeMap<>());
+
+        // Ручные брони, для которых ещё не встретился парный MANUAL_BOOKING-блок.
+        Map<ManualKey, Integer> unpairedManual = new HashMap<>();
+
+        for (Booking b : bookings) {
+            Map<LocalDate, DayOccupancy> m = grid.get(b.getUnitTypeId());
+            if (m == null) continue;
+            boolean manual = isManual(b);
+            if (manual) {
+                unpairedManual.merge(
+                        new ManualKey(b.getUnitTypeId(), b.getCheckIn(), b.getCheckOut()),
+                        1, Integer::sum);
+            }
+            addOccupant(m, new Occupant(true, manual, b.getChannelId(), null, b.getDataSource()),
+                    b.getCheckIn(), b.getCheckOut(), from, to);
+        }
+        for (CalendarBlock b : blocks) {
+            Map<LocalDate, DayOccupancy> m = grid.get(b.getUnitTypeId());
+            if (m == null) continue;
+            boolean manual = b.getChannelId() == null;
+            if (manual && b.getBlockType() == CalendarBlock.BlockType.MANUAL_BOOKING) {
+                ManualKey key = new ManualKey(b.getUnitTypeId(), b.getFromDate(), b.getToDate());
+                Integer left = unpairedManual.get(key);
+                if (left != null && left > 0) {
+                    unpairedManual.put(key, left - 1);
+                    continue;
+                }
+            }
+            addOccupant(m, new Occupant(false, manual, b.getChannelId(), b.getBlockType(), null),
+                    b.getFromDate(), b.getToDate(), from, to);
+        }
+        return grid;
+    }
+
+    /** Бронь завёл человек: явный MANUAL либо импорт из таблицы без канала и RC-привязки. */
+    private static boolean isManual(Booking b) {
+        if (b.getDataSource() != null) return "MANUAL".equals(b.getDataSource());
+        return b.getChannelId() == null && b.getRcBookingId() == null;
+    }
+
+    private static void addOccupant(Map<LocalDate, DayOccupancy> target, Occupant occupant,
+                                    LocalDate start, LocalDate end,
+                                    LocalDate windowFrom, LocalDate windowTo) {
+        if (start == null || end == null) return;
+        LocalDate d = start.isBefore(windowFrom) ? windowFrom : start;
+        LocalDate stop = end.isAfter(windowTo) ? windowTo : end;
+        while (d.isBefore(stop)) {
+            target.computeIfAbsent(d, k -> new DayOccupancy(new ArrayList<>()))
+                    .occupants().add(occupant);
+            d = d.plusDays(1);
+        }
+    }
+
+    private record ManualKey(Long unitTypeId, LocalDate from, LocalDate to) {}
+
+    /**
+     * Одна занятая единица категории в конкретный день.
+     *
+     * @param booking    true — Booking, false — CalendarBlock
+     * @param manual     завёл человек в UI (а не пришло с площадки/RC)
+     * @param blockType  тип блокировки; null для броней
+     * @param dataSource bookings.data_source; null для блокировок
+     */
+    public record Occupant(boolean booking, boolean manual, Long channelId,
+                           CalendarBlock.BlockType blockType, String dataSource) {}
+
+    public record DayOccupancy(List<Occupant> occupants) {
+
+        public int busy() {
+            return occupants.size();
+        }
+
+        /**
+         * Конфликт — день занят сверх вместимости, и среди занимающих есть и ручная
+         * запись, и пришедшая извне. Пересечение двух внешних каналов конфликтом
+         * не считаем: площадки отдают в своём фиде и то, что сами импортировали
+         * у нас, так что это почти всегда эхо, а не двойная продажа.
+         */
+        public boolean conflict(int capacity) {
+            if (occupants.size() <= capacity) return false;
+            boolean manual = false;
+            boolean external = false;
+            for (Occupant o : occupants) {
+                if (o.manual()) manual = true;
+                else external = true;
+            }
+            return manual && external;
+        }
+    }
+
     /** Инкрементирует счётчик занятости по каждой ночи интервала, обрезая по окну. */
     private static void addRange(Map<LocalDate, Integer> target,
                                  LocalDate start, LocalDate end,
