@@ -15,8 +15,16 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
             cd /opt/rentoptima
-            git pull origin main
-            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" > .env
+            git fetch origin
+            LOCAL_SHA=$(git rev-parse HEAD)
+            REMOTE_SHA=$(git rev-parse origin/main)
+            if [ "$LOCAL_SHA" = "$REMOTE_SHA" ]; then
+              echo "Already up to date"
+              exit 0
+            fi
+            git reset --hard origin/main
             docker compose up --build -d
+            docker image prune -f
             docker compose logs --tail=20 app
