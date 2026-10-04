@@ -604,8 +604,11 @@ public class PricingEngine {
             }
 
             if (isHoliday) {
-                multiplier *= 1.12;
-                reason += " + праздник";
+                double holidayMult = prodCalendar.getHolidayMultiplier(d);
+                multiplier *= holidayMult;
+                reason += holidayMult >= 1.5 ? " + ПИК праздник"
+                        : holidayMult >= 1.25 ? " + большой праздник"
+                        : " + праздник";
             }
 
             if (windowLen >= 7 && daysAhead > 14 && !isGap) {

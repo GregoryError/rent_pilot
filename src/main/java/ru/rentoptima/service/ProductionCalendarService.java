@@ -127,4 +127,39 @@ public class ProductionCalendarService {
     public boolean isWeekendOrHoliday(LocalDate date) {
         return date.getDayOfWeek().getValue() >= 6 || holidays.containsKey(date);
     }
+
+    /**
+     * Множитель спроса в зависимости от типа праздника.
+     * NYE и первая половина января — пик; майские/март/февраль — умеренно.
+     * Используется PricingEngine поверх horizon-множителя.
+     */
+    public double getHolidayMultiplier(LocalDate date) {
+        if (!holidays.containsKey(date)) return 1.0;
+
+        int month = date.getMonthValue();
+        int day = date.getDayOfMonth();
+
+        // Пик: 31 декабря — 5 января
+        if ((month == 12 && day == 31) || (month == 1 && day <= 5)) {
+            return 1.90;
+        }
+        // Высокий: 6–8 января (включая Рождество)
+        if (month == 1 && day <= 8) {
+            return 1.50;
+        }
+        // Длинные майские
+        if (month == 5 && (day == 1 || day == 9)) {
+            return 1.30;
+        }
+        // 8 марта
+        if (month == 3 && day == 8) {
+            return 1.25;
+        }
+        // 23 февраля
+        if (month == 2 && day == 23) {
+            return 1.20;
+        }
+        // Остальные (День России, 4 ноября, переносы)
+        return 1.12;
+    }
 }
