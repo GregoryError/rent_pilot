@@ -31,10 +31,11 @@ public final class ICalWriter {
 
     /**
      * @param calendarName отображаемое имя календаря (X-WR-CALNAME)
-     * @param periods      занятые интервалы; {@code to} трактуется как дата выезда
-     * @param uidDomain    домен для генерации UID, например "rentoptima.ru"
+     * @param periods      занятые интервалы; {@code to} трактуется как дата выезда.
+     *                     Каждый интервал становится отдельным VEVENT — writer ничего
+     *                     не склеивает и UID не меняет.
      */
-    public static String write(String calendarName, List<BusyPeriod> periods, String uidDomain) {
+    public static String write(String calendarName, List<BusyPeriod> periods) {
         StringBuilder sb = new StringBuilder(256 + periods.size() * 160);
         sb.append("BEGIN:VCALENDAR").append(CRLF);
         sb.append("VERSION:2.0").append(CRLF);
@@ -47,7 +48,7 @@ public final class ICalWriter {
 
         for (BusyPeriod p : periods) {
             sb.append("BEGIN:VEVENT").append(CRLF);
-            appendFolded(sb, "UID:" + p.uid() + "@" + uidDomain);
+            appendFolded(sb, "UID:" + p.uid());
             sb.append("DTSTAMP:").append(stamp).append(CRLF);
             sb.append("DTSTART;VALUE=DATE:").append(p.from().format(DATE)).append(CRLF);
             sb.append("DTEND;VALUE=DATE:").append(p.to().format(DATE)).append(CRLF);
@@ -63,7 +64,8 @@ public final class ICalWriter {
     /**
      * Занятый интервал для выгрузки.
      *
-     * @param uid     стабильный идентификатор в пределах фида (например "booking-42")
+     * @param uid     полный UID события, пишется в фид как есть: внешний UID блокировки
+     *                либо "block-42@optirent.ru" / "booking-42@optirent.ru"
      * @param from    дата заезда, включительно
      * @param to      дата выезда, НЕ включительно
      * @param summary текст события

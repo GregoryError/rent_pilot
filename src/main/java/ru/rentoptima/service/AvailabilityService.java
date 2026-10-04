@@ -16,9 +16,12 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 /**
@@ -89,12 +92,98 @@ public class AvailabilityService {
         return result;
     }
 
+    /** Домен собственных UID в iCal-экспорте. */
+    static final String UID_DOMAIN = "optirent.ru";
+
     /**
-     * Схлопывает распроданные даты в непрерывные интервалы для iCal.
+     * События для iCal-экспорта категории.
      * <p>
-     * Отдавать по событию на каждую ночь технически можно, но площадки хуже
-     * переваривают тысячи VEVENT, да и фид раздувается. Один интервал на серию
-     * подряд идущих занятых ночей — компактнее и читаемее.
+     * Для категории с одной единицей (квартира) — запись в запись: одна блокировка или
+     * бронь = один VEVENT со своими датами и стабильным UID. Соседние записи не
+     * склеиваются: площадка должна видеть те же брони, что и мы, а не один сплошной
+     * интервал, у которого UID и границы меняются при каждой новой брони по соседству.
+     * <p>
+     * Для категории с несколькими единицами (мини-отель) так нельзя: отдельная запись
+     * там не означает «продано» — продано, только когда заняты все номера. Поэтому там
+     * отдаются распроданные ночи, склеенные в интервалы ({@link #busyPeriods}).
+     */
+    @Transactional(readOnly = true)
+    public List<ICalWriter.BusyPeriod> exportEvents(UnitType unitType,
+                                                     LocalDate from,
+                                                     LocalDate to,
+                                                     Long excludeChannelId) {
+        int capacity = unitType.getUnitCount() == null ? 1 : Math.max(1, unitType.getUnitCount());
+        if (capacity > 1) {
+            return busyPeriods(unitType, from, to, excludeChannelId).stream()
+                    .map(p -> new ICalWriter.BusyPeriod(
+                            p.uid() + "@" + UID_DOMAIN, p.from(), p.to(), p.summary()))
+                    .toList();
+        }
+        List<Long> ids = List.of(unitType.getId());
+        return buildExportEvents(
+                bookingRepo.findActiveByUnitTypesInRange(ids, from, to),
+                blockRepo.findByUnitTypesInRange(ids, from, to),
+                excludeChannelId);
+    }
+
+    /**
+     * Одна запись — одно событие, без склейки.
+     * <ul>
+     *   <li>записи канала {@code excludeChannelId} не отдаются (anti-echo);</li>
+     *   <li>ручная бронь хранится парой «блокировка + бронь» с одинаковыми датами —
+     *       в фид идёт только блокировка;</li>
+     *   <li>UID блокировки — её {@code external_uid}, если он есть, иначе
+     *       {@code block-<id>@optirent.ru}; UID брони — {@code booking-<id>@optirent.ru}.
+     *       Если внешний UID в фиде уже встречался (два канала прислали одинаковый),
+     *       повторный заменяется на собственный: одинаковые UID в одном календаре
+     *       площадки схлопывают в одно событие.</li>
+     * </ul>
+     */
+    static List<ICalWriter.BusyPeriod> buildExportEvents(List<Booking> bookings,
+                                                          List<CalendarBlock> blocks,
+                                                          Long excludeChannelId) {
+        List<ICalWriter.BusyPeriod> events = new ArrayList<>();
+        Set<String> usedUids = new HashSet<>();
+        Map<ManualKey, Integer> manualBlocks = new HashMap<>();
+
+        for (CalendarBlock b : blocks) {
+            if (b.getFromDate() == null || b.getToDate() == null) continue;
+            if (excludeChannelId != null && excludeChannelId.equals(b.getChannelId())) continue;
+            if (b.getChannelId() == null && b.getBlockType() == CalendarBlock.BlockType.MANUAL_BOOKING) {
+                manualBlocks.merge(new ManualKey(b.getUnitTypeId(), b.getFromDate(), b.getToDate()),
+                        1, Integer::sum);
+            }
+            String own = "block-" + b.getId() + "@" + UID_DOMAIN;
+            String external = b.getExternalUid();
+            String uid = external != null && !external.isBlank() && !usedUids.contains(external)
+                    ? external : own;
+            usedUids.add(uid);
+            events.add(new ICalWriter.BusyPeriod(uid, b.getFromDate(), b.getToDate(), "Занято"));
+        }
+
+        for (Booking b : bookings) {
+            if (b.getCheckIn() == null || b.getCheckOut() == null) continue;
+            if (excludeChannelId != null && excludeChannelId.equals(b.getChannelId())) continue;
+            if (isManual(b)) {
+                ManualKey key = new ManualKey(b.getUnitTypeId(), b.getCheckIn(), b.getCheckOut());
+                Integer left = manualBlocks.get(key);
+                if (left != null && left > 0) {
+                    manualBlocks.put(key, left - 1);
+                    continue;
+                }
+            }
+            events.add(new ICalWriter.BusyPeriod("booking-" + b.getId() + "@" + UID_DOMAIN,
+                    b.getCheckIn(), b.getCheckOut(), "Занято"));
+        }
+
+        events.sort(Comparator.comparing(ICalWriter.BusyPeriod::from)
+                .thenComparing(ICalWriter.BusyPeriod::uid));
+        return events;
+    }
+
+    /**
+     * Распроданные ночи, схлопнутые в непрерывные интервалы. Только для категорий
+     * с несколькими единицами — см. {@link #exportEvents}.
      */
     @Transactional(readOnly = true)
     public List<ICalWriter.BusyPeriod> busyPeriods(UnitType unitType,

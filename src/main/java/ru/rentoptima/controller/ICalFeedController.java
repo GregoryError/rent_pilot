@@ -76,11 +76,11 @@ public class ICalFeedController {
         // занятость, иначе бронь «залипнет» навсегда — площадка увидит её в нашем
         // фиде, мы увидим её в ответном, и снять такую блокировку станет нечем.
         List<ICalWriter.BusyPeriod> periods =
-                availability.busyPeriods(unitType, from, to, channel.getId());
+                availability.exportEvents(unitType, from, to, channel.getId());
 
         String calendarName = (property != null ? property.getName() : "RentOptima")
                 + " — " + unitType.getName();
-        String body = ICalWriter.write(calendarName, periods, "rentoptima.ru");
+        String body = ICalWriter.write(calendarName, periods);
 
         log.debug("iCal feed отдан: channel={}, периодов={}", channel.getId(), periods.size());
         recordFetch(channel, userAgent, periods.size());
