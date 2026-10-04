@@ -19,7 +19,7 @@
 - Java 21
 - Spring Boot 3.3.2 (Spring MVC + Thymeleaf + Spring Security + Spring Data JPA)
 - PostgreSQL 16
-- Flyway (миграции V1..V22+)
+- Flyway (миграции V1..V23+)
 - Thymeleaf + Layout Dialect
 - Lombok
 - Hibernate Hypersistence Utils (JSONB поддержка)
@@ -164,6 +164,7 @@ AI-режим — только рекомендации. Никаких авто
 - **Блок 4.7** (V20): `alert_events`, `channels.consecutive_errors`, ConflictDetector + AlertSchedulerService (раз в 5 мин), TelegramService, карточка Telegram и журнал на /settings/integrations
 - **Блок 4.8** (V21): инструменты пилота — журнал обращений к iCal-экспорту (`channel_feed_fetches`), страница /settings/channels/diagnostics (интервал опроса площадкой, задержка «ручная запись → площадка забрала фид»), алерты типа `OVERLAP` (наложение без ручной записи, только в журнал). После входа пользователь попадает на /calendar/grid — шахматка считается главной функцией продукта.
 - **Блок 4.9** (V22): Booking Widget MVP — `booking_widgets`, `ChannelType.WIDGET`, WidgetBookingService (hold + бронь PENDING), публичные /book/{secret}, /widget/{secret}, /widget.js, админка /settings/widgets, заявки /bookings/pending. Отступления от плана ниже и непроверенное — в `patches/INTEGRATION_BLOCK4_9.md`. Заодно: раздел /staff «Сотрудники» (ссылка и PIN горничной), починена вёрстка «Отзывов».
+- **Цвета каналов** (V23): `channels.color` из фиксированной палитры `ChannelPalette`; занятый день в шахматке закрашен цветом канала с первой буквой его названия, закрытый вручную — чёрный. См. `patches/INTEGRATION_CHANNEL_COLORS.md`.
 
 ### Что в работе / приоритет
 
@@ -477,7 +478,7 @@ Dockerfile собирает `./mvnw package -DskipTests`. Нужно: либо �
 2. Проверить какая активная ветка: обычно работаем на feat/channels-mvp или фичевой ветке от неё. Main защищена (но Григорий как админ может пушить).
 3. Если задача про Property или bookings — помнить про двойной маппинг tenant_id.
 4. Если про шаблоны — pipe-syntax или th:classappend, не плюсы. Для шахматки — все классы в контроллере, не в шаблоне.
-5. Если про миграции — обязательно V-номер больше последнего (сейчас V22), не удалять поля из существующих.
+5. Если про миграции — обязательно V-номер больше последнего (сейчас V23), не удалять поля из существующих.
 6. Если про UI — следовать существующей стилистике (dark theme + CSS vars из core.css).
 7. Если делаешь блок — завершить INTEGRATION_<N>.md в patches/ с инструкциями по применению.
 8. **Git-операции — предлагай, но не выполняй сам.**

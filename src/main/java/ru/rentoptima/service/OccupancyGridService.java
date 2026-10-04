@@ -41,6 +41,8 @@ public class OccupancyGridService {
     private final ProductionCalendarService prodCalendar;
     private final EffectivePriceService effectivePrice;
 
+    private static final String RC_STYLE = "background: " + ChannelPalette.RC_COLOR;
+
     public GridView build(Long tenantId, LocalDate start, int span) {
         LocalDate today = LocalDate.now();
         LocalDate endExclusive = start.plusDays(span);
@@ -66,8 +68,15 @@ public class OccupancyGridService {
                         : effectivePrice.resolveBatch(allUnitTypeIds, start, lastDay);
 
         Map<Long, String> channelNames = new HashMap<>();
+        Map<Long, String> channelColors = new HashMap<>();
+        List<LegendChannel> legendChannels = new ArrayList<>();
         for (Channel ch : channelRepo.findByTenantIdAndActiveTrue(tenantId)) {
             channelNames.put(ch.getId(), ch.getName());
+            if (ch.getChannelType() == Channel.ChannelType.MANUAL) continue;
+            String color = ChannelPalette.colorOf(ch);
+            channelColors.put(ch.getId(), color);
+            legendChannels.add(new LegendChannel(
+                    ch.getName(), ChannelPalette.letterOf(ch.getName()), "background: " + color));
         }
 
         Map<LocalDate, String> holidays = prodCalendar.getHolidaysInRange(start, lastDay);
@@ -103,6 +112,7 @@ public class OccupancyGridService {
         boolean hasProperties = !properties.isEmpty();
 
         int conflictCount = 0;
+        boolean rcPainted = false;
         List<Row> rows = new ArrayList<>();
         for (Property p : properties) {
             List<UnitType> uts = unitTypesByProperty.getOrDefault(p.getId(), List.of());
@@ -126,8 +136,18 @@ public class OccupancyGridService {
                     boolean conflict = !past && day != null && day.conflict(capacity);
                     if (conflict) conflictCount++;
 
+                    // Цвет источника — только у полностью занятого дня: частично занятая
+                    // категория мини-отеля остаётся «жёлтой», иначе она выглядела бы распроданной.
+                    Paint paint = "full".equals(status)
+                            ? paintOf(day, channelNames, channelColors) : Paint.NONE;
+
+                    if (RC_STYLE.equals(paint.style())) rcPainted = true;
+
                     StringBuilder cellCls = new StringBuilder("grid__cell grid__cell--");
                     cellCls.append(status);
+                    if (paint.manual())        cellCls.append(" grid__cell--manual");
+                    if (paint.style() != null) cellCls.append(" grid__cell--colored");
+                    if (past && busy > 0)      cellCls.append(" is-past-busy");
                     if (h.today())      cellCls.append(" is-today");
                     if (h.monthStart()) cellCls.append(" is-month-start");
                     if (conflict)       cellCls.append(" is-conflict");
@@ -136,6 +156,8 @@ public class OccupancyGridService {
 
                     cells.add(new Cell(
                             busy, capacity, capacity > 1 && busy > 0,
+                            // У мини-отеля на плитке счётчик занятых номеров — буква там не поместится
+                            capacity > 1 ? "" : paint.letter(), paint.style(),
                             cellCls.toString(),
                             infoOf(day, busy, capacity, past, conflict, channelNames),
                             h.date().toString(),         // ISO date для клика → модалка
@@ -149,7 +171,37 @@ public class OccupancyGridService {
             }
         }
 
-        return new GridView(dayHeaders, rows, conflictCount, empty, hasProperties);
+        if (rcPainted) legendChannels.add(new LegendChannel("RealtyCalendar", "R", RC_STYLE));
+
+        return new GridView(dayHeaders, rows, conflictCount, empty, hasProperties, legendChannels);
+    }
+
+    /**
+     * Чем закрашен занятый день. Ручная запись (бронь по телефону, ремонт, личное
+     * использование) — чёрная плитка и важнее площадки: это то, что хост сделал сам.
+     * Иначе — цвет канала первой записи с площадки; у броней из RC канала нет,
+     * для них отдельный фиксированный цвет.
+     */
+    private static Paint paintOf(DayOccupancy day, Map<Long, String> channelNames,
+                                 Map<Long, String> channelColors) {
+        if (day == null || day.occupants().isEmpty()) return Paint.NONE;
+        for (Occupant o : day.occupants()) {
+            if (o.manual()) return Paint.MANUAL;
+        }
+        for (Occupant o : day.occupants()) {
+            String color = o.channelId() == null ? null : channelColors.get(o.channelId());
+            if (color != null) {
+                return new Paint("background: " + color,
+                        ChannelPalette.letterOf(channelNames.get(o.channelId())), false);
+            }
+        }
+        return new Paint(RC_STYLE, "R", false);
+    }
+
+    /** style == null — цвет задаёт CSS-класс (свободно / частично / вручную). */
+    private record Paint(String style, String letter, boolean manual) {
+        static final Paint NONE = new Paint(null, "", false);
+        static final Paint MANUAL = new Paint(null, "", true);
     }
 
     /** Текст для hover-строки: занятость и кто именно занимает день. */
@@ -231,6 +283,7 @@ public class OccupancyGridService {
                             String monthLabel, String fullLabel, boolean monthStart) {}
 
     public record Cell(int busy, int capacity, boolean showBusyBadge,
+                       String letter, String style,
                        String cssClasses, String info,
                        String dateIso, Long unitTypeId,
                        String priceText, String priceShort) {}
@@ -240,5 +293,8 @@ public class OccupancyGridService {
                       List<Cell> cells) {}
 
     public record GridView(List<DayHeader> dayHeaders, List<Row> rows, int conflictCount,
-                           boolean empty, boolean hasProperties) {}
+                           boolean empty, boolean hasProperties,
+                           List<LegendChannel> legendChannels) {}
+
+    public record LegendChannel(String name, String letter, String style) {}
 }

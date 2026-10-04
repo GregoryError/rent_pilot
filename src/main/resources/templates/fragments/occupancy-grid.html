@@ -55,6 +55,7 @@
 
                 <div th:each="c : ${row.cells}"
                      th:class="${c.cssClasses}"
+                     th:style="${c.style}"
                      th:data-info="${c.info}"
                      th:data-date="${c.dateIso}"
                      th:data-unit-type-id="${c.unitTypeId}"
@@ -62,6 +63,8 @@
                      th:data-property-name="${row.propertyName}"
                      th:data-price="${c.priceText}">
                     <span th:if="${c.showBusyBadge}" th:text="${c.busy}">3</span>
+                    <span class="grid__cell__letter" th:if="${!#strings.isEmpty(c.letter)}"
+                          th:text="${c.letter}">С</span>
                     <span class="grid__cell__price" th:if="${!#strings.isEmpty(c.priceText)}"
                           th:text="${c.priceShort}">3000</span>
                 </div>
@@ -86,8 +89,12 @@
         <span class="grid-legend__item">
             <span class="grid-legend__swatch grid__cell--partial">2</span> Частично
         </span>
+        <span class="grid-legend__item" th:each="ch : ${grid.legendChannels}">
+            <span class="grid-legend__swatch grid__cell--colored" th:style="${ch.style}"
+                  th:text="${ch.letter}">С</span> <span th:text="${ch.name}">Суточно</span>
+        </span>
         <span class="grid-legend__item">
-            <span class="grid-legend__swatch grid__cell--full"></span> Занято
+            <span class="grid-legend__swatch grid__cell--manual"></span> Закрыто вручную
         </span>
         <span class="grid-legend__item">
             <span class="grid-legend__swatch grid__cell--past"></span> Прошло

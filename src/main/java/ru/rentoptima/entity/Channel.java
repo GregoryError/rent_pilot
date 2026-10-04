@@ -81,6 +81,10 @@ public class Channel {
     @Column(name = "export_secret", length = 64, unique = true)
     private String exportSecret;
 
+    /** Цвет плиток шахматки для броней этого канала, #RRGGBB из ChannelPalette. null — авто. */
+    @Column(length = 7)
+    private String color;
+
     @Column(nullable = false)
     private Boolean active = true;
 

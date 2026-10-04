@@ -20,6 +20,7 @@ import ru.rentoptima.repository.ChannelRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.service.ChannelPalette;
 import ru.rentoptima.service.ChannelRateLimiter;
 import ru.rentoptima.service.ChannelSyncService;
 
@@ -157,6 +158,25 @@ public class ChannelController {
         return "redirect:/settings/channels";
     }
 
+    @PostMapping("/{id}/color")
+    public String color(@PathVariable Long id, @RequestParam String color, RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        Channel channel = channelRepo.findById(id).orElse(null);
+        if (channel == null || !tenantId.equals(channel.getTenantId())) {
+            redirect.addFlashAttribute("error", "Канал не найден");
+            return "redirect:/settings/channels";
+        }
+        if (!ChannelPalette.contains(color)) {
+            redirect.addFlashAttribute("error", "Выберите цвет из палитры");
+            return "redirect:/settings/channels";
+        }
+        channel.setColor(color.toUpperCase());
+        channel.setUpdatedAt(LocalDateTime.now());
+        channelRepo.save(channel);
+        redirect.addFlashAttribute("success", "Цвет канала «" + channel.getName() + "» изменён");
+        return "redirect:/settings/channels";
+    }
+
     @PostMapping("/{id}/regenerate-secret")
     public String regenerate(@PathVariable Long id, RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
@@ -218,9 +238,19 @@ public class ChannelController {
         boolean canSyncNow = c.getChannelType() != Channel.ChannelType.MANUAL
                 && Boolean.TRUE.equals(c.getActive());
 
+        String color = ChannelPalette.colorOf(c);
+        List<PaletteColor> palette = new ArrayList<>();
+        for (String p : ChannelPalette.COLORS) {
+            palette.add(new PaletteColor(p, "background: " + p,
+                    p.equals(color) ? "color-swatch is-selected" : "color-swatch"));
+        }
+
         return new ChannelView(
                 c.getId(),
                 c.getName(),
+                ChannelPalette.letterOf(c.getName()),
+                "background: " + color,
+                palette,
                 c.getChannelType().name(),
                 unitTypeLabels.getOrDefault(c.getUnitTypeId(), "— unit_type #" + c.getUnitTypeId() + " —"),
                 importUrl,
@@ -282,9 +312,14 @@ public class ChannelController {
 
     public record UnitTypeOption(Long id, String label) {}
 
+    public record PaletteColor(String hex, String style, String cssClass) {}
+
     public record ChannelView(
             Long id,
             String name,
+            String letter,
+            String colorStyle,
+            List<PaletteColor> palette,
             String channelType,
             String unitTypeLabel,
             String importUrl,

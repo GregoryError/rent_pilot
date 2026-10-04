@@ -73,8 +73,21 @@
     <div th:each="c : ${channels}" class="card">
         <div class="flex justify-between items-center" style="margin-bottom: var(--sp-3);">
             <div>
-                <div style="font-size: var(--text-lg); font-weight: var(--weight-semibold);"
-                     th:text="${c.name}">Канал</div>
+                <div style="display: flex; align-items: center; gap: var(--sp-3);">
+                    <details class="color-picker">
+                        <summary title="Цвет канала в шахматке">
+                            <span class="color-swatch" th:style="${c.colorStyle}" th:text="${c.letter}">С</span>
+                        </summary>
+                        <form method="post" class="color-picker__panel"
+                              th:action="@{'/settings/channels/' + ${c.id} + '/color'}">
+                            <button type="submit" name="color" th:each="p : ${c.palette}"
+                                    th:value="${p.hex}" th:class="${p.cssClass}" th:style="${p.style}"
+                                    th:title="${p.hex}"></button>
+                        </form>
+                    </details>
+                    <div style="font-size: var(--text-lg); font-weight: var(--weight-semibold);"
+                         th:text="${c.name}">Канал</div>
+                </div>
                 <div class="text-sm muted">
                     <span th:text="${c.channelType}">ICAL</span>
                     · <span th:text="${c.unitTypeLabel}">Садовая / Основной</span>
