@@ -349,6 +349,10 @@ public class GridActionController {
                 return "redirect:/dashboard";
             }
         }
+        // Шахматка была открыта «от сегодня» (viewFrom пуст) — возвращаемся в тот же режим
+        if (viewFrom == null && viewDays != null) {
+            return "redirect:/calendar/grid?days=" + viewDays;
+        }
         String url = "redirect:/calendar/grid?from=" + (viewFrom != null ? viewFrom : fallbackFrom);
         return viewDays != null ? url + "&days=" + viewDays : url;
     }

@@ -331,5 +331,15 @@
     });
     wrap.addEventListener('scroll', updateArrows, { passive: true });
     window.addEventListener('resize', updateArrows);
+
+    // Открыта «от сегодня»: слева подгружено прошлое, но встаём на текущую дату —
+    // назад можно прокрутить колесом, тачпадом или стрелкой.
+    const jumpBox = document.getElementById('grid-jump');
+    const todayHeader = grid.querySelector('.grid__daycol.is-today');
+    if (jumpBox && jumpBox.dataset.focusToday === 'true' && todayHeader) {
+        wrap.scrollLeft += todayHeader.getBoundingClientRect().left
+            - wrap.getBoundingClientRect().left
+            - (corner ? corner.offsetWidth : 0);
+    }
     updateArrows();
 })();

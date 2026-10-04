@@ -28,6 +28,11 @@ public class OccupancyGridController {
     /** Не продуктовый лимит, а защита от from=…&days=100000: год с запасом. */
     private static final int MAX_DAYS = 366;
     private static final int[] SPAN_PRESETS = {7, 14, 30, 60, 90, 160, 365};
+    /**
+     * Сколько прошедших дней подгружается слева, когда шахматка открыта «от сегодня».
+     * Сетка при этом встаёт на текущую дату, а прошлое доступно прокруткой назад.
+     */
+    private static final int PAST_DAYS = 30;
 
     private final OccupancyGridService gridService;
 
@@ -39,7 +44,10 @@ public class OccupancyGridController {
         Long tenantId = AuthContext.tenantId();
 
         LocalDate today = LocalDate.now();
-        LocalDate start = parseDate(from, today);
+        LocalDate explicitStart = parseDate(from, null);
+        // Период не задан явно — открываем «от сегодня» с запасом прошлого слева
+        boolean fromToday = explicitStart == null;
+        LocalDate start = fromToday ? today : explicitStart;
         // «to» (включительно) приходит из формы произвольного периода и важнее days.
         LocalDate toInclusive = parseDate(to, null);
         int requested = toInclusive != null
@@ -47,15 +55,21 @@ public class OccupancyGridController {
                 : (days == null ? DEFAULT_DAYS : days);
         int span = clamp(requested, MIN_DAYS, MAX_DAYS);
         LocalDate lastDay = start.plusDays(span - 1);
+        // span — горизонт, который выбрал пользователь; загружается на PAST_DAYS больше
+        LocalDate loadStart = fromToday ? start.minusDays(PAST_DAYS) : start;
+        int loadSpan = fromToday ? span + PAST_DAYS : span;
 
         model.addAttribute("activePage", "grid");
-        model.addAttribute("grid", gridService.build(tenantId, start, span));
-        model.addAttribute("startIso", start.toString());
+        model.addAttribute("grid", gridService.build(tenantId, loadStart, loadSpan));
+        model.addAttribute("startIso", loadStart.toString());
         model.addAttribute("endIso", lastDay.toString());
+        // Пустое значение в формах и модалке сохраняет режим «от сегодня» после перезагрузки
+        model.addAttribute("fromParam", fromToday ? "" : start.toString());
+        model.addAttribute("focusToday", fromToday);
         model.addAttribute("span", span);
         model.addAttribute("spanOptions", spanOptions(span));
-        model.addAttribute("prevStart", start.minusDays(span));
-        model.addAttribute("nextStart", start.plusDays(span));
+        model.addAttribute("prevStart", loadStart.minusDays(span));
+        model.addAttribute("nextStart", lastDay.plusDays(1));
         model.addAttribute("rangeLabel", russianRange(start, lastDay));
         return "pages/calendar/grid";
     }

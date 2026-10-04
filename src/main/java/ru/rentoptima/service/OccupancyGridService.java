@@ -237,7 +237,7 @@ public class OccupancyGridService {
         return price.setScale(0, RoundingMode.HALF_UP).toPlainString() + "₽";
     }
 
-    /** Для плитки: без знака рубля, иначе пятизначная цена не влезает в 30px. */
+    /** Для плитки: без знака рубля, иначе пятизначная цена не влезает в узкую плитку. */
     private static String formatPriceShort(BigDecimal price) {
         if (price == null) return "";
         return price.setScale(0, RoundingMode.HALF_UP).toPlainString();

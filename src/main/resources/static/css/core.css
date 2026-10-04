@@ -577,7 +577,8 @@ tr:hover td { background: var(--bg-hover); }
 
 .grid {
     display: grid;
-    grid-template-columns: var(--grid-label-w, 220px) repeat(var(--cols, 30), minmax(30px, 1fr));
+    /* Плитки близки к квадрату: ширина 42–56px при высоте 44px */
+    grid-template-columns: var(--grid-label-w, 220px) repeat(var(--cols, 30), minmax(42px, 56px));
     min-width: fit-content;
     font-variant-numeric: tabular-nums;
 }

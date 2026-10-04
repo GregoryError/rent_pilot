@@ -32,7 +32,7 @@
                title="Следующий период">→</a>
 
             <form method="get" th:action="@{/calendar/grid}" class="grid-controls__form">
-                <input type="hidden" name="from" th:value="${startIso}">
+                <input type="hidden" name="from" th:value="${fromParam}">
                 <select name="days" onchange="this.form.submit()"
                         class="form-input form-input--sm grid-controls__span">
                     <option th:each="o : ${spanOptions}" th:value="${o.days}"
@@ -42,7 +42,8 @@
 
             <div class="grid-jump" id="grid-jump"
                  th:data-base-url="@{/calendar/grid}"
-                 th:data-start="${startIso}" th:data-end="${endIso}" th:data-span="${span}">
+                 th:data-start="${startIso}" th:data-end="${endIso}" th:data-span="${span}"
+                 th:data-focus-today="${focusToday}">
                 <button type="button" class="btn btn-ghost" id="grid-jump-toggle"
                         title="Перейти к месяцу или задать свой период">Месяц ▾</button>
                 <div class="grid-jump__panel">
@@ -80,7 +81,7 @@
 
     <div th:replace="~{fragments/occupancy-grid :: legend(${grid})}"></div>
 
-    <dialog th:replace="~{fragments/occupancy-grid :: dialog(${startIso}, ${span}, '')}"></dialog>
+    <dialog th:replace="~{fragments/occupancy-grid :: dialog(${fromParam}, ${span}, '')}"></dialog>
 
 </div>
 

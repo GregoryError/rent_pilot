@@ -18,7 +18,8 @@ public final class ChannelPalette {
             "#8635F6", "#6D3BEF", "#5B4BE8", "#3F5FE8", "#2472E0", "#0B84D8",
             "#0094B5", "#008F9C", "#00917A", "#0E9558", "#3B9A2F", "#6B9415",
             "#A8860A", "#B5651D", "#D95F1A", "#E5552B", "#E53E4E", "#D1495B",
-            "#DB2F74", "#B8336A", "#C92F9B", "#AE35C4", "#9B4DDB", "#7B4FA8");
+            "#DB2F74", "#B8336A", "#C92F9B", "#AE35C4", "#9B4DDB", "#7B4FA8",
+            "#4338CA", "#1D4ED8", "#0F766E", "#15803D", "#B45309", "#BE123C");
 
     /** Занятость из RealtyCalendar: канала у таких броней нет, цвет фиксированный. */
     public static final String RC_COLOR = "#5B6475";
@@ -34,7 +35,8 @@ public final class ChannelPalette {
     public static String colorOf(Channel channel) {
         if (contains(channel.getColor())) return channel.getColor().toUpperCase();
         long id = channel.getId() == null ? 0 : channel.getId();
-        return COLORS.get((int) (Math.abs(id * 5) % COLORS.size()));
+        // Множитель взаимно прост с размером палитры — соседние id получают разные цвета
+        return COLORS.get((int) (Math.abs(id * 7) % COLORS.size()));
     }
 
     /** Первая буква названия — подпись на плитке шахматки. */
