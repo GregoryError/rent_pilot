@@ -577,8 +577,9 @@ tr:hover td { background: var(--bg-hover); }
 
 .grid {
     display: grid;
-    /* Плитки близки к квадрату: ширина 42–56px при высоте 44px */
-    grid-template-columns: var(--grid-label-w, 220px) repeat(var(--cols, 30), minmax(42px, 56px));
+    /* Плотность по горизонтали — от 30px на день; квадратность даёт высота строки (--grid-row-h) */
+    grid-template-columns: var(--grid-label-w, 220px) repeat(var(--cols, 30), minmax(30px, 1fr));
+    --grid-row-h: 32px;
     min-width: fit-content;
     font-variant-numeric: tabular-nums;
 }
@@ -631,11 +632,12 @@ tr:hover td { background: var(--bg-hover); }
     background: var(--bg-surface);
     border-right: 1px solid var(--border);
     border-bottom: 1px solid var(--border-subtle);
-    padding: var(--sp-2) var(--sp-4);
+    padding: 0 var(--sp-3);
     display: flex;
     flex-direction: column;
     justify-content: center;
-    min-height: 44px;
+    min-width: 0;
+    height: var(--grid-row-h);
 }
 .grid__label--group { border-top: 1px solid var(--border); }
 
@@ -647,12 +649,16 @@ tr:hover td { background: var(--bg-hover); }
     margin-bottom: 2px;
 }
 .grid__unit {
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
+    line-height: 1.2;
     color: var(--text-primary);
     display: flex;
     gap: var(--sp-2);
     align-items: baseline;
+    min-width: 0;
 }
+.grid__unit-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grid__cap { flex: none; }
 .grid__cap {
     color: var(--text-muted);
     font-size: var(--text-xs);
@@ -661,7 +667,7 @@ tr:hover td { background: var(--bg-hover); }
 .grid__cell {
     border-bottom: 1px solid var(--border-subtle);
     border-right: 1px solid var(--border-subtle);
-    min-height: 44px;
+    height: var(--grid-row-h);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -705,14 +711,17 @@ tr:hover td { background: var(--bg-hover); }
 .grid__cell--manual { background: var(--grid-manual, #111214); }
 .grid__cell.grid__cell--colored .grid__cell__price,
 .grid__cell.grid__cell--manual .grid__cell__price { color: #fff; opacity: 0.9; }
-.grid__cell__letter { font-size: var(--text-sm); line-height: 1; transform: translateY(-5px); }
+.grid__cell__letter { font-size: 11px; line-height: 1; transform: translateY(-5px); }
 .grid__cell.is-past-busy { opacity: 0.55; }
 /* На тёмной теме чёрная плитка сливается со свободной — обводим */
 :root:not([data-theme="light"]) .grid__cell--manual { background: #000; box-shadow: inset 0 0 0 1px var(--text-muted); }
 
 /* Выбор цвета канала */
 .color-picker { position: relative; display: inline-block; }
-.color-picker > summary { list-style: none; cursor: pointer; display: inline-flex; }
+.color-picker > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: var(--sp-2); }
+.color-picker__hint { font-size: var(--text-xs); color: var(--accent); white-space: nowrap; }
+.color-picker > summary:hover .color-swatch { border-color: var(--text-primary); }
+.color-picker__title { grid-column: 1 / -1; font-size: var(--text-xs); color: var(--text-secondary); }
 .color-picker > summary::-webkit-details-marker { display: none; }
 .color-swatch {
     width: 28px;
@@ -867,7 +876,7 @@ tr:hover td { background: var(--bg-hover); }
 
 /* Оболочка шахматки: стрелки по бокам + строка деталей дня снизу */
 .grid-shell {
-    --grid-label-w: 220px;
+    --grid-label-w: 190px;
     position: relative;
 }
 .grid-shell .grid-wrap {

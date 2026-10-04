@@ -110,6 +110,8 @@ public class ChannelController {
         channel.setUnitTypeId(unitTypeId);
         channel.setChannelType(Channel.ChannelType.ICAL);
         channel.setName(name.trim());
+        channel.setColor(ChannelPalette.randomColor(
+                channelRepo.findByTenantIdAndActiveTrue(tenantId).stream().map(Channel::getColor).toList()));
         channel.setConfigJson(config);
         channel.setSyncEnabled(true);
         channel.setActive(true);

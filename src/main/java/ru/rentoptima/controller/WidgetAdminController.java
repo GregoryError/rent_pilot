@@ -92,6 +92,8 @@ public class WidgetAdminController {
         channel.setTenantId(tenantId);
         channel.setUnitTypeId(unitTypeId);
         channel.setChannelType(Channel.ChannelType.WIDGET);
+        channel.setColor(ru.rentoptima.service.ChannelPalette.randomColor(
+                channelRepo.findByTenantIdAndActiveTrue(tenantId).stream().map(Channel::getColor).toList()));
         channel.setName("Прямая бронь: " + (cleanTitle.length() > 180 ? cleanTitle.substring(0, 180) : cleanTitle));
         channel.setConfigJson(JsonNodeFactory.instance.objectNode());
         // Тянуть каналу нечего — планировщик синхронизации его не трогает

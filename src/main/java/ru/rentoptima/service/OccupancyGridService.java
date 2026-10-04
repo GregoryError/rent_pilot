@@ -165,9 +165,13 @@ public class OccupancyGridService {
                             formatPrice(price),
                             formatPriceShort(price)));
                 }
+                // Строка — в одну линию: у квартиры с единственной категорией хватает названия
+                // объекта, категория и адрес уходят в подсказку при наведении.
+                String label = uts.size() == 1 ? p.getName() : p.getName() + " · " + ut.getName();
                 rows.add(new Row(
                         p.getName(), ut.getName(), capacity,
-                        firstOfProperty, labelClasses, cells));
+                        firstOfProperty, labelClasses, cells,
+                        label, rowTooltip(p, ut, capacity)));
             }
         }
 
@@ -202,6 +206,16 @@ public class OccupancyGridService {
     private record Paint(String style, String letter, boolean manual) {
         static final Paint NONE = new Paint(null, "", false);
         static final Paint MANUAL = new Paint(null, "", true);
+    }
+
+    private static String rowTooltip(Property p, UnitType ut, int capacity) {
+        StringBuilder sb = new StringBuilder(p.getName()).append(" / ").append(ut.getName());
+        if (capacity > 1) sb.append(" (номеров: ").append(capacity).append(")");
+        List<String> where = new ArrayList<>();
+        if (p.getAddress() != null && !p.getAddress().isBlank()) where.add(p.getAddress().trim());
+        if (p.getCity() != null && !p.getCity().isBlank()) where.add(p.getCity().trim());
+        if (!where.isEmpty()) sb.append("\n").append(String.join(", ", where));
+        return sb.toString();
     }
 
     /** Текст для hover-строки: занятость и кто именно занимает день. */
@@ -290,7 +304,7 @@ public class OccupancyGridService {
 
     public record Row(String propertyName, String unitTypeName, int capacity,
                       boolean firstOfProperty, String labelCssClasses,
-                      List<Cell> cells) {}
+                      List<Cell> cells, String label, String tooltip) {}
 
     public record GridView(List<DayHeader> dayHeaders, List<Row> rows, int conflictCount,
                            boolean empty, boolean hasProperties,

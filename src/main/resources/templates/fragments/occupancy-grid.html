@@ -43,11 +43,9 @@
             </div>
 
             <th:block th:each="row : ${grid.rows}">
-                <div th:class="${row.labelCssClasses}">
-                    <div th:if="${row.firstOfProperty}" class="grid__prop"
-                         th:text="${row.propertyName}">Садовая</div>
+                <div th:class="${row.labelCssClasses}" th:title="${row.tooltip}">
                     <div class="grid__unit">
-                        <span th:text="${row.unitTypeName}">Основной</span>
+                        <span class="grid__unit-name" th:text="${row.label}">Садовая</span>
                         <span class="grid__cap" th:if="${row.capacity > 1}"
                               th:text="'/ ' + ${row.capacity}">/ 8</span>
                     </div>
@@ -62,7 +60,7 @@
                      th:data-unit-name="${row.unitTypeName}"
                      th:data-property-name="${row.propertyName}"
                      th:data-price="${c.priceText}">
-                    <span th:if="${c.showBusyBadge}" th:text="${c.busy}">3</span>
+                    <span class="grid__cell__letter" th:if="${c.showBusyBadge}" th:text="${c.busy}">3</span>
                     <span class="grid__cell__letter" th:if="${!#strings.isEmpty(c.letter)}"
                           th:text="${c.letter}">С</span>
                     <span class="grid__cell__price" th:if="${!#strings.isEmpty(c.priceText)}"

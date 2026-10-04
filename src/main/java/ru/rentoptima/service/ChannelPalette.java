@@ -2,7 +2,10 @@ package ru.rentoptima.service;
 
 import ru.rentoptima.entity.Channel;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Палитра цветов каналов для шахматки.
@@ -31,7 +34,22 @@ public final class ChannelPalette {
         return color != null && COLORS.contains(color.toUpperCase());
     }
 
-    /** Цвет канала: выбранный хостом либо, пока не выбран, стабильный цвет по id. */
+    /**
+     * Случайный цвет для нового канала. По возможности не повторяет цвета, уже занятые
+     * другими каналами хоста: два канала одного цвета в шахматке не различить.
+     */
+    public static String randomColor(Collection<String> used) {
+        List<String> free = new ArrayList<>(COLORS);
+        if (used != null) {
+            for (String u : used) {
+                if (u != null) free.remove(u.toUpperCase());
+            }
+        }
+        List<String> pool = free.isEmpty() ? COLORS : free;
+        return pool.get(ThreadLocalRandom.current().nextInt(pool.size()));
+    }
+
+    /** Цвет канала. Запасной вариант по id — только для строк, у которых цвет почему-то пуст. */
     public static String colorOf(Channel channel) {
         if (contains(channel.getColor())) return channel.getColor().toUpperCase();
         long id = channel.getId() == null ? 0 : channel.getId();

@@ -19,7 +19,7 @@
 - Java 21
 - Spring Boot 3.3.2 (Spring MVC + Thymeleaf + Spring Security + Spring Data JPA)
 - PostgreSQL 16
-- Flyway (миграции V1..V23+)
+- Flyway (миграции V1..V24+)
 - Thymeleaf + Layout Dialect
 - Lombok
 - Hibernate Hypersistence Utils (JSONB поддержка)
@@ -478,7 +478,7 @@ Dockerfile собирает `./mvnw package -DskipTests`. Нужно: либо �
 2. Проверить какая активная ветка: обычно работаем на feat/channels-mvp или фичевой ветке от неё. Main защищена (но Григорий как админ может пушить).
 3. Если задача про Property или bookings — помнить про двойной маппинг tenant_id.
 4. Если про шаблоны — pipe-syntax или th:classappend, не плюсы. Для шахматки — все классы в контроллере, не в шаблоне.
-5. Если про миграции — обязательно V-номер больше последнего (сейчас V23), не удалять поля из существующих.
+5. Если про миграции — обязательно V-номер больше последнего (сейчас V24), не удалять поля из существующих.
 6. Если про UI — следовать существующей стилистике (dark theme + CSS vars из core.css).
 7. Если делаешь блок — завершить INTEGRATION_<N>.md в patches/ с инструкциями по применению.
 8. **Git-операции — предлагай, но не выполняй сам.**
