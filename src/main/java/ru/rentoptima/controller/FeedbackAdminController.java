@@ -32,11 +32,17 @@ public class FeedbackAdminController {
     private final FeedbackAnalyticsService analytics;
 
     @GetMapping
-    public String page(Model model, HttpServletRequest request) {
+    public String page(@RequestParam(name = "property", required = false) Long propertyId,
+                       Model model, HttpServletRequest request) {
         model.addAttribute("activePage", "feedback");
         Long tenantId = AuthContext.tenantId();
         List<Property> properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
-        Property property = properties.isEmpty() ? null : properties.get(0);
+        // Отзывы показываются по одному объекту; раньше это всегда был первый, и отзывы
+        // остальных объектов сохранялись, но увидеть их было негде.
+        Property property = properties.stream()
+                .filter(p -> p.getId().equals(propertyId))
+                .findFirst()
+                .orElse(properties.isEmpty() ? null : properties.get(0));
 
         if (property == null) {
             model.addAttribute("property", null);
@@ -75,6 +81,17 @@ public class FeedbackAdminController {
             return item;
         }).collect(Collectors.toList());
 
+        List<PropertyTab> tabs = new ArrayList<>();
+        if (properties.size() > 1) {
+            for (Property p : properties) {
+                int count = p.getId().equals(property.getId())
+                        ? responses.size()
+                        : feedbackRepo.findByPropertyIdAndCompletedTrueOrderByCreatedAtDesc(p.getId()).size();
+                tabs.add(new PropertyTab(p.getId(), p.getName() + " · " + count,
+                        p.getId().equals(property.getId()) ? "btn btn-primary" : "btn btn-ghost"));
+            }
+        }
+        model.addAttribute("propertyTabs", tabs);
         model.addAttribute("property", property);
         model.addAttribute("items", items);
         model.addAttribute("averageRating", analytics.averageRating(tenantId, property.getId()));
@@ -99,10 +116,13 @@ public class FeedbackAdminController {
         boolean own = propertyRepo.findByTenantIdAndActiveTrue(tenantId).stream()
                 .anyMatch(p -> p.getId().equals(r.getPropertyId()));
         if (!own) return "redirect:/feedback-admin";
+        String back = "redirect:/feedback-admin?property=" + r.getPropertyId();
         r.setShowToHousekeeper(!Boolean.TRUE.equals(r.getShowToHousekeeper()));
         feedbackRepo.save(r);
-        return "redirect:/feedback-admin";
+        return back;
     }
+
+    public record PropertyTab(Long id, String label, String cssClass) {}
 
     public record FeedbackLink(String propertyName, String url, String inputId, String qrFileName) {}
 }

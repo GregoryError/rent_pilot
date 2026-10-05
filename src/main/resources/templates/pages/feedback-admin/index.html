@@ -17,6 +17,12 @@
 
     <div th:if="${property != null}">
 
+        <div th:unless="${#lists.isEmpty(propertyTabs)}"
+             style="display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-5);">
+            <a th:each="t : ${propertyTabs}" th:href="@{/feedback-admin(property=${t.id})}"
+               th:class="${t.cssClass}" th:text="${t.label}">Садовая · 3</a>
+        </div>
+
         <div style="display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr); gap: var(--sp-4); align-items: start;">
             <div class="card">
                 <div class="card__title">Средний рейтинг (90 дней)</div>
