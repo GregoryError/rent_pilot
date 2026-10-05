@@ -287,7 +287,7 @@ public class AvailabilityService {
                         1, Integer::sum);
             }
             addOccupant(m, new Occupant(true, manual, b.getChannelId(), null, b.getDataSource(),
-                            "booking:" + b.getId(), b.getCheckIn(), nightlyAmount(b)),
+                            "booking:" + b.getId(), b.getCheckIn(), nightlyAmount(b), b.getCreatedAt()),
                     b.getCheckIn(), b.getCheckOut(), from, to);
         }
         for (CalendarBlock b : blocks) {
@@ -303,7 +303,7 @@ public class AvailabilityService {
                 }
             }
             addOccupant(m, new Occupant(false, manual, b.getChannelId(), b.getBlockType(), null,
-                            "block:" + b.getId(), b.getFromDate(), null),
+                            "block:" + b.getId(), b.getFromDate(), null, b.getCreatedAt()),
                     b.getFromDate(), b.getToDate(), from, to);
         }
         return grid;
@@ -350,10 +350,12 @@ public class AvailabilityService {
      *                   чтобы считать брони, а не занятые ночи
      * @param start      первая ночь записи (может лежать раньше окна)
      * @param nightlyAmount сумма на ночь; null, если денег в записи нет
+     * @param seenAt     когда запись появилась у нас
      */
     public record Occupant(boolean booking, boolean manual, Long channelId,
                            CalendarBlock.BlockType blockType, String dataSource,
-                           String key, LocalDate start, BigDecimal nightlyAmount) {
+                           String key, LocalDate start, BigDecimal nightlyAmount,
+                           java.time.LocalDateTime seenAt) {
 
         /**
          * Запись — продажа без известной суммы: её выручку оцениваем по плановой цене.

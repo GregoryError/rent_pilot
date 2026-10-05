@@ -183,8 +183,10 @@ public class OccupancyGridService {
     /**
      * Чем закрашен занятый день. Ручная запись (бронь по телефону, ремонт, личное
      * использование) — чёрная плитка и важнее площадки: это то, что хост сделал сам.
-     * Иначе — цвет канала первой записи с площадки; у броней из RC канала нет,
-     * для них отдельный фиксированный цвет.
+     * Иначе — цвет канала, от которого запись пришла раньше всех. Так выбирается
+     * площадка-источник, а не эхо: бронь с площадки A мы отдаём площадке B, та закрывает
+     * даты у себя и возвращает их в своём фиде — но всегда позже, чем мы узнали о брони от A.
+     * У броней из RC канала нет, для них отдельный фиксированный цвет.
      */
     private static Paint paintOf(DayOccupancy day, Map<Long, String> channelNames,
                                  Map<Long, String> channelColors) {
@@ -192,14 +194,19 @@ public class OccupancyGridService {
         for (Occupant o : day.occupants()) {
             if (o.manual()) return Paint.MANUAL;
         }
+        Occupant source = null;
         for (Occupant o : day.occupants()) {
-            String color = o.channelId() == null ? null : channelColors.get(o.channelId());
-            if (color != null) {
-                return new Paint("background: " + color,
-                        ChannelPalette.letterOf(channelNames.get(o.channelId())), false);
-            }
+            if (o.channelId() == null || !channelColors.containsKey(o.channelId())) continue;
+            if (source == null || seenEarlier(o, source)) source = o;
         }
-        return new Paint(RC_STYLE, "R", false);
+        if (source == null) return new Paint(RC_STYLE, "R", false);
+        return new Paint("background: " + channelColors.get(source.channelId()),
+                ChannelPalette.letterOf(channelNames.get(source.channelId())), false);
+    }
+
+    private static boolean seenEarlier(Occupant a, Occupant b) {
+        if (a.seenAt() == null) return false;
+        return b.seenAt() == null || a.seenAt().isBefore(b.seenAt());
     }
 
     /** style == null — цвет задаёт CSS-класс (свободно / частично / вручную). */
