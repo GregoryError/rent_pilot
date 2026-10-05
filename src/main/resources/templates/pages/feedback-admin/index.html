@@ -34,6 +34,18 @@
                                class="form-input form-input--sm" style="flex: 1; min-width: 0;">
                         <button type="button" class="btn btn-ghost" th:data-copy="${l.inputId}">Копировать</button>
                     </div>
+                    <div class="qr" th:data-qr="${l.url}" th:data-qr-name="${l.qrFileName}">
+                        <div class="qr__preview"></div>
+                        <div>
+                            <div class="text-sm" style="margin-bottom: var(--sp-2);">QR-код этой ссылки</div>
+                            <div style="display: flex; gap: var(--sp-2); flex-wrap: wrap;">
+                                <button type="button" class="btn btn-ghost" data-qr-download="svg">Скачать SVG</button>
+                                <button type="button" class="btn btn-ghost" data-qr-download="png">PNG</button>
+                                <button type="button" class="btn btn-ghost" data-qr-download="jpeg">JPEG</button>
+                            </div>
+                            <div class="form-hint">SVG — для печати любого размера, PNG и JPEG — 1024 px.</div>
+                        </div>
+                    </div>
                 </div>
                 <div class="form-hint" style="margin-top: var(--sp-3);">
                     Отправьте ссылку гостю после выезда или разместите QR-кодом в квартире.
@@ -81,5 +93,10 @@
         </div>
     </div>
 </div>
+
+<th:block layout:fragment="scripts">
+    <script th:src="@{/libs/qrcode/qrcode.js}"></script>
+    <script th:src="@{/js/qr.js}"></script>
+</th:block>
 </body>
 </html>

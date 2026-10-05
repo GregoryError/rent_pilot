@@ -84,7 +84,8 @@ public class FeedbackAdminController {
         List<FeedbackLink> links = new ArrayList<>();
         for (Property p : properties) {
             links.add(new FeedbackLink(p.getName(),
-                    baseUrl + "/feedback/" + p.getFeedbackCode(), "feedback-url-" + p.getId()));
+                    baseUrl + "/feedback/" + p.getFeedbackCode(), "feedback-url-" + p.getId(),
+                    "Анкета " + p.getName()));
         }
         model.addAttribute("feedbackLinks", links);
         return "pages/feedback-admin/index";
@@ -103,5 +104,5 @@ public class FeedbackAdminController {
         return "redirect:/feedback-admin";
     }
 
-    public record FeedbackLink(String propertyName, String url, String inputId) {}
+    public record FeedbackLink(String propertyName, String url, String inputId, String qrFileName) {}
 }
