@@ -148,6 +148,11 @@ public class ChannelDiagnosticsService {
         return new JournalRow(a.getFirstSeenAt().format(TIME), type, typeCss, a.getMessage(), lasted);
     }
 
+    /** Очищает диагностические данные tenant'а. Возвращает число удалённых строк. */
+    public int clear(Long tenantId) {
+        return fetchRepo.deleteByTenant(tenantId) + alertRepo.deleteClearable(tenantId);
+    }
+
     @Scheduled(cron = "0 30 4 * * *")
     public void pruneFetchLog() {
         int removed = fetchRepo.deleteOlderThan(LocalDateTime.now().minusDays(WINDOW_DAYS));

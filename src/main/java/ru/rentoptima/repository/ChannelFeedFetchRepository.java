@@ -15,6 +15,12 @@ public interface ChannelFeedFetchRepository extends JpaRepository<ChannelFeedFet
     List<ChannelFeedFetch> findByChannelIdAndFetchedAtAfterOrderByFetchedAtAsc(
             Long channelId, LocalDateTime since);
 
+    /** Очистка журнала обращений одного tenant'а — кнопкой в диагностике. */
+    @Modifying
+    @Transactional
+    @Query("DELETE FROM ChannelFeedFetch f WHERE f.tenantId = :tenantId")
+    int deleteByTenant(@Param("tenantId") Long tenantId);
+
     /** Чистка журнала, кросс-тенант. */
     @Modifying
     @Transactional

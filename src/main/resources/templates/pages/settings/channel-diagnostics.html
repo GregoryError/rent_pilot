@@ -11,7 +11,13 @@
             <h1 class="page-title">Диагностика каналов</h1>
             <p class="page-subtitle">Как быстро занятость расходится между OptiRent и площадками. Данные за 30 дней.</p>
         </div>
-        <a class="btn btn-ghost" th:href="@{/settings/channels}">← К каналам</a>
+        <div style="display: flex; gap: var(--sp-3); flex-wrap: wrap;">
+            <form method="post" th:action="@{/settings/channels/diagnostics/clear}" style="margin: 0;"
+                  onsubmit="return confirm('Очистить диагностику? Удалятся журнал обращений к фидам и закрытые записи журнала пересечений. Статистика начнёт копиться заново.');">
+                <button type="submit" class="btn btn-ghost" style="color: var(--red);">Очистить диагностику</button>
+            </form>
+            <a class="btn btn-ghost" th:href="@{/settings/channels}">← К каналам</a>
+        </div>
     </div>
 
     <div class="card" th:if="${#lists.isEmpty(report.channels)}">
@@ -110,6 +116,7 @@
         <div class="form-hint" style="margin-top: var(--sp-3);">
             «Наложение без ручной записи» — на одни даты пришла занятость из двух источников.
             Обычно площадка возвращает в своём фиде то, что сама импортировала у нас. В Telegram такие записи не уходят.
+            «Очистить диагностику» не удаляет открытые конфликты и сбои каналов — они исчезнут сами, когда проблема уйдёт.
         </div>
     </div>
 
