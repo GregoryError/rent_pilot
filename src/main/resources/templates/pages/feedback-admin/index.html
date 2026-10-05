@@ -7,7 +7,7 @@
 <div layout:fragment="content">
     <div class="page-header">
         <h1 class="page-title">Отзывы гостей</h1>
-        <p class="page-subtitle" th:if="${property}"
+        <p class="page-subtitle" id="feedback-subtitle" th:if="${property}"
            th:text="${'Объект: ' + property.name}"></p>
     </div>
 
@@ -17,14 +17,8 @@
 
     <div th:if="${property != null}">
 
-        <div th:unless="${#lists.isEmpty(propertyTabs)}"
-             style="display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-5);">
-            <a th:each="t : ${propertyTabs}" th:href="@{/feedback-admin(property=${t.id})}"
-               th:class="${t.cssClass}" th:text="${t.label}">Садовая · 3</a>
-        </div>
-
         <div style="display: grid; grid-template-columns: minmax(200px, 1fr) minmax(0, 2fr); gap: var(--sp-4); align-items: start;">
-            <div class="card">
+            <div class="card" id="feedback-rating">
                 <div class="card__title">Средний рейтинг (90 дней)</div>
                 <div style="font-size: var(--text-3xl); font-weight: var(--weight-bold); margin-top: var(--sp-3);"
                      th:text="${averageRating != null ? #numbers.formatDecimal(averageRating, 1, 2) + '/10' : '—'}"></div>
@@ -58,6 +52,14 @@
                     Доступ горничной настраивается в разделе <a th:href="@{/staff}">Сотрудники</a>.
                 </div>
             </div>
+        </div>
+
+        <!-- Переключение объекта подменяет только этот блок, рейтинг и подзаголовок (скрипт внизу) -->
+        <div id="feedback-reviews">
+        <div th:unless="${#lists.isEmpty(propertyTabs)}" id="feedback-tabs"
+             style="display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-4);">
+            <a th:each="t : ${propertyTabs}" th:href="@{/feedback-admin(property=${t.id})}"
+               th:class="${t.cssClass}" th:text="${t.label}">Садовая · 3</a>
         </div>
 
         <div class="card">
@@ -97,12 +99,56 @@
                 </div>
             </div>
         </div>
+        </div>
     </div>
 </div>
 
 <th:block layout:fragment="scripts">
     <script th:src="@{/libs/qrcode/qrcode.js}"></script>
     <script th:src="@{/js/qr.js}"></script>
+    <script>
+        // Переключение объекта без перезагрузки страницы: забираем ту же страницу для
+        // другого объекта и подменяем только блок отзывов, рейтинг и подзаголовок.
+        (function () {
+            var PARTS = ['feedback-reviews', 'feedback-rating', 'feedback-subtitle'];
+
+            function load(url, push) {
+                var reviews = document.getElementById('feedback-reviews');
+                if (!reviews) return;
+                reviews.style.opacity = '0.5';
+                fetch(url, { credentials: 'same-origin', headers: { 'Accept': 'text/html' } })
+                    .then(function (r) {
+                        if (!r.ok) throw new Error('status ' + r.status);
+                        return r.text();
+                    })
+                    .then(function (html) {
+                        var doc = new DOMParser().parseFromString(html, 'text/html');
+                        // Сессия истекла — пришла страница входа, блока отзывов в ней нет
+                        if (!doc.getElementById('feedback-reviews')) throw new Error('no content');
+                        PARTS.forEach(function (id) {
+                            var fresh = doc.getElementById(id);
+                            var current = document.getElementById(id);
+                            if (fresh && current) current.replaceWith(fresh);
+                        });
+                        if (push) history.pushState({ feedback: true }, '', url);
+                    })
+                    .catch(function () {
+                        // Не получилось подменить — обычный переход, как раньше
+                        window.location.href = url;
+                    });
+            }
+
+            document.addEventListener('click', function (e) {
+                var link = e.target.closest('#feedback-tabs a');
+                if (!link || e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+                e.preventDefault();
+                load(link.href, true);
+            });
+            window.addEventListener('popstate', function () {
+                load(window.location.href, false);
+            });
+        })();
+    </script>
 </th:block>
 </body>
 </html>
