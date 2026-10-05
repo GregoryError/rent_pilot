@@ -16,6 +16,7 @@ import ru.rentoptima.channel.ical.UrlSafetyGuard;
 import ru.rentoptima.entity.Channel;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.entity.UnitType;
+import ru.rentoptima.repository.CalendarBlockRepository;
 import ru.rentoptima.repository.ChannelRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
@@ -41,6 +42,7 @@ public class ChannelController {
     private static final DateTimeFormatter FULL_DT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
 
     private final ChannelRepository channelRepo;
+    private final CalendarBlockRepository blockRepo;
     private final UnitTypeRepository unitTypeRepo;
     private final PropertyRepository propertyRepo;
     private final ChannelSyncService syncService;
@@ -197,14 +199,21 @@ public class ChannelController {
     @Transactional
     public String delete(@PathVariable Long id, RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        channelRepo.findById(id).ifPresent(c -> {
-            if (!tenantId.equals(c.getTenantId())) return;
-            c.setActive(false);
-            c.setSyncEnabled(false);
-            c.setUpdatedAt(LocalDateTime.now());
-            channelRepo.save(c);
-        });
-        redirect.addFlashAttribute("success", "Канал отключён");
+        Channel c = channelRepo.findById(id).orElse(null);
+        if (c == null || !tenantId.equals(c.getTenantId())) {
+            redirect.addFlashAttribute("error", "Канал не найден");
+            return "redirect:/settings/channels";
+        }
+        c.setActive(false);
+        c.setSyncEnabled(false);
+        c.setUpdatedAt(LocalDateTime.now());
+        channelRepo.save(c);
+        // Занятость, импортированная с канала, без него уже не обновится и не снимется —
+        // оставлять её значит держать даты закрытыми в шахматке и в фидах других каналов.
+        int removed = blockRepo.deleteByChannel(c.getId());
+        redirect.addFlashAttribute("success", removed == 0
+                ? "Канал удалён, синхронизация остановлена"
+                : "Канал удалён, синхронизация остановлена. Снято блокировок с этой площадки: " + removed);
         return "redirect:/settings/channels";
     }
 

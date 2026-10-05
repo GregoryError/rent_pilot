@@ -53,6 +53,31 @@ public interface CalendarBlockRepository extends JpaRepository<CalendarBlock, Lo
     /** Последние импортированные с канала блокировки. Для диагностики каналов. */
     List<CalendarBlock> findTop10ByChannelIdOrderByCreatedAtDesc(Long channelId);
 
+    /** Удаляет всё, что импортировано с канала. Вызывается при удалении канала. */
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("DELETE FROM CalendarBlock b WHERE b.channelId = :channelId")
+    int deleteByChannel(@Param("channelId") Long channelId);
+
+    /** Блокировки, оставшиеся от уже удалённых каналов tenant'а. */
+    @Query("""
+        SELECT COUNT(b) FROM CalendarBlock b
+        WHERE b.tenantId = :tenantId
+          AND b.channelId IN (SELECT c.id FROM Channel c
+                              WHERE c.tenantId = :tenantId AND c.active = false)
+    """)
+    long countOrphaned(@Param("tenantId") Long tenantId);
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.transaction.annotation.Transactional
+    @Query("""
+        DELETE FROM CalendarBlock b
+        WHERE b.tenantId = :tenantId
+          AND b.channelId IN (SELECT c.id FROM Channel c
+                              WHERE c.tenantId = :tenantId AND c.active = false)
+    """)
+    int deleteOrphaned(@Param("tenantId") Long tenantId);
+
     /** Просроченные резервы, кросс-тенант. Для WidgetBookingService. */
     List<CalendarBlock> findByExpiresAtBefore(java.time.LocalDateTime moment);
 

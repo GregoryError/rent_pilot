@@ -19,7 +19,15 @@ public class ChannelDiagnosticsController {
     public String page(Model model) {
         model.addAttribute("activePage", "channels");
         model.addAttribute("report", diagnostics.build(AuthContext.tenantId()));
+        model.addAttribute("orphanedBlocks", diagnostics.orphanedBlocks(AuthContext.tenantId()));
         return "pages/settings/channel-diagnostics";
+    }
+
+    @PostMapping("/settings/channels/diagnostics/remove-orphaned")
+    public String removeOrphaned(RedirectAttributes redirect) {
+        int removed = diagnostics.removeOrphanedBlocks(AuthContext.tenantId());
+        redirect.addFlashAttribute("success", "Снято блокировок удалённых каналов: " + removed);
+        return "redirect:/settings/channels/diagnostics";
     }
 
     @PostMapping("/settings/channels/diagnostics/clear")

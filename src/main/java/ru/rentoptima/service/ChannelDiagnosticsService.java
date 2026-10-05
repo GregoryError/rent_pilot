@@ -148,6 +148,15 @@ public class ChannelDiagnosticsService {
         return new JournalRow(a.getFirstSeenAt().format(TIME), type, typeCss, a.getMessage(), lasted);
     }
 
+    /** Сколько блокировок осталось в шахматке от уже удалённых каналов. */
+    public long orphanedBlocks(Long tenantId) {
+        return blockRepo.countOrphaned(tenantId);
+    }
+
+    public int removeOrphanedBlocks(Long tenantId) {
+        return blockRepo.deleteOrphaned(tenantId);
+    }
+
     /** Очищает диагностические данные tenant'а. Возвращает число удалённых строк. */
     public int clear(Long tenantId) {
         return fetchRepo.deleteByTenant(tenantId) + alertRepo.deleteClearable(tenantId);

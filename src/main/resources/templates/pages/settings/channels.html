@@ -165,8 +165,8 @@
             </form>
             <form style="display: inline; margin-left: auto;" method="post"
                   th:action="@{'/settings/channels/' + ${c.id} + '/delete'}"
-                  onsubmit="return confirm('Отключить канал? Он перестанет синхронизироваться; история останется.');">
-                <button type="submit" class="btn btn-ghost" style="color: var(--red);">Отключить</button>
+                  onsubmit="return confirm('Удалить канал? Синхронизация остановится, а занятость, импортированная с этой площадки, будет снята с шахматки. Ручные записи и брони не затрагиваются.');">
+                <button type="submit" class="btn btn-ghost" style="color: var(--red);">Удалить канал</button>
             </form>
         </div>
     </div>

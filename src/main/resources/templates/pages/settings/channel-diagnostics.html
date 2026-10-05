@@ -20,6 +20,19 @@
         </div>
     </div>
 
+    <div class="card" th:if="${orphanedBlocks > 0}" style="border-left: 3px solid var(--amber);">
+        <div class="card__title">Остались блокировки удалённых каналов</div>
+        <p class="text-sm" style="margin: var(--sp-3) 0 var(--sp-4) 0; color: var(--text-secondary);">
+            В шахматке <strong th:text="${orphanedBlocks}">12</strong> блокировок, импортированных с каналов,
+            которые вы уже удалили. Они больше не обновляются, но продолжают закрывать даты —
+            и в шахматке, и в фидах для других площадок.
+        </p>
+        <form method="post" th:action="@{/settings/channels/diagnostics/remove-orphaned}" style="margin: 0;"
+              onsubmit="return confirm('Снять эти блокировки? Даты станут свободными. Брони и ручные записи не затрагиваются.');">
+            <button type="submit" class="btn btn-primary">Снять блокировки удалённых каналов</button>
+        </form>
+    </div>
+
     <div class="card" th:if="${#lists.isEmpty(report.channels)}">
         <div class="card__title">Нет iCal-каналов</div>
         <p class="muted" style="margin: var(--sp-3) 0 0 0;">
