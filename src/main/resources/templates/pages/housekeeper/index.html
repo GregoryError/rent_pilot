@@ -215,9 +215,9 @@
                 </svg>
             </div>
             <div class="booking-body">
-                <div class="booking-date" th:text="'Выезд ' + ${#temporals.format(b.checkOut, 'dd.MM')}"></div>
+                <div class="booking-date" th:text="${b.checkOutLabel}"></div>
                 <div class="booking-guest" th:text="${b.guestName ?: 'Гость'}"></div>
-                <div class="booking-nights" th:text="'Заезд был: ' + ${#temporals.format(b.checkIn, 'dd.MM.yyyy')}"></div>
+                <div class="booking-nights" th:text="${b.checkInLabel}"></div>
             </div>
         </div>
     </div>

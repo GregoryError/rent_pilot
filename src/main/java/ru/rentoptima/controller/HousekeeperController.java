@@ -37,6 +37,15 @@ public class HousekeeperController {
     private static final int FRESH_REVIEW_DAYS = 5;
     /** На сколько дней вперёд показываем выезды из блокировок каналов. */
     private static final int SCHEDULE_DAYS = 180;
+    /**
+     * Блокировка с площадки длиннее этого — не проживание, а закрытый период (площадки
+     * так отдают даты за горизонтом продаж, иногда на год вперёд). Уборки после неё нет.
+     */
+    private static final int MAX_STAY_NIGHTS = 60;
+    private static final java.time.format.DateTimeFormatter DAY =
+            java.time.format.DateTimeFormatter.ofPattern("dd.MM");
+    private static final java.time.format.DateTimeFormatter DAY_YEAR =
+            java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     private final PropertyRepository propertyRepo;
     private final BookingRepository bookingRepo;
@@ -168,7 +177,7 @@ public class HousekeeperController {
             // Одни и те же даты могут прийти дважды: ручная бронь хранится парой с блокировкой,
             // а площадка возвращает в своём фиде чужие брони. В графике выезд нужен один раз.
             if (seen.add(b.getCheckIn() + "/" + b.getCheckOut())) {
-                stays.add(new Stay(b.getCheckIn(), b.getCheckOut(), b.getGuestName()));
+                stays.add(stay(b.getCheckIn(), b.getCheckOut(), b.getGuestName(), today));
             }
         }
 
@@ -186,10 +195,12 @@ public class HousekeeperController {
                     unitTypeIds, today.minusDays(1), today.plusDays(SCHEDULE_DAYS))) {
                 if (b.getBlockType() != CalendarBlock.BlockType.CHANNEL_SYNC
                         && b.getBlockType() != CalendarBlock.BlockType.MANUAL_BOOKING) continue;
+                if (java.time.temporal.ChronoUnit.DAYS.between(b.getFromDate(), b.getToDate())
+                        > MAX_STAY_NIGHTS) continue;
                 if (!seen.add(b.getFromDate() + "/" + b.getToDate())) continue;
                 String channel = b.getChannelId() == null ? null : channelNames.get(b.getChannelId());
-                stays.add(new Stay(b.getFromDate(), b.getToDate(),
-                        channel == null ? "Гость" : "Гость · " + channel));
+                stays.add(stay(b.getFromDate(), b.getToDate(),
+                        channel == null ? "Гость" : "Гость · " + channel, today));
             }
         }
 
@@ -197,8 +208,17 @@ public class HousekeeperController {
         return stays;
     }
 
-    /** Строка графика уборок; имена полей — как у Booking, шаблон их и читает. */
-    public record Stay(LocalDate checkIn, LocalDate checkOut, String guestName) {}
+    private static Stay stay(LocalDate checkIn, LocalDate checkOut, String guestName, LocalDate today) {
+        // Год показываем, только когда он не текущий: иначе «06.10» следующего года
+        // читается как выезд на этой неделе.
+        String out = "Выезд " + checkOut.format(checkOut.getYear() == today.getYear() ? DAY : DAY_YEAR);
+        String in = (checkIn.isAfter(today) ? "Заезд: " : "Заезд был: ") + checkIn.format(DAY_YEAR);
+        return new Stay(checkIn, checkOut, guestName, out, in);
+    }
+
+    /** Строка графика уборок. */
+    public record Stay(LocalDate checkIn, LocalDate checkOut, String guestName,
+                       String checkOutLabel, String checkInLabel) {}
 
     private String cookieValueFor(Property property) {
         String raw = property.getHousekeeperPinHash() + ":" + property.getId();
