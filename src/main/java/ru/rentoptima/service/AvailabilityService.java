@@ -370,10 +370,10 @@ public class AvailabilityService {
                 .toList();
     }
 
-    /** Бронь завёл человек: явный MANUAL либо импорт из таблицы без канала и RC-привязки. */
+    /** Бронь завёл человек: явный MANUAL либо импорт из таблицы без канала и источника. */
     private static boolean isManual(Booking b) {
         if (b.getDataSource() != null) return "MANUAL".equals(b.getDataSource());
-        return b.getChannelId() == null && b.getRcBookingId() == null;
+        return b.getChannelId() == null;
     }
 
     /** Сумма брони в пересчёте на ночь; null, если суммы нет (iCal, закрытие, бронь без цены). */
@@ -404,7 +404,7 @@ public class AvailabilityService {
      * Одна занятая единица категории в конкретный день.
      *
      * @param booking    true — Booking, false — CalendarBlock
-     * @param manual     завёл человек в UI (а не пришло с площадки/RC)
+     * @param manual     завёл человек в UI (а не пришло с площадки)
      * @param blockType  тип блокировки; null для броней
      * @param dataSource bookings.data_source; null для блокировок
      * @param key        стабильный идентификатор записи ("booking:12" / "block:7") —
@@ -420,11 +420,11 @@ public class AvailabilityService {
 
         /**
          * Запись — продажа без известной суммы: её выручку оцениваем по плановой цене.
-         * Ремонт, личное использование, hold и «ручные закрытия» из RC деньгами не считаем.
+         * Ремонт, личное использование, hold и исторические брони без суммы деньгами не считаем.
          */
         public boolean estimatedSale() {
             if (nightlyAmount != null) return false;
-            if (booking) return !"RC".equals(dataSource);
+            if (booking) return !Booking.DATA_SOURCE_LEGACY.equals(dataSource);
             return blockType == CalendarBlock.BlockType.CHANNEL_SYNC
                     || blockType == CalendarBlock.BlockType.MANUAL_BOOKING;
         }

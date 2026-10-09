@@ -381,7 +381,6 @@ async function cancelOverride(btn) {
                 <tr>
                     <th>Название</th>
                     <th>Город</th>
-                    <th>RC ID</th>
                     <th>Статус</th>
                 </tr>
                 </thead>
@@ -389,7 +388,6 @@ async function cancelOverride(btn) {
                 <tr th:each="prop : ${properties}">
                     <td th:text="${prop.name}"></td>
                     <td th:text="${prop.city}"></td>
-                    <td class="mono muted" th:text="${prop.rcObjectId ?: '—'}"></td>
                     <td><span class="tag tag--green">Активен</span></td>
                 </tr>
                 </tbody>

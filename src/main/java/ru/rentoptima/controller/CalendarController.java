@@ -12,7 +12,6 @@ import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.BookingStatsService;
-import ru.rentoptima.service.PricingEngine;
 import ru.rentoptima.service.ProductionCalendarService;
 import ru.rentoptima.service.SettingsService;
 
@@ -30,7 +29,6 @@ public class CalendarController {
     private final BookingStatsService statsService;
     private final ProductionCalendarService prodCalendar;
     private final SettingsService settings;
-    private final PricingEngine pricingEngine;
 
     @GetMapping
     public String calendar(@RequestParam(required = false) Integer year,
@@ -48,15 +46,6 @@ public class CalendarController {
         // Get first property (for now single-property)
         List<Property> properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
         Property property = properties.isEmpty() ? null : properties.get(0);
-
-        // Trigger RC sync + get real RC prices and min_stays
-        Map<LocalDate, Integer> rcPrices = Map.of();
-        Map<LocalDate, Integer> rcMinStays = Map.of();
-        if (property != null && property.getRcObjectId() != null && !property.getRcObjectId().isBlank()) {
-            var syncResult = pricingEngine.triggerRcSyncWithPrices(property, from.minusDays(7), to.plusDays(30));
-            rcPrices = syncResult.prices();
-            rcMinStays = syncResult.minStays();
-        }
 
         // Build calendar grid
         List<CalendarDay> days = new ArrayList<>();
@@ -96,8 +85,8 @@ public class CalendarController {
                 boolean isToday = d.equals(now);
                 boolean isPast = d.isBefore(now);
                 int basePrice = (isWeekend || isHoliday) ? weekendPrice : weekdayPrice;
-                int displayPrice = rcPrices.getOrDefault(d, basePrice);
-                int displayMinStay = rcMinStays.getOrDefault(d, 1);
+                int displayPrice = basePrice;
+                int displayMinStay = 1;
                 int platformPrice = (int) Math.round(displayPrice * (1 + platformMarkup));
 
                 String status;

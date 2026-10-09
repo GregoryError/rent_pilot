@@ -45,10 +45,6 @@ logging:
     org.springframework.security: INFO
 
 app:
-  realty-calendar:
-    base-url: ${RC_BASE_URL:https://realtycalendar.ru}
-    locale: ru
-
   # Удалённые ручные записи ещё 30 дней уходят в iCal-экспорт со STATUS:CANCELLED.
   # false — не отдавать (если площадка не читает STATUS и закрывает даты по ним).
   ical:

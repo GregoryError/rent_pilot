@@ -33,7 +33,7 @@ public class BookingStatsService {
         double totalNightsForAvg = 0;
 
         for (Booking b : bookings) {
-            // Skip manual RC closures (amount=0) from revenue but keep for occupancy
+            // Skip closures without amount (amount=0) from revenue but keep for occupancy
             boolean isManualClosure = b.getAmount() == null
                     || b.getAmount().compareTo(BigDecimal.ZERO) == 0;
 

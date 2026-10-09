@@ -12,7 +12,7 @@ public final class PdAnonymizer {
     /**
      * "Роман Ченин" → "Р."
      * "ILIA KLEMENTEV" → "I."
-     * "Ручное закрытие RC" → "Ручное закрытие RC" (не ПД — сохраняется)
+     * "Ручное закрытие" → "Ручное закрытие" (не ПД — сохраняется)
      * null / "" → null
      */
     public static String toInitial(String fullName) {

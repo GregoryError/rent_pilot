@@ -1,6 +1,5 @@
 package ru.rentoptima.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -36,10 +35,8 @@ public class PricingEngine {
     private final BookingRepository bookingRepo;
     private final SettingsService settings;
     private final ProductionCalendarService prodCalendar;
-    private final RealtyCalendarClient rcClient;
     private final BookingStatsService statsService;
     private final AiPricingAdvisor aiAdvisor;
-    private final RcSyncService rcSyncService;
     private final CompetitorService competitorService;
     private final FeedbackAnalyticsService feedbackAnalytics;
     private final PricingLearningService learningService;
@@ -52,9 +49,7 @@ public class PricingEngine {
     public void runAutopilot() {
 
         List<Property> properties = propertyRepo.findAll().stream()
-                .filter(p -> p.getActive()
-                        && p.getRcObjectId() != null
-                        && !p.getRcObjectId().isBlank())
+                .filter(Property::getActive)
                 .toList();
 
         for (Property property : properties) {
@@ -127,41 +122,10 @@ public class PricingEngine {
         LocalDate to = from.plusDays(openAheadDays);
 
         /*
-         * 1. Получаем состояние календаря RC
-         */
-        CalendarState calendarState;
-        try {
-            calendarState = loadCalendarState(
-                    property.getTenantId(),
-                    property.getRcObjectId(),
-                    from,
-                    to
-            );
-        } catch (Exception e) {
-            log.error(
-                    "Autopilot [{}]: cannot read RC calendar for {}. "
-                            + "NO prices will be changed: {}",
-                    mode,
-                    property.getName(),
-                    e.getMessage(),
-                    e
-            );
-            return;
-        }
-
-        /*
          * 2. Рассчитываем рекомендации алгоритма
          */
         List<PricingRecommendation> recs =
                 calculateRecommendations(property, from, to);
-
-        // Sync bookings from RC event_calendars
-        try {
-            syncRcBookings(property, from, to);
-        } catch (Exception e) {
-            log.warn("RC bookings sync failed for {}: {}",
-                    property.getName(), e.getMessage());
-        }
 
         /*
          * 3. Получаем конкурентный анализ
@@ -221,8 +185,7 @@ public class PricingEngine {
             log.warn("Rating multiplier calculation failed: {}", e.getMessage());
         }
 
-        List<RealtyCalendarClient.SpecialPrice> items =
-                new ArrayList<>();
+        int logged = 0;
 
         /*
          * 6. Фильтруем даты и применяем корректировки
@@ -234,19 +197,6 @@ public class PricingEngine {
             if (rec.status() == DayStatus.BOOKED) {
                 log.debug("Autopilot: skip BOOKED date {} for {}",
                         rec.date(), property.getName());
-                continue;
-            }
-
-            if (calendarState.closedDates().contains(rec.date())) {
-                log.info("Autopilot: skip CLOSED date {} for {}",
-                        rec.date(), property.getName());
-                continue;
-            }
-
-            if ("SOFT".equals(mode)
-                    && Math.abs(rec.priceDelta()) > autoDelta) {
-                log.debug("SOFT: skip large change for {} (delta={}₽)",
-                        rec.date(), rec.priceDelta());
                 continue;
             }
 
@@ -301,13 +251,7 @@ public class PricingEngine {
                     || !latest.get().getMinStay().equals(minStayInt);
 
             if (changed) {
-                items.add(
-                        new RealtyCalendarClient.SpecialPrice(
-                                rec.date(),
-                                finalPrice,
-                                minStayInt
-                        )
-                );
+                logged++;
             } else {
                 skipped++;
             }
@@ -332,24 +276,8 @@ public class PricingEngine {
             }
         }
 
-        /*
-         * 7. Отправляем цены
-         */
-        if (items.isEmpty()) {
-            log.info("Autopilot [{}]: no items to push for {}",
-                    mode, property.getName());
-            return;
-        }
-
-
-        log.info("Autopilot [{}]: pushing {} changes for {} ({} unchanged, skipped)",
-                mode, items.size(), property.getName(), skipped);
-
-        rcClient.saveSpecialPrices(
-                property.getTenant().getId(),
-                property.getRcObjectId(),
-                items
-        );
+        log.info("Autopilot: {} recommendations updated for {} ({} unchanged)",
+                logged, property.getName(), skipped);
     }
 
     /**
@@ -380,77 +308,6 @@ public class PricingEngine {
                 ourPrice, result, competitorAvg, Math.round(deviation * 1000) / 10.0);
 
         return BigDecimal.valueOf(result);
-    }
-
-    /**
-     * Получает календарь RC и извлекает закрытые даты.
-     */
-    private CalendarState loadCalendarState(
-            Long tenantId,
-            String rcObjectId,
-            LocalDate from,
-            LocalDate to
-    ) {
-
-        JsonNode response = rcClient.getSpecialPrices(
-                tenantId, rcObjectId, from, to);
-
-        if (response == null || response.isMissingNode()) {
-            throw new IllegalStateException(
-                    "RealtyCalendar returned empty calendar response");
-        }
-
-        JsonNode items = response.path("items");
-
-        if (!items.isArray()) {
-            throw new IllegalStateException(
-                    "RealtyCalendar calendar response does not contain "
-                            + "an 'items' array");
-        }
-
-        Set<LocalDate> closedDates = new HashSet<>();
-
-        for (JsonNode item : items) {
-
-            String dateText = item.path("date").asText(null);
-
-            if (dateText == null || dateText.isBlank()) {
-                log.warn("RC calendar item without date: {}", item);
-                continue;
-            }
-
-            LocalDate date;
-            try {
-                date = LocalDate.parse(dateText);
-            } catch (Exception e) {
-                log.warn("Cannot parse RC calendar date '{}'", dateText);
-                continue;
-            }
-
-            boolean closed = item
-                    .path("closed").path("actual").path("value")
-                    .asBoolean(false);
-
-            boolean closedOnArrival = item
-                    .path("closed_on_arrivial").path("actual").path("value")
-                    .asBoolean(false);
-
-            boolean closedOnDeparture = item
-                    .path("closed_on_departure").path("actual").path("value")
-                    .asBoolean(false);
-
-            if (closed || closedOnArrival || closedOnDeparture) {
-                closedDates.add(date);
-                log.debug("RC calendar: date {} is restricted "
-                                + "(closed={}, arrival={}, departure={})",
-                        date, closed, closedOnArrival, closedOnDeparture);
-            }
-        }
-
-        log.info("RC calendar loaded: {} closed/restricted dates between {} and {}",
-                closedDates.size(), from, to);
-
-        return new CalendarState(closedDates);
     }
 
     /**
@@ -618,18 +475,18 @@ public class PricingEngine {
 
             minStay = Math.max(1, Math.min(minStay, windowLen));
 
-            int rcPrice = (int) Math.round(basePrice * multiplier);
-            rcPrice = Math.max(floorPrice, Math.min(ceilPrice, rcPrice));
+            int price = (int) Math.round(basePrice * multiplier);
+            price = Math.max(floorPrice, Math.min(ceilPrice, price));
 
-            BigDecimal netPerNight = BigDecimal.valueOf(rcPrice)
+            BigDecimal netPerNight = BigDecimal.valueOf(price)
                     .subtract(BigDecimal.valueOf(cleaningCost));
 
-            int delta = rcPrice - basePrice;
+            int delta = price - basePrice;
 
             result.add(new PricingRecommendation(
                     d,
                     BigDecimal.valueOf(basePrice),
-                    BigDecimal.valueOf(rcPrice),
+                    BigDecimal.valueOf(price),
                     delta,
                     minStay,
                     netPerNight,
@@ -656,198 +513,6 @@ public class PricingEngine {
         FREE, BOOKED, GAP
     }
 
-    /**
-     * Публичный триггер синхронизации из RC для одного объекта.
-     */
-    public RcSyncResult triggerRcSyncWithPrices(
-            Property property, LocalDate from, LocalDate to) {
-
-        Map<LocalDate, Integer> rcPrices = new HashMap<>();
-        Map<LocalDate, Integer> rcMinStays = new HashMap<>();
-        try {
-            JsonNode response = rcClient.getEventCalendars(
-                    property.getTenantId(), property.getRcObjectId(), from, to);
-            if (response == null || !response.has("items")
-                    || !response.get("items").isArray()
-                    || response.get("items").isEmpty()) {
-                return new RcSyncResult(rcPrices, rcMinStays);
-            }
-
-            JsonNode apt = response.get("items").get(0);
-            syncRcBookingsFromNode(property, apt, from, to);
-
-            JsonNode specialPrices = apt.path("special_prices");
-            if (specialPrices.isArray()) {
-                for (JsonNode sp : specialPrices) {
-                    if (sp.path("is_delete").asBoolean(false)) continue;
-
-                    String beginStr = sp.path("begin_date").asText(null);
-                    String endStr = sp.path("end_date").asText(null);
-                    if (beginStr == null || endStr == null) continue;
-
-                    double price = sp.path("price").asDouble(0);
-                    int minStay = sp.path("min_stay_through").asInt(0);
-
-                    try {
-                        LocalDate start = LocalDate.parse(beginStr);
-                        LocalDate end = LocalDate.parse(endStr);
-                        for (LocalDate d = start; d.isBefore(end);
-                             d = d.plusDays(1)) {
-                            if (price > 0) rcPrices.put(d, (int) Math.round(price));
-                            if (minStay > 0) rcMinStays.put(d, minStay);
-                        }
-                    } catch (Exception e) {
-                        log.warn("Cannot parse special_price date range: {}",
-                                e.getMessage());
-                    }
-                }
-            }
-            log.info("RC state for {}: {} prices, {} min_stays",
-                    property.getName(), rcPrices.size(), rcMinStays.size());
-        } catch (Exception e) {
-            log.warn("triggerRcSyncWithPrices failed for {}: {}",
-                    property.getName(), e.getMessage());
-        }
-        return new RcSyncResult(rcPrices, rcMinStays);
-    }
-
-    public record RcSyncResult(
-            Map<LocalDate, Integer> prices,
-            Map<LocalDate, Integer> minStays
-    ) {}
-
-    public void triggerRcSync(Property property, LocalDate from, LocalDate to) {
-        try {
-            syncRcBookings(property, from, to);
-        } catch (Exception e) {
-            log.warn("Manual RC sync failed for {}: {}",
-                    property.getName(), e.getMessage());
-        }
-    }
-
-    private void syncRcBookingsFromNode(Property property, JsonNode apt,
-                                        LocalDate rangeFrom, LocalDate rangeTo) {
-        JsonNode events = apt.path("events");
-        if (!events.isArray()) return;
-
-        log.info("RC event_calendars: {} raw events for {}",
-                events.size(), property.getName());
-
-        List<RcBooking> rcBookings = new ArrayList<>();
-        int skippedDeleted = 0;
-
-        for (JsonNode ev : events) {
-            if (ev.path("is_delete").asBoolean(false)) {
-                skippedDeleted++;
-                continue;
-            }
-            if (!"booked".equals(ev.path("status").asText(""))) continue;
-
-            String beginStr = ev.path("begin_date").asText(null);
-            String endStr = ev.path("end_date").asText(null);
-            if (beginStr == null || endStr == null) continue;
-
-            try {
-                LocalDate start = LocalDate.parse(beginStr);
-                LocalDate end = LocalDate.parse(endStr);
-                long rcId = ev.path("id").asLong(0);
-
-                String guestRaw = ev.path("client").path("fio").asText(null);
-                String guest = PdAnonymizer.toInitial(guestRaw);
-                String phone = PdAnonymizer.stripPhone(
-                        ev.path("client").path("phone").asText(null));
-                double amount = ev.path("amount").asDouble(0);
-
-                int sourceId = ev.path("source_id").asInt(0);
-
-                if ((guest == null || guest.isBlank()) && amount == 0.0) {
-                    guest = "Ручное закрытие RC";
-                }
-
-                rcBookings.add(new RcBooking(
-                        rcId, start, end, guest, phone, amount, sourceId));
-            } catch (Exception e) {
-                log.warn("Cannot parse RC event: {}", e.getMessage());
-            }
-        }
-
-        log.info("RC sync {}: {} bookings (skipped {} deleted)",
-                property.getName(), rcBookings.size(), skippedDeleted);
-
-        if (!rcBookings.isEmpty()) {
-            rcSyncService.syncBookings(property, rcBookings, rangeFrom, rangeTo);
-        }
-    }
-
-    private void syncRcBookings(Property property, LocalDate from, LocalDate to) {
-        JsonNode response = rcClient.getEventCalendars(
-                property.getTenantId(), property.getRcObjectId(), from, to);
-        if (response == null || !response.has("items")
-                || !response.get("items").isArray()
-                || response.get("items").isEmpty()) {
-            log.info("RC event_calendars empty for {} in {}-{}",
-                    property.getName(), from, to);
-            return;
-        }
-
-        JsonNode apt = response.get("items").get(0);
-        JsonNode events = apt.path("events");
-        if (!events.isArray()) return;
-
-        log.info("RC event_calendars returned {} raw events for {}",
-                events.size(), property.getName());
-
-        List<RcBooking> rcBookings = new ArrayList<>();
-        int skippedDeleted = 0;
-
-        for (JsonNode ev : events) {
-            if (ev.path("is_delete").asBoolean(false)) {
-                skippedDeleted++;
-                continue;
-            }
-            if (!"booked".equals(ev.path("status").asText(""))) continue;
-
-            String beginStr = ev.path("begin_date").asText(null);
-            String endStr = ev.path("end_date").asText(null);
-            if (beginStr == null || endStr == null) continue;
-
-            try {
-                LocalDate start = LocalDate.parse(beginStr);
-                LocalDate end = LocalDate.parse(endStr);
-                long rcId = ev.path("id").asLong(0);
-
-                String guestRaw = ev.path("client").path("fio").asText(null);
-                String guest = PdAnonymizer.toInitial(guestRaw);
-                String phone = PdAnonymizer.stripPhone(
-                        ev.path("client").path("phone").asText(null));
-                double amount = ev.path("amount").asDouble(0);
-
-                int sourceId = ev.path("source_id").asInt(0);
-
-                if ((guest == null || guest.isBlank()) && amount == 0.0) {
-                    guest = "Ручное закрытие RC";
-                }
-
-                rcBookings.add(new RcBooking(
-                        rcId, start, end, guest, phone, amount, sourceId));
-            } catch (Exception e) {
-                log.warn("Cannot parse RC event: {}", e.getMessage());
-            }
-        }
-
-        log.info("RC sync {}: {} bookings (skipped {} deleted)",
-                property.getName(), rcBookings.size(), skippedDeleted);
-
-        if (!rcBookings.isEmpty()) {
-            rcSyncService.syncBookings(property, rcBookings, from, to);
-        }
-    }
-
-    public record RcBooking(
-            long rcId, LocalDate checkIn, LocalDate checkOut,
-            String guestName, String phone, double amount, int sourceId
-    ) {}
-
     private BigDecimal applyAiAdjustment(
             PricingRecommendation rec,
             Map<LocalDate, Double> adjustments,
@@ -864,8 +529,6 @@ public class PricingEngine {
                 rec.date(), rec.recommendedPrice(), adjusted, multiplier);
         return BigDecimal.valueOf(adjusted);
     }
-
-    private record CalendarState(Set<LocalDate> closedDates) {}
 
     public record PricingRecommendation(
             LocalDate date,

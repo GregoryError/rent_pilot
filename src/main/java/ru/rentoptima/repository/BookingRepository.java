@@ -12,27 +12,7 @@ import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
-    // Find by RC ID scoped to property (safer for multi-property)
-    @Query("""
-        SELECT b FROM Booking b
-        WHERE b.property.id = :propertyId
-          AND b.rcBookingId = :rcBookingId
-    """)
-    Optional<Booking> findByPropertyIdAndRcBookingId(Long propertyId, String rcBookingId);
-
-    // Legacy — used by WebhookService
-    Optional<Booking> findByRcBookingId(String rcBookingId);
-
-    // For sync: find all local RC-linked bookings for a property
-    @Query("""
-        SELECT b FROM Booking b
-        WHERE b.property.id = :propertyId
-          AND b.rcBookingId IS NOT NULL
-          AND b.status = 'BOOKED'
-    """)
-    List<Booking> findByPropertyIdAndRcBookingIdIsNotNull(Long propertyId);
-
-    // Match manual (imported) booking by guest+dates for RC linking
+    // Match manual (imported) booking by guest+dates
     @Query("""
         SELECT b FROM Booking b
         WHERE b.property.id = :propertyId

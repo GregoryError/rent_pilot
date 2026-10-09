@@ -12,14 +12,12 @@ import java.time.LocalDateTime;
 
 /**
  * Подключённый канал синхронизации:
- * - RC: работа поверх RealtyCalendar (legacy path, wrapper via RcChannelAdapter)
  * - AVITO: официальный API Авито
  * - ICAL: iCal-подключение к любой площадке (Sutochno, Ostrovok, Booking, etc.)
  * - MANUAL: ручные брони (не тянутся ни откуда, но экспортируются в iCal)
  * - WIDGET: прямые брони через страницу/виджет бронирования (см. BookingWidget)
  * <p>
  * config_json содержит специфичные для канала параметры:
- * - RC: null (rc_object_id хранится в properties)
  * - AVITO: { "item_id": "...", "oauth_client_id": "..." }
  * - ICAL: { "import_url": "https://..." }
  * - MANUAL: {}
@@ -95,7 +93,6 @@ public class Channel {
     private LocalDateTime updatedAt = LocalDateTime.now();
 
     public enum ChannelType {
-        RC,
         AVITO,
         ICAL,
         MANUAL,

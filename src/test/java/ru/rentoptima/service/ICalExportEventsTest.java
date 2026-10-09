@@ -105,10 +105,10 @@ class ICalExportEventsTest {
     }
 
     @Test
-    @DisplayName("ручная бронь (блокировка + бронь) — одно событие; бронь из RC — отдельное")
+    @DisplayName("ручная бронь (блокировка + бронь) — одно событие; историческая бронь — отдельное")
     void manualPairIsOneEvent() {
         List<ICalEvent> events = feed(
-                List.of(booking(7, "MANUAL", null, 10, 12), booking(8, "RC", null, 12, 15)),
+                List.of(booking(7, "MANUAL", null, 10, 12), booking(8, Booking.DATA_SOURCE_LEGACY, null, 12, 15)),
                 List.of(block(1, null, null, 10, 12)), null);
 
         assertThat(events).extracting(ICalEvent::uid).containsExactly(

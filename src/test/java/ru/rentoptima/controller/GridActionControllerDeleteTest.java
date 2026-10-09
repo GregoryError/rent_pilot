@@ -80,14 +80,14 @@ class GridActionControllerDeleteTest {
         echo.setChannelId(8L);
         echo.setExternalUid("199904867");
 
-        Channel rc = new Channel();
-        rc.setId(8L);
-        rc.setTenantId(TENANT_ID);
-        rc.setName("RealtyCalendar");
+        Channel channel = new Channel();
+        channel.setId(8L);
+        channel.setTenantId(TENANT_ID);
+        channel.setName("Суточно");
 
         when(blockRepo.findById(265L)).thenReturn(Optional.of(manual));
         when(echoRepo.findByManualBlockId(265L)).thenReturn(List.of(echo));
-        when(channelRepo.findAllById(List.of(8L))).thenReturn(List.of(rc));
+        when(channelRepo.findAllById(List.of(8L))).thenReturn(List.of(channel));
 
         RedirectAttributesModelMap redirect = new RedirectAttributesModelMap();
         controller.delete("block:265", null, null, null, redirect);
@@ -97,7 +97,7 @@ class GridActionControllerDeleteTest {
         verify(blockRepo, never()).delete(any());
         assertThat(redirect.getFlashAttributes()).containsKey("success");
         assertThat((String) redirect.getFlashAttributes().get("echoWarning"))
-                .contains("RealtyCalendar");
+                .contains("Суточно");
     }
 
     @Test

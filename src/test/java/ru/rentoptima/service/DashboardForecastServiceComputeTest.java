@@ -39,7 +39,7 @@ class DashboardForecastServiceComputeTest {
         Booking b = new Booking();
         b.setId(id);
         b.setUnitTypeId(UT);
-        b.setDataSource("RC");
+        b.setDataSource(Booking.DATA_SOURCE_LEGACY);
         b.setCheckIn(d(from));
         b.setCheckOut(d(to));
         b.setAmount(new BigDecimal(amount));
@@ -121,7 +121,7 @@ class DashboardForecastServiceComputeTest {
         Booking b = new Booking();
         b.setId(2L);
         b.setUnitTypeId(UT);
-        b.setDataSource("RC");
+        b.setDataSource(Booking.DATA_SOURCE_LEGACY);
         b.setCheckIn(LocalDate.of(2026, 10, 30));
         b.setCheckOut(d(3));
         b.setAmount(new BigDecimal("12000"));

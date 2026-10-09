@@ -12,7 +12,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * AES-256-GCM шифрование чувствительных значений (пароли RC, API-ключи).
+ * AES-256-GCM шифрование чувствительных значений (токены, API-ключи).
  * Ключ шифрования подаётся через env-переменную ENCRYPTION_KEY (base64, 32 байта).
  * <p>
  * Формат шифротекста: base64(IV || ciphertext || tag), где:

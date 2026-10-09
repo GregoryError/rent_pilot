@@ -93,17 +93,15 @@ public class PropertyController {
                          @RequestParam String name,
                          @RequestParam(required = false) String address,
                          @RequestParam(required = false) String city,
-                         @RequestParam(required = false) String rcObjectId,
                          RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        String rcClean = (rcObjectId == null || rcObjectId.isBlank()) ? null : rcObjectId.trim();
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
         int rows = jdbc.update("""
                 UPDATE properties
-                   SET name = ?, address = ?, city = ?, rc_object_id = ?, updated_at = ?
+                   SET name = ?, address = ?, city = ?, updated_at = ?
                  WHERE id = ? AND tenant_id = ?
                 """,
-                name, address, city, rcClean, now, id, tenantId);
+                name, address, city, now, id, tenantId);
         if (rows == 0) {
             log.warn("Property update: 0 строк обновлено (id={}, tenant={})", id, tenantId);
         }

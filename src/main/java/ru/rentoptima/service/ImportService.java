@@ -47,7 +47,7 @@ public class ImportService {
              Workbook wb = new XSSFWorkbook(is)) {
 
             Sheet sheet = wb.getSheetAt(0);
-            // RC export: header at row 2 (index 2), data starts at row 3
+            // Формат файла: заголовок в строке 2 (index 2), данные с строки 3
             // Columns: Создано | Статус | Обновлён статус | Источник | Объект | Название |
             //          Адрес | Заезд | Выезд | Имя | Телефон | Гостей | Примечания |
             //          Сумма | Комиссия | Время заезда | Время выезда |
@@ -139,9 +139,9 @@ public class ImportService {
     public record ClearResult(long deletedBookings, long deletedExpenses) {
     }
 
-    private String mapStatus(String rcStatus) {
-        if (rcStatus == null) return "BOOKED";
-        String s = rcStatus.toLowerCase().trim();
+    private String mapStatus(String rawStatus) {
+        if (rawStatus == null) return "BOOKED";
+        String s = rawStatus.toLowerCase().trim();
         if (s.startsWith("бронь") || s.startsWith("подтвержд") || s.equals("booked")) return "BOOKED";
         if (s.startsWith("отмен") || s.equals("cancelled") || s.equals("canceled")) return "CANCELLED";
         if (s.startsWith("удален") || s.equals("deleted")) return "DELETED";

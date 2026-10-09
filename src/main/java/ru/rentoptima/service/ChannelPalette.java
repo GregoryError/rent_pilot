@@ -24,8 +24,8 @@ public final class ChannelPalette {
             "#DB2F74", "#B8336A", "#C92F9B", "#AE35C4", "#9B4DDB", "#7B4FA8",
             "#4338CA", "#1D4ED8", "#0F766E", "#15803D", "#B45309", "#BE123C");
 
-    /** Занятость из RealtyCalendar: канала у таких броней нет, цвет фиксированный. */
-    public static final String RC_COLOR = "#5B6475";
+    /** Занятость без канала (исторические брони, удалённый канал): цвет фиксированный. */
+    public static final String NO_CHANNEL_COLOR = "#5B6475";
 
     private ChannelPalette() {
     }

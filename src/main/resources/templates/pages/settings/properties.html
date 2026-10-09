@@ -22,14 +22,17 @@
                 <div class="form-group">
                     <label class="form-label">Название *</label>
                     <input type="text" name="name" class="form-input" placeholder="Садовая 5, кв. 38" required>
+                    <div class="form-hint">Как объект называется у вас: видно в шахматке, отчётах и на странице горничной.</div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Город</label>
                     <input type="text" name="city" class="form-input" value="Выборг">
+                    <div class="form-hint">Нужен для поиска конкурентов и подсказок по ценам.</div>
                 </div>
                 <div class="form-group" style="grid-column: 1 / -1;">
                     <label class="form-label">Адрес</label>
                     <input type="text" name="address" class="form-input" placeholder="ул. Садовая, д. 5, кв. 38">
+                    <div class="form-hint">Необязательно. Гостям и площадкам не показывается.</div>
                 </div>
             </div>
             <div style="display: flex; gap: var(--sp-3); margin-top: var(--sp-2);">
@@ -66,16 +69,6 @@
                             <label class="form-label">Адрес</label>
                             <input type="text" name="address" class="form-input form-input--sm" th:value="${prop.address}">
                         </div>
-                        <div class="form-group" style="grid-column: 1 / -1;"
-                             th:if="${prop.rcObjectId != null and !prop.rcObjectId.isBlank()}">
-                            <label class="form-label">RC Object ID
-                                <span class="muted" style="font-weight: var(--weight-normal);">(унаследованное поле)</span>
-                            </label>
-                            <input type="text" name="rcObjectId" class="form-input form-input--sm" th:value="${prop.rcObjectId}">
-                            <div class="form-hint">Оставлено для legacy-объектов на RealtyCalendar. Для новых объектов подключение делается через iCal или прямой API площадки.</div>
-                        </div>
-                        <input type="hidden" name="rcObjectId"
-                               th:if="${prop.rcObjectId == null or prop.rcObjectId.isBlank()}" value="">
                     </div>
                     <div style="display: flex; gap: var(--sp-3); margin-top: var(--sp-2);">
                         <button type="submit" class="btn btn-primary">Сохранить</button>
@@ -92,10 +85,6 @@
                 <div>
                     <div class="text-sm muted" style="margin-bottom: var(--sp-1);">Страница горничной</div>
                     <code class="text-sm" style="color: var(--accent);" th:text="${baseUrl} + '/housekeeper/' + ${prop.housekeeperCode}"></code>
-                </div>
-                <div th:if="${prop.rcObjectId != null and !prop.rcObjectId.isBlank()}" style="grid-column: 1 / -1;">
-                    <div class="text-sm muted" style="margin-bottom: var(--sp-1);">RC ID <span style="opacity:0.7">(legacy)</span></div>
-                    <code class="text-sm mono" th:text="${prop.rcObjectId}"></code>
                 </div>
             </div>
 
@@ -153,18 +142,22 @@
                             <div class="form-group">
                                 <label class="form-label">Название *</label>
                                 <input type="text" name="name" class="form-input form-input--sm" required placeholder="Основной">
+                                <div class="form-hint">Тип номера. Для квартиры хватит одной категории.</div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Кол-во</label>
                                 <input type="number" name="unitCount" class="form-input form-input--sm" min="1" value="1">
+                                <div class="form-hint">Сколько одинаковых номеров. Для квартиры — 1.</div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Цена, ₽</label>
                                 <input type="number" name="basePrice" class="form-input form-input--sm" step="0.01">
+                                <div class="form-hint">Цена за ночь в будни, если на дату не задана своя.</div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Выходные, ₽</label>
                                 <input type="number" name="weekendPrice" class="form-input form-input--sm" step="0.01">
+                                <div class="form-hint">Цена за ночь в выходные.</div>
                             </div>
                         </div>
                         <div style="display: flex; gap: var(--sp-3);">

@@ -41,7 +41,7 @@ public class OccupancyGridService {
     private final ProductionCalendarService prodCalendar;
     private final EffectivePriceService effectivePrice;
 
-    private static final String RC_STYLE = "background: " + ChannelPalette.RC_COLOR;
+    private static final String NO_CHANNEL_STYLE = "background: " + ChannelPalette.NO_CHANNEL_COLOR;
 
     public GridView build(Long tenantId, LocalDate start, int span) {
         LocalDate today = LocalDate.now();
@@ -112,7 +112,7 @@ public class OccupancyGridService {
         boolean hasProperties = !properties.isEmpty();
 
         int conflictCount = 0;
-        boolean rcPainted = false;
+        boolean noChannelPainted = false;
         List<Row> rows = new ArrayList<>();
         for (Property p : properties) {
             List<UnitType> uts = unitTypesByProperty.getOrDefault(p.getId(), List.of());
@@ -141,7 +141,7 @@ public class OccupancyGridService {
                     Paint paint = "full".equals(status)
                             ? paintOf(day, channelNames, channelColors) : Paint.NONE;
 
-                    if (RC_STYLE.equals(paint.style())) rcPainted = true;
+                    if (NO_CHANNEL_STYLE.equals(paint.style())) noChannelPainted = true;
 
                     StringBuilder cellCls = new StringBuilder("grid__cell grid__cell--");
                     cellCls.append(status);
@@ -175,7 +175,7 @@ public class OccupancyGridService {
             }
         }
 
-        if (rcPainted) legendChannels.add(new LegendChannel("RealtyCalendar", "R", RC_STYLE));
+        if (noChannelPainted) legendChannels.add(new LegendChannel("Без канала", "•", NO_CHANNEL_STYLE));
 
         return new GridView(dayHeaders, rows, conflictCount, empty, hasProperties, legendChannels);
     }
@@ -186,7 +186,7 @@ public class OccupancyGridService {
      * Иначе — цвет канала, от которого запись пришла раньше всех. Так выбирается
      * площадка-источник, а не эхо: бронь с площадки A мы отдаём площадке B, та закрывает
      * даты у себя и возвращает их в своём фиде — но всегда позже, чем мы узнали о брони от A.
-     * У броней из RC канала нет, для них отдельный фиксированный цвет.
+     * У исторических броней канала нет, для них отдельный фиксированный цвет.
      */
     private static Paint paintOf(DayOccupancy day, Map<Long, String> channelNames,
                                  Map<Long, String> channelColors) {
@@ -199,7 +199,7 @@ public class OccupancyGridService {
             if (o.channelId() == null || !channelColors.containsKey(o.channelId())) continue;
             if (source == null || seenEarlier(o, source)) source = o;
         }
-        if (source == null) return new Paint(RC_STYLE, "R", false);
+        if (source == null) return new Paint(NO_CHANNEL_STYLE, "•", false);
         return new Paint("background: " + channelColors.get(source.channelId()),
                 ChannelPalette.letterOf(channelNames.get(source.channelId())), false);
     }
@@ -249,7 +249,6 @@ public class OccupancyGridService {
         }
         String channel = o.channelId() == null ? null : channelNames.get(o.channelId());
         if (channel != null) return channel;
-        if ("RC".equals(o.dataSource())) return "RealtyCalendar";
         return o.booking() ? "бронь с площадки" : "iCal-канал";
     }
 

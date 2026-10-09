@@ -28,7 +28,7 @@ class ChannelPaletteTest {
             assertThat(color).matches("#[0-9A-F]{6}");
             assertThat(contrastWithWhite(color)).as(color).isGreaterThanOrEqualTo(3.4);
         }
-        assertThat(contrastWithWhite(ChannelPalette.RC_COLOR)).isGreaterThanOrEqualTo(3.4);
+        assertThat(contrastWithWhite(ChannelPalette.NO_CHANNEL_COLOR)).isGreaterThanOrEqualTo(3.4);
     }
 
     @Test

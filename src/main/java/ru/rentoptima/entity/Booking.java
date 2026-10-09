@@ -21,9 +21,6 @@ public class Booking extends BaseEntity {
     @JoinColumn(name = "property_id", nullable = false)
     private Property property;
 
-    @Column(name = "rc_booking_id")
-    private String rcBookingId;
-
     private String source;
 
     @Column(nullable = false)
@@ -74,7 +71,6 @@ public class Booking extends BaseEntity {
 
     /**
      * External ID брони в исходной системе:
-     * - RC: booking_id из RC
      * - Avito: booking_id из Avito API
      * - iCal: UID из VEVENT
      * - Manual: null
@@ -84,13 +80,20 @@ public class Booking extends BaseEntity {
 
     /**
      * Классификатор источника данных брони для дашборда и моделирования выручки.
-     * V19: 'RC' | 'ICAL' | 'AVITO' | 'MANUAL'; V22: 'WIDGET' (заявка со страницы бронирования). Все исторические строки backfill'ены как 'RC'.
+     * 'ICAL' | 'AVITO' | 'MANUAL' | 'WIDGET' (заявка со страницы бронирования) |
+     * {@link #DATA_SOURCE_LEGACY} — исторические брони, загруженные до перехода на iCal-каналы.
      * <p>
-     * Используется для различения «реальная сумма» (RC, AVITO) и «моделируем по
-     * запланированной цене» (ICAL, MANUAL без указанной суммы).
+     * Используется для различения «реальная сумма» (исторические, AVITO) и «моделируем
+     * по запланированной цене» (ICAL, MANUAL без указанной суммы).
      */
     @Column(name = "data_source", length = 30)
     private String dataSource;
+
+    /**
+     * Значение data_source у исторических броней, загруженных до перехода на
+     * iCal-каналы. Новых таких записей не появляется; значение в базе не меняем.
+     */
+    public static final String DATA_SOURCE_LEGACY = "RC";
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();

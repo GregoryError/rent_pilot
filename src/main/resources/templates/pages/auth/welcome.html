@@ -12,18 +12,18 @@
         <div style="text-align: center; margin-bottom: 2rem;">
             <div class="mb-4"><svg th:replace="~{fragments/logo :: mark(64)}"></svg></div>
             <h1 class="page-title">Добро пожаловать в RentOptima!</h1>
-            <p class="page-subtitle">Осталось пару шагов до запуска автопилота</p>
+            <p class="page-subtitle">Осталась пара шагов до начала работы</p>
         </div>
 
         <div class="card" style="margin-bottom: var(--sp-4);">
             <div style="display: flex; align-items: flex-start; gap: 1rem;">
                 <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">1</div>
                 <div style="flex: 1;">
-                    <h3 style="margin: 0 0 0.5rem 0;">Подключите RealtyCalendar</h3>
+                    <h3 style="margin: 0 0 0.5rem 0;">Добавьте объекты</h3>
                     <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-                        Система работает поверх RealtyCalendar. Введите свои логин и пароль — мы синхронизируем ваши бронирования и научимся управлять ценами.
+                        Укажите свои квартиры: название, адрес, город. Один аккаунт — сколько угодно объектов.
                     </p>
-                    <a th:href="@{/settings/integrations}" class="btn btn--primary">Подключить RC →</a>
+                    <a th:href="@{/settings/properties}" class="btn btn--primary">Добавить объект →</a>
                 </div>
             </div>
         </div>
@@ -32,9 +32,10 @@
             <div style="display: flex; align-items: flex-start; gap: 1rem;">
                 <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--bg-raised); color: var(--text-secondary); display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">2</div>
                 <div style="flex: 1;">
-                    <h3 style="margin: 0 0 0.5rem 0;">Добавьте объекты</h3>
+                    <h3 style="margin: 0 0 0.5rem 0;">Подключите площадки по iCal</h3>
                     <p style="color: var(--text-secondary); margin: 0;">
-                        Укажите свои квартиры с их ID в RealtyCalendar. Один аккаунт — сколько угодно объектов.
+                        В разделе «Каналы» вставьте ссылку на календарь площадки (Авито, Суточно, Островок и другие)
+                        и передайте площадке нашу ссылку — занятость будет синхронизироваться в обе стороны.
                     </p>
                 </div>
             </div>

@@ -24,9 +24,6 @@ public class Property extends BaseEntity {
     private String address;
     private String city;
 
-    @Column(name = "rc_object_id")
-    private String rcObjectId;
-
     @Column(name = "feedback_code", nullable = false, unique = true)
     private String feedbackCode;
 
