@@ -134,6 +134,21 @@
             <span th:text="${error}"></span>
         </div>
 
+        <!-- После удаления ручной записи, которую успели забрать площадки -->
+        <dialog th:if="${echoWarning}" id="echo-warning" class="action-dialog">
+            <div class="action-dialog__header">
+                <div class="action-dialog__title">Проверьте площадки</div>
+                <button type="button" class="action-dialog__close"
+                        onclick="document.getElementById('echo-warning').close()">×</button>
+            </div>
+            <div class="action-dialog__body" th:text="${echoWarning}"></div>
+            <div class="action-dialog__footer">
+                <button type="button" class="btn btn-primary"
+                        onclick="document.getElementById('echo-warning').close()">Понятно</button>
+            </div>
+        </dialog>
+        <script th:if="${echoWarning}">document.getElementById('echo-warning').showModal();</script>
+
         <div layout:fragment="content"></div>
     </main>
 </div>

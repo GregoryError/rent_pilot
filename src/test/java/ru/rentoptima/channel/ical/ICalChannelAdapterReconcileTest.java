@@ -13,9 +13,17 @@ import ru.rentoptima.entity.CalendarBlock;
 import ru.rentoptima.entity.Channel;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.entity.UnitType;
+import ru.rentoptima.entity.ManualBlockEcho;
 import ru.rentoptima.repository.CalendarBlockRepository;
+import ru.rentoptima.repository.ManualBlockEchoRepository;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -55,12 +63,39 @@ class ICalChannelAdapterReconcileTest {
 
     @Mock ICalFeedFetcher fetcher;
     @Mock CalendarBlockRepository blockRepo;
+    @Mock ManualBlockEchoRepository echoRepo;
 
     ICalChannelAdapter adapter;
 
     @BeforeEach
     void setUp() {
-        adapter = new ICalChannelAdapter(fetcher, blockRepo);
+        adapter = new ICalChannelAdapter(fetcher, blockRepo, echoRepo);
+    }
+
+    private static final LocalDate ECHO_FROM = LocalDate.of(2026, 11, 13);
+    private static final LocalDate ECHO_TO = LocalDate.of(2026, 11, 14);
+
+    /** Ручная бронь на 13–14 ноября, заведённая daysAgo дней назад. */
+    private CalendarBlock manual(long id, int daysAgo) {
+        CalendarBlock m = new CalendarBlock();
+        m.setId(id);
+        m.setTenantId(TENANT_ID);
+        m.setUnitTypeId(UNIT_TYPE_ID);
+        m.setBlockType(CalendarBlock.BlockType.MANUAL_BOOKING);
+        m.setFromDate(ECHO_FROM);
+        m.setToDate(ECHO_TO);
+        m.setCreatedAt(LocalDateTime.now().minusDays(daysAgo));
+        return m;
+    }
+
+    /** Репозиторий отдаёт только ручные записи моложе запрошенного момента — как настоящий запрос. */
+    private void manualBlocksInDb(CalendarBlock... blocks) {
+        when(blockRepo.findByUnitTypeIdAndChannelIdIsNullAndCreatedAtAfter(eq(UNIT_TYPE_ID), any()))
+                .thenAnswer(inv -> {
+                    LocalDateTime since = inv.getArgument(1);
+                    return List.of(blocks).stream()
+                            .filter(b -> b.getCreatedAt().isAfter(since)).toList();
+                });
     }
 
     private ChannelContext ctx() {
@@ -245,5 +280,161 @@ class ICalChannelAdapterReconcileTest {
 
         assertThat(result.removed()).isZero();
         verify(blockRepo, never()).delete(any());
+    }
+
+    @Test
+    @DisplayName("событие с нашим UID-маркером → блокировка не создаётся, в логе skipped echo")
+    void ownUidMarker_skippedAndLogged() {
+        Logger logger = (Logger) LoggerFactory.getLogger(ICalChannelAdapter.class);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        logger.addAppender(logs);
+        try {
+            when(blockRepo.findById(123L)).thenReturn(Optional.of(manual(123L, 1)));
+            when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+            ChannelSyncResult result = adapter.reconcile(ctx(), List.of(
+                    event("optirent-manual-123@optirent.ru", ECHO_FROM, ECHO_TO, false)));
+
+            assertThat(result.imported()).isZero();
+            assertThat(result.skipped()).isEqualTo(1);
+            verify(blockRepo, never()).save(any());
+            assertThat(logs.list).extracting(ILoggingEvent::getFormattedMessage).contains(
+                    "Skipped echo of own MANUAL booking: external_uid=optirent-manual-123@optirent.ru, channel="
+                            + CHANNEL_ID);
+
+            // заодно запомнили, что запись видели на этом канале
+            ArgumentCaptor<ManualBlockEcho> echo = ArgumentCaptor.forClass(ManualBlockEcho.class);
+            verify(echoRepo).save(echo.capture());
+            assertThat(echo.getValue().getManualBlockId()).isEqualTo(123L);
+            assertThat(echo.getValue().getChannelId()).isEqualTo(CHANNEL_ID);
+        } finally {
+            logger.detachAppender(logs);
+        }
+    }
+
+    @Test
+    @DisplayName("ранее импортированное эхо с нашим UID-маркером снимается при сверке")
+    void ownUidMarker_existingEchoBlockRemoved() {
+        CalendarBlock stale = new CalendarBlock();
+        stale.setChannelId(CHANNEL_ID);
+        stale.setExternalUid("optirent-manual-123@optirent.ru");
+        stale.setUnitTypeId(UNIT_TYPE_ID);
+        stale.setFromDate(ECHO_FROM);
+        stale.setToDate(ECHO_TO);
+
+        when(blockRepo.findById(123L)).thenReturn(Optional.empty());
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of(stale));
+
+        ChannelSyncResult result = adapter.reconcile(ctx(), List.of(
+                event("optirent-manual-123@optirent.ru", ECHO_FROM, ECHO_TO, false)));
+
+        assertThat(result.removed()).isEqualTo(1);
+        verify(blockRepo).delete(stale);
+        verify(echoRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("чужой UID, даты совпали со свежей ручной записью → блокировки нет, связь записана")
+    void foreignUidSameDatesAsRecentManual_linked() {
+        manualBlocksInDb(manual(265L, 0));
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.empty());
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+        ChannelSyncResult result = adapter.reconcile(ctx(),
+                List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
+
+        assertThat(result.imported()).isZero();
+        assertThat(result.skipped()).isEqualTo(1);
+        verify(blockRepo, never()).save(any());
+
+        ArgumentCaptor<ManualBlockEcho> echo = ArgumentCaptor.forClass(ManualBlockEcho.class);
+        verify(echoRepo).save(echo.capture());
+        assertThat(echo.getValue().getManualBlockId()).isEqualTo(265L);
+        assertThat(echo.getValue().getChannelId()).isEqualTo(CHANNEL_ID);
+        assertThat(echo.getValue().getExternalUid()).isEqualTo("199904867");
+        assertThat(echo.getValue().getTenantId()).isEqualTo(TENANT_ID);
+    }
+
+    @Test
+    @DisplayName("ручной записи 10 дней → совпадение дат уже не эхо, блокировка создаётся")
+    void foreignUidSameDatesAsOldManual_created() {
+        manualBlocksInDb(manual(265L, 10));
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.empty());
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+        ChannelSyncResult result = adapter.reconcile(ctx(),
+                List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
+
+        assertThat(result.imported()).isEqualTo(1);
+        verify(blockRepo).save(any(CalendarBlock.class));
+        verify(echoRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("чужой UID на даты без ручной записи → обычная блокировка")
+    void foreignUidOtherDates_created() {
+        manualBlocksInDb(manual(265L, 0));
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.empty());
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+        ChannelSyncResult result = adapter.reconcile(ctx(), List.of(
+                event("199904867", LocalDate.of(2026, 11, 20), LocalDate.of(2026, 11, 22), false)));
+
+        assertThat(result.imported()).isEqualTo(1);
+        verify(blockRepo).save(any(CalendarBlock.class));
+        verify(echoRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("уже привязанное эхо пропускается и после окна в 7 дней, и после удаления ручной записи")
+    void knownEcho_skippedWithoutNewLink() {
+        CalendarBlock old = manual(265L, 20);
+        old.setCancelledAt(LocalDateTime.now().minusDays(1));
+        ManualBlockEcho known = new ManualBlockEcho();
+        known.setManualBlockId(265L);
+        known.setChannelId(CHANNEL_ID);
+        known.setExternalUid("199904867");
+
+        when(echoRepo.findByChannelId(CHANNEL_ID)).thenReturn(List.of(known));
+        when(blockRepo.findById(265L)).thenReturn(Optional.of(old));
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+        ChannelSyncResult result = adapter.reconcile(ctx(),
+                List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
+
+        assertThat(result.imported()).isZero();
+        assertThat(result.skipped()).isEqualTo(1);
+        verify(blockRepo, never()).save(any());
+        verify(echoRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("блокировка, импортированная до ручной записи, эхом не становится")
+    void existingChannelBlock_notRelinked() {
+        CalendarBlock existing = new CalendarBlock();
+        existing.setChannelId(CHANNEL_ID);
+        existing.setExternalUid("199904867");
+        existing.setUnitTypeId(UNIT_TYPE_ID);
+        existing.setBlockType(CalendarBlock.BlockType.CHANNEL_SYNC);
+        existing.setFromDate(ECHO_FROM);
+        existing.setToDate(ECHO_TO);
+        existing.setReason("test-summary");
+
+        manualBlocksInDb(manual(265L, 0));
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.of(existing));
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any()))
+                .thenReturn(List.of(existing));
+
+        ChannelSyncResult result = adapter.reconcile(ctx(),
+                List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
+
+        assertThat(result.removed()).isZero();
+        verify(blockRepo, never()).delete(any());
+        verify(echoRepo, never()).save(any());
     }
 }

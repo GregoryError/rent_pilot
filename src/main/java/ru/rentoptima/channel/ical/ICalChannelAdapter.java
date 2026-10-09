@@ -10,12 +10,16 @@ import ru.rentoptima.channel.ChannelContext;
 import ru.rentoptima.channel.ChannelSyncResult;
 import ru.rentoptima.entity.CalendarBlock;
 import ru.rentoptima.entity.Channel;
+import ru.rentoptima.entity.ManualBlockEcho;
 import ru.rentoptima.repository.CalendarBlockRepository;
+import ru.rentoptima.repository.ManualBlockEchoRepository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -42,14 +46,38 @@ import java.util.Set;
  * гость отменил бронь на площадке, даты должны освободиться. За пределами окна
  * ничего не трогаем: фид обычно отдаёт ограниченный горизонт, и «тишина» за его
  * краем не означает отмену.
+ * <p>
+ * <b>Эхо ручных записей.</b> Ручная запись уходит в экспорт всех каналов, а площадки
+ * (и channel manager'ы за ними) возвращают импортированное обратно. Блокировку по
+ * такому событию создавать нельзя: она переживёт удаление исходной записи и будет
+ * возвращаться при каждой синхронизации, а через второй канал — поддерживать сама
+ * себя. Эхо узнаём двумя способами:
+ * <ul>
+ *   <li>по UID-маркеру {@code optirent-manual-<id>} — площадка сохранила наш UID;</li>
+ *   <li>по датам — площадка выдала свой UID: событие новое для нас, а его даты
+ *       совпадают с ручной записью, заведённой не раньше {@link #ECHO_MATCH_WINDOW_DAYS}
+ *       дней назад. Только для категорий с одной единицей: в мини-отеле те же даты
+ *       у другого номера — обычное дело, а не эхо.</li>
+ * </ul>
+ * Найденное эхо запоминается в {@code manual_block_echoes} и дальше пропускается по
+ * связи — в том числе после удаления ручной записи, пока та хранится как отменённая.
+ * Это дополнение к anti-echo по channel_id в экспорте, а не замена ему.
  */
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class ICalChannelAdapter implements ChannelAdapter {
 
+    /**
+     * Сколько дней после создания ручной записи совпадение дат с новым событием канала
+     * считается эхом. Позже — это уже настоящая бронь на те же даты. Константа на
+     * время MVP; при необходимости выносится в настройку tenant'а.
+     */
+    static final int ECHO_MATCH_WINDOW_DAYS = 7;
+
     private final ICalFeedFetcher fetcher;
     private final CalendarBlockRepository blockRepo;
+    private final ManualBlockEchoRepository echoRepo;
 
     @Override
     public Channel.ChannelType type() {
@@ -92,6 +120,17 @@ public class ICalChannelAdapter implements ChannelAdapter {
         int imported = 0, updated = 0, removed = 0, skipped = 0;
         Set<String> seenUids = new HashSet<>();
 
+        Map<String, ManualBlockEcho> echoes = new HashMap<>();
+        for (ManualBlockEcho e : echoRepo.findByChannelId(channel.getId())) {
+            echoes.put(e.getExternalUid(), e);
+        }
+        Integer unitCount = ctx.unitType() == null ? null : ctx.unitType().getUnitCount();
+        boolean singleUnit = unitCount == null || unitCount <= 1;
+        List<CalendarBlock> recentManual = singleUnit
+                ? blockRepo.findByUnitTypeIdAndChannelIdIsNullAndCreatedAtAfter(
+                        ctx.unitTypeId(), LocalDateTime.now().minusDays(ECHO_MATCH_WINDOW_DAYS))
+                : List.of();
+
         for (ICalEvent ev : events) {
             // Событие вне окна синхронизации — не наша забота на этом прогоне.
             if (!ev.start().isBefore(to) || !ev.end().isAfter(from)) {
@@ -100,6 +139,23 @@ public class ICalChannelAdapter implements ChannelAdapter {
             }
             if (ev.cancelled()) {
                 // Отменённые не добавляем в seenUids — ниже их блокировки снимутся.
+                skipped++;
+                continue;
+            }
+
+            // Эхо в seenUids не попадает: если по нему раньше успела создаться
+            // блокировка, сверка ниже её снимет.
+            if (ev.uid().startsWith(CalendarBlock.MANUAL_UID_PREFIX)) {
+                if (!echoes.containsKey(ev.uid())) linkOwnUid(ctx, ev, echoes);
+                log.info("Skipped echo of own MANUAL booking: external_uid={}, channel={}",
+                        ev.uid(), channel.getId());
+                skipped++;
+                continue;
+            }
+            ManualBlockEcho known = echoes.get(ev.uid());
+            if (known != null && sameDatesAsManual(known, ev)) {
+                log.debug("iCal channel {}: пропущено известное эхо uid={} ручной записи {}",
+                        channel.getId(), ev.uid(), known.getManualBlockId());
                 skipped++;
                 continue;
             }
@@ -132,6 +188,19 @@ public class ICalChannelAdapter implements ChannelAdapter {
                 continue;
             }
 
+            // Событие для нас новое. Блокировки, импортированные раньше, сюда не
+            // доходят и эхом задним числом не становятся: бронь, которая пришла с
+            // площадки до ручной записи, — настоящая.
+            CalendarBlock manual = known == null ? matchRecentManual(recentManual, ev) : null;
+            if (manual != null) {
+                echoes.put(ev.uid(), saveEcho(ctx, manual, ev.uid()));
+                seenUids.remove(ev.uid());
+                log.info("Linked echo from channel {} (UID={}) to MANUAL block {}",
+                        channel.getId(), ev.uid(), manual.getId());
+                skipped++;
+                continue;
+            }
+
             CalendarBlock b = new CalendarBlock();
             b.setTenantId(ctx.tenantId());
             b.setUnitTypeId(ctx.unitTypeId());
@@ -155,6 +224,64 @@ public class ICalChannelAdapter implements ChannelAdapter {
         }
 
         return new ChannelSyncResult(imported, updated, removed, skipped);
+    }
+
+    /**
+     * Площадка вернула событие с нашим UID-маркером: запоминаем, что ручную запись
+     * видели на этом канале (нужно для предупреждения при её удалении). Если запись
+     * по id из UID не находится или она чужая — связь не создаём, событие всё равно
+     * пропускается.
+     */
+    private void linkOwnUid(ChannelContext ctx, ICalEvent ev, Map<String, ManualBlockEcho> echoes) {
+        String tail = ev.uid().substring(CalendarBlock.MANUAL_UID_PREFIX.length());
+        int at = tail.indexOf('@');
+        Long blockId;
+        try {
+            blockId = Long.valueOf(at >= 0 ? tail.substring(0, at) : tail);
+        } catch (NumberFormatException e) {
+            return;
+        }
+        CalendarBlock manual = blockRepo.findById(blockId).orElse(null);
+        if (manual == null || !manual.isHandMade()
+                || !Objects.equals(manual.getTenantId(), ctx.tenantId())
+                || !Objects.equals(manual.getUnitTypeId(), ctx.unitTypeId())) {
+            return;
+        }
+        echoes.put(ev.uid(), saveEcho(ctx, manual, ev.uid()));
+        log.info("Linked echo from channel {} (UID={}) to MANUAL block {}",
+                ctx.channel().getId(), ev.uid(), manual.getId());
+    }
+
+    private ManualBlockEcho saveEcho(ChannelContext ctx, CalendarBlock manual, String uid) {
+        ManualBlockEcho echo = new ManualBlockEcho();
+        echo.setTenantId(ctx.tenantId());
+        echo.setManualBlockId(manual.getId());
+        echo.setChannelId(ctx.channel().getId());
+        echo.setExternalUid(uid);
+        echoRepo.save(echo);
+        return echo;
+    }
+
+    /**
+     * Известное эхо остаётся эхом, пока его даты совпадают с ручной записью. Если на
+     * площадке событие сдвинули — это уже самостоятельная занятость, импортируем как обычно.
+     */
+    private boolean sameDatesAsManual(ManualBlockEcho echo, ICalEvent ev) {
+        return blockRepo.findById(echo.getManualBlockId())
+                .map(m -> ev.start().equals(m.getFromDate()) && ev.end().equals(m.getToDate()))
+                .orElse(false);
+    }
+
+    /** Ручная запись с теми же датами; живая предпочтительнее удалённой. */
+    private static CalendarBlock matchRecentManual(List<CalendarBlock> recentManual, ICalEvent ev) {
+        CalendarBlock match = null;
+        for (CalendarBlock m : recentManual) {
+            if (!m.isHandMade()) continue;
+            if (!ev.start().equals(m.getFromDate()) || !ev.end().equals(m.getToDate())) continue;
+            if (m.getCancelledAt() == null) return m;
+            if (match == null) match = m;
+        }
+        return match;
     }
 
     private String reasonOf(ICalEvent ev, Channel channel) {

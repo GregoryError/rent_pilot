@@ -2,6 +2,7 @@ package ru.rentoptima.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.rentoptima.channel.ical.ICalWriter;
@@ -43,6 +44,14 @@ public class AvailabilityService {
 
     private final BookingRepository bookingRepo;
     private final CalendarBlockRepository blockRepo;
+
+    /**
+     * Отдавать ли удалённые ручные записи в экспорт со STATUS:CANCELLED. Выключатель
+     * на случай площадки, которая STATUS не читает и закрывает даты по отменённому
+     * событию: APP_ICAL_EXPORT_CANCELLED=false.
+     */
+    @Value("${app.ical.export-cancelled:true}")
+    private boolean exportCancelled = true;
 
     /**
      * Сколько единиц категории занято в каждую дату окна [from, to).
@@ -105,7 +114,8 @@ public class AvailabilityService {
      * <p>
      * Для категории с несколькими единицами (мини-отель) так нельзя: отдельная запись
      * там не означает «продано» — продано, только когда заняты все номера. Поэтому там
-     * отдаются распроданные ночи, склеенные в интервалы ({@link #busyPeriods}).
+     * отдаются распроданные ночи, склеенные в интервалы ({@link #busyPeriods}); удалённые
+     * ручные записи со STATUS:CANCELLED туда не попадают — у интервала нет UID записи.
      */
     @Transactional(readOnly = true)
     public List<ICalWriter.BusyPeriod> exportEvents(UnitType unitType,
@@ -123,6 +133,7 @@ public class AvailabilityService {
         return buildExportEvents(
                 bookingRepo.findActiveByUnitTypesInRange(ids, from, to),
                 blockRepo.findByUnitTypesInRange(ids, from, to),
+                exportCancelled ? blockRepo.findCancelledByUnitTypesInRange(ids, from, to) : List.of(),
                 excludeChannelId);
     }
 
@@ -132,15 +143,27 @@ public class AvailabilityService {
      *   <li>записи канала {@code excludeChannelId} не отдаются (anti-echo);</li>
      *   <li>ручная бронь хранится парой «блокировка + бронь» с одинаковыми датами —
      *       в фид идёт только блокировка;</li>
-     *   <li>UID блокировки — её {@code external_uid}, если он есть, иначе
-     *       {@code block-<id>@optirent.ru}; UID брони — {@code booking-<id>@optirent.ru}.
-     *       Если внешний UID в фиде уже встречался (два канала прислали одинаковый),
-     *       повторный заменяется на собственный: одинаковые UID в одном календаре
-     *       площадки схлопывают в одно событие.</li>
+     *   <li>UID ручной записи — {@code optirent-manual-<id>@optirent.ru}: по этому
+     *       маркеру импорт узнаёт собственное эхо, вернувшееся от площадки
+     *       (см. ICalChannelAdapter);</li>
+     *   <li>UID блокировки с канала — её {@code external_uid}; UID брони —
+     *       {@code booking-<id>@optirent.ru}. Если внешний UID в фиде уже встречался
+     *       (два канала прислали одинаковый), повторный заменяется на
+     *       {@code block-<id>@optirent.ru}: одинаковые UID в одном календаре
+     *       площадки схлопывают в одно событие;</li>
+     *   <li>удалённые ручные записи ({@code cancelledBlocks}) идут с тем же UID и
+     *       STATUS:CANCELLED — площадка, которая это понимает, сама снимет блокировку.</li>
      * </ul>
      */
     static List<ICalWriter.BusyPeriod> buildExportEvents(List<Booking> bookings,
                                                           List<CalendarBlock> blocks,
+                                                          Long excludeChannelId) {
+        return buildExportEvents(bookings, blocks, List.of(), excludeChannelId);
+    }
+
+    static List<ICalWriter.BusyPeriod> buildExportEvents(List<Booking> bookings,
+                                                          List<CalendarBlock> blocks,
+                                                          List<CalendarBlock> cancelledBlocks,
                                                           Long excludeChannelId) {
         List<ICalWriter.BusyPeriod> events = new ArrayList<>();
         Set<String> usedUids = new HashSet<>();
@@ -153,7 +176,7 @@ public class AvailabilityService {
                 manualBlocks.merge(new ManualKey(b.getUnitTypeId(), b.getFromDate(), b.getToDate()),
                         1, Integer::sum);
             }
-            String own = "block-" + b.getId() + "@" + UID_DOMAIN;
+            String own = b.isHandMade() ? manualUid(b) : "block-" + b.getId() + "@" + UID_DOMAIN;
             String external = b.getExternalUid();
             String uid = external != null && !external.isBlank() && !usedUids.contains(external)
                     ? external : own;
@@ -176,9 +199,19 @@ public class AvailabilityService {
                     b.getCheckIn(), b.getCheckOut(), "Занято"));
         }
 
+        for (CalendarBlock b : cancelledBlocks) {
+            if (b.getFromDate() == null || b.getToDate() == null || !b.isHandMade()) continue;
+            events.add(new ICalWriter.BusyPeriod(manualUid(b), b.getFromDate(), b.getToDate(),
+                    "Отменено", true));
+        }
+
         events.sort(Comparator.comparing(ICalWriter.BusyPeriod::from)
                 .thenComparing(ICalWriter.BusyPeriod::uid));
         return events;
+    }
+
+    private static String manualUid(CalendarBlock b) {
+        return CalendarBlock.MANUAL_UID_PREFIX + b.getId() + "@" + UID_DOMAIN;
     }
 
     /**

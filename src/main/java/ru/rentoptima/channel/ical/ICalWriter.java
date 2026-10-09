@@ -53,7 +53,14 @@ public final class ICalWriter {
             sb.append("DTSTART;VALUE=DATE:").append(p.from().format(DATE)).append(CRLF);
             sb.append("DTEND;VALUE=DATE:").append(p.to().format(DATE)).append(CRLF);
             appendFolded(sb, "SUMMARY:" + escape(p.summary()));
-            sb.append("TRANSP:OPAQUE").append(CRLF);
+            if (p.cancelled()) {
+                // TRANSPARENT — подстраховка для импортёров, которые не читают STATUS,
+                // но смотрят на TRANSP: отменённое событие не должно закрывать даты.
+                sb.append("STATUS:CANCELLED").append(CRLF);
+                sb.append("TRANSP:TRANSPARENT").append(CRLF);
+            } else {
+                sb.append("TRANSP:OPAQUE").append(CRLF);
+            }
             sb.append("END:VEVENT").append(CRLF);
         }
 
@@ -64,13 +71,21 @@ public final class ICalWriter {
     /**
      * Занятый интервал для выгрузки.
      *
-     * @param uid     полный UID события, пишется в фид как есть: внешний UID блокировки
-     *                либо "block-42@optirent.ru" / "booking-42@optirent.ru"
-     * @param from    дата заезда, включительно
-     * @param to      дата выезда, НЕ включительно
-     * @param summary текст события
+     * @param uid       полный UID события, пишется в фид как есть: внешний UID блокировки
+     *                  либо "optirent-manual-42@optirent.ru" / "block-42@optirent.ru" /
+     *                  "booking-42@optirent.ru"
+     * @param from      дата заезда, включительно
+     * @param to        дата выезда, НЕ включительно
+     * @param summary   текст события
+     * @param cancelled запись удалена у нас: событие уходит со STATUS:CANCELLED, чтобы
+     *                  площадка сняла импортированную блокировку
      */
-    public record BusyPeriod(String uid, LocalDate from, LocalDate to, String summary) {
+    public record BusyPeriod(String uid, LocalDate from, LocalDate to, String summary,
+                             boolean cancelled) {
+
+        public BusyPeriod(String uid, LocalDate from, LocalDate to, String summary) {
+            this(uid, from, to, summary, false);
+        }
     }
 
     /**

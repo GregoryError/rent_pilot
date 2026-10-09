@@ -63,7 +63,8 @@ class ICalExportEventsTest {
 
         assertThat(events).hasSize(3);
         assertThat(events).extracting(ICalEvent::uid).containsExactly(
-                "block-1@optirent.ru", "block-2@optirent.ru", "block-3@optirent.ru");
+                "optirent-manual-1@optirent.ru", "optirent-manual-2@optirent.ru",
+                "optirent-manual-3@optirent.ru");
         assertThat(events).extracting(ICalEvent::start).containsExactly(d(10), d(11), d(12));
         assertThat(events).extracting(ICalEvent::end).containsExactly(d(11), d(12), d(13));
     }
@@ -111,7 +112,38 @@ class ICalExportEventsTest {
                 List.of(block(1, null, null, 10, 12)), null);
 
         assertThat(events).extracting(ICalEvent::uid).containsExactly(
-                "block-1@optirent.ru", "booking-8@optirent.ru");
+                "optirent-manual-1@optirent.ru", "booking-8@optirent.ru");
+    }
+
+    @Test
+    @DisplayName("ручная запись уходит с UID-маркером optirent-manual-<id>, блокировка канала — без него")
+    void manualBlockGetsMarkerUid() {
+        CalendarBlock maintenance = block(43, null, null, 14, 16);
+        maintenance.setBlockType(CalendarBlock.BlockType.MAINTENANCE);
+
+        List<ICalEvent> events = feed(List.of(), List.of(
+                block(42, null, null, 10, 12),
+                block(7, 9L, "199904867", 12, 14),
+                maintenance), null);
+
+        assertThat(events).extracting(ICalEvent::uid).containsExactly(
+                "optirent-manual-42@optirent.ru", "199904867", "optirent-manual-43@optirent.ru");
+    }
+
+    @Test
+    @DisplayName("удалённая ручная запись остаётся в фиде со STATUS:CANCELLED и прежним UID")
+    void cancelledManualIsExportedAsCancelled() {
+        CalendarBlock cancelled = block(42, null, null, 10, 12);
+        cancelled.setCancelledAt(java.time.LocalDateTime.now());
+
+        String ics = ICalWriter.write("Тест", AvailabilityService.buildExportEvents(
+                List.of(), List.of(block(1, null, null, 20, 22)), List.of(cancelled), 9L));
+
+        assertThat(ics).containsOnlyOnce("STATUS:CANCELLED");
+        List<ICalEvent> events = ICalParser.parse(ics);
+        assertThat(events).extracting(ICalEvent::uid).containsExactly(
+                "optirent-manual-42@optirent.ru", "optirent-manual-1@optirent.ru");
+        assertThat(events).extracting(ICalEvent::cancelled).containsExactly(true, false);
     }
 
     @Test

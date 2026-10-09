@@ -148,6 +148,25 @@
         actionForm.submit();
     }
 
+    // Блокировка с площадки: «открыть даты» у нас либо вернуть как было
+    function toggleChannelBlock(entry, open) {
+        const question = open
+            ? 'Открыть даты ' + entry.fromDate + ' — ' + entry.toDate + '?\n\n'
+                + 'Они станут свободными в шахматке и перестанут закрываться на других площадках. '
+                + 'Если это настоящая бронь, а не закрытый период, возможна двойная бронь. '
+                + 'На самой площадке даты останутся закрытыми.'
+            : 'Снова учитывать блокировку площадки ' + entry.fromDate + ' — ' + entry.toDate + '?';
+        if (!confirm(question)) return;
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'entry';
+        input.value = 'block:' + entry.id;
+        actionForm.appendChild(input);
+        actionForm.action = dialog.dataset.toggleUrl;
+        actionForm.noValidate = true;
+        actionForm.submit();
+    }
+
     function loadEntries(unitTypeId, date) {
         entriesBox.style.display = 'none';
         entriesList.innerHTML = '';
@@ -182,9 +201,17 @@
                     // нажал бы первую кнопку удаления как кнопку по умолчанию
                     const btn = document.createElement('button');
                     btn.type = 'button';
-                    btn.className = 'btn btn-ghost action-entries__delete';
-                    btn.textContent = 'Удалить';
-                    btn.addEventListener('click', () => deleteEntry(entry));
+                    if (entry.kind === 'channel' || entry.kind === 'channel-ignored') {
+                        const open = entry.kind === 'channel';
+                        btn.className = 'btn btn-ghost';
+                        btn.style.flexShrink = '0';
+                        btn.textContent = open ? 'Открыть даты' : 'Закрыть снова';
+                        btn.addEventListener('click', () => toggleChannelBlock(entry, open));
+                    } else {
+                        btn.className = 'btn btn-ghost action-entries__delete';
+                        btn.textContent = 'Удалить';
+                        btn.addEventListener('click', () => deleteEntry(entry));
+                    }
 
                     row.appendChild(text);
                     row.appendChild(btn);

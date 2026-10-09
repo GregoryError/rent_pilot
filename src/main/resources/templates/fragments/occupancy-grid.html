@@ -107,7 +107,8 @@
     <!-- Модальное окно действия на дате -->
     <dialog th:fragment="dialog(viewFrom, viewDays, returnMonth)" id="action-dialog" class="action-dialog"
             th:data-entries-url="@{/calendar/grid/action/entries}"
-            th:data-delete-url="@{/calendar/grid/action/delete}">
+            th:data-delete-url="@{/calendar/grid/action/delete}"
+            th:data-toggle-url="@{/calendar/grid/action/toggle-channel-block}">
         <form method="post" th:action="@{/calendar/grid/action}" id="action-form">
             <div class="action-dialog__header">
                 <div>
@@ -128,7 +129,7 @@
 
                 <!-- Уже заведённые вручную записи на этот день: заполняет grid.js -->
                 <div class="action-entries" id="action-entries" style="display: none;">
-                    <div class="action-entries__title">Ручные записи на этот день</div>
+                    <div class="action-entries__title">Записи на этот день</div>
                     <div id="action-entries-list"></div>
                 </div>
 

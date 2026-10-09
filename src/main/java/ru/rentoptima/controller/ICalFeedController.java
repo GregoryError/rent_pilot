@@ -82,8 +82,10 @@ public class ICalFeedController {
                 + " — " + unitType.getName();
         String body = ICalWriter.write(calendarName, periods);
 
-        log.debug("iCal feed отдан: channel={}, периодов={}", channel.getId(), periods.size());
-        recordFetch(channel, userAgent, periods.size());
+        // Отменённые события (удалённые ручные записи) занятостью не считаются
+        int busy = (int) periods.stream().filter(p -> !p.cancelled()).count();
+        log.debug("iCal feed отдан: channel={}, периодов={}", channel.getId(), busy);
+        recordFetch(channel, userAgent, busy);
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/calendar;charset=UTF-8"))

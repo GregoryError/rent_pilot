@@ -26,6 +26,13 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 public class CalendarBlock {
 
+    /**
+     * Префикс UID, под которым ручная запись уходит в iCal-экспорт:
+     * {@code optirent-manual-<id>@optirent.ru}. По нему импорт узнаёт собственное
+     * эхо, вернувшееся от площадки, которая сохраняет исходный UID.
+     */
+    public static final String MANUAL_UID_PREFIX = "optirent-manual-";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -69,6 +76,20 @@ public class CalendarBlock {
     @Column(name = "created_by_user_id")
     private Long createdByUserId;
 
+    /**
+     * Хост открыл эти даты вручную: блокировка с площадки остаётся в базе, но
+     * занятостью не считается (см. V25). Для ручных записей не используется.
+     */
+    @Column(nullable = false)
+    private Boolean ignored = false;
+
+    /**
+     * Ручная запись удалена хостом (мягко, см. V26): занятостью не считается, но ещё
+     * 30 дней уходит в экспорт со STATUS:CANCELLED и держит свои эхо-связи. null — жива.
+     */
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
     /** Для HOLD по заявке с виджета: когда резерв снимается сам. null — бессрочно. */
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
@@ -85,5 +106,10 @@ public class CalendarBlock {
         OWNER_USE,        // Хозяин заехал сам
         HOLD,             // Резерв (например ожидание оплаты)
         CHANNEL_SYNC      // Импортировано из iCal внешнего канала
+    }
+
+    /** Запись завёл человек в UI: нет ни канала-источника, ни внешнего UID. */
+    public boolean isHandMade() {
+        return channelId == null && (externalUid == null || externalUid.isBlank());
     }
 }

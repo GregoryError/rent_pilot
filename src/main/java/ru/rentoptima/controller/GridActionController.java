@@ -13,12 +13,16 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.CalendarBlock;
+import ru.rentoptima.entity.Channel;
+import ru.rentoptima.entity.ManualBlockEcho;
 import ru.rentoptima.entity.PlannedPrice;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.entity.Tenant;
 import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.CalendarBlockRepository;
+import ru.rentoptima.repository.ChannelRepository;
+import ru.rentoptima.repository.ManualBlockEchoRepository;
 import ru.rentoptima.repository.PlannedPriceRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.TenantRepository;
@@ -35,6 +39,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Optional;
 
 /**
@@ -61,6 +67,8 @@ public class GridActionController {
     private final TenantRepository tenantRepo;
     private final BookingRepository bookingRepo;
     private final CalendarBlockRepository blockRepo;
+    private final ChannelRepository channelRepo;
+    private final ManualBlockEchoRepository echoRepo;
     private final PlannedPriceRepository plannedPriceRepo;
 
     @PostMapping
@@ -197,9 +205,9 @@ public class GridActionController {
     }
 
     /**
-     * Ручные записи категории на конкретный день — модалка показывает их с кнопкой
-     * «Удалить». Импортированное с площадок сюда не попадает: такой блок вернётся
-     * при следующей синхронизации, снимать его надо на самой площадке.
+     * Записи категории на конкретный день для модалки: ручные — с кнопкой «Удалить»,
+     * импортированные с площадок — с кнопкой «Открыть даты». Удалить блок площадки
+     * нельзя (вернётся при следующей синхронизации), поэтому его помечают ignored.
      */
     @GetMapping("/entries")
     @ResponseBody
@@ -216,8 +224,24 @@ public class GridActionController {
                 bookingRepo.findManualOverlapping(tenantId, unitTypeId, date, next));
         List<ManualEntry> result = new ArrayList<>();
 
+        Map<Long, String> channelNames = new HashMap<>();
+        for (Channel ch : channelRepo.findByUnitTypeIdAndActiveTrue(unitTypeId)) {
+            channelNames.put(ch.getId(), ch.getName());
+        }
+
         for (CalendarBlock b : blockRepo.findOverlapping(unitTypeId, date, next)) {
-            if (b.getChannelId() != null || !tenantId.equals(b.getTenantId())) continue;
+            if (!tenantId.equals(b.getTenantId())) continue;
+            if (b.getChannelId() != null) {
+                // hold по заявке с виджета снимается в «Заявках», а не здесь
+                if (b.getBlockType() != CalendarBlock.BlockType.CHANNEL_SYNC) continue;
+                boolean ignored = Boolean.TRUE.equals(b.getIgnored());
+                result.add(new ManualEntry(ignored ? "channel-ignored" : "channel", b.getId(),
+                        "С площадки: " + channelNames.getOrDefault(b.getChannelId(), "канал"),
+                        b.getFromDate().toString(), b.getToDate().minusDays(1).toString(),
+                        ignored ? "Вы открыли эти даты — блокировка не учитывается"
+                                : "Закрыто в календаре площадки"));
+                continue;
+            }
             String details = b.getReason();
             if (b.getBlockType() == CalendarBlock.BlockType.MANUAL_BOOKING) {
                 // Парная бронь показывается одной строкой вместе с блоком
@@ -237,8 +261,14 @@ public class GridActionController {
     }
 
     /**
-     * Удаление ручной записи. Блок удаляется физически; бронь помечается DELETED —
-     * она перестаёт занимать даты и считаться в выручке, но остаётся в базе.
+     * Удаление ручной записи. Блок удаляется мягко (cancelled_at): занятостью он больше
+     * не считается, но ещё 30 дней уходит в iCal-экспорт со STATUS:CANCELLED и держит
+     * свои эхо-связи — иначе копия, оставшаяся у площадки, вернулась бы к нам
+     * блокировкой «от канала». Бронь помечается DELETED — перестаёт занимать даты и
+     * считаться в выручке, но остаётся в базе.
+     * <p>
+     * Если запись успели увидеть на площадках (manual_block_echoes), хост получает
+     * их список: не каждая площадка снимает импортированную блокировку сама.
      */
     @PostMapping("/delete")
     @Transactional
@@ -260,9 +290,11 @@ public class GridActionController {
         }
 
         boolean deleted = false;
+        List<String> echoChannels = List.of();
         if (id != null && "block".equals(parts[0])) {
             CalendarBlock block = blockRepo.findById(id).orElse(null);
-            if (block != null && tenantId.equals(block.getTenantId()) && block.getChannelId() == null) {
+            if (block != null && tenantId.equals(block.getTenantId()) && block.getChannelId() == null
+                    && block.getCancelledAt() == null) {
                 fallback = block.getFromDate();
                 if (block.getBlockType() == CalendarBlock.BlockType.MANUAL_BOOKING) {
                     List<Booking> candidates = new ArrayList<>(bookingRepo.findManualOverlapping(
@@ -270,7 +302,10 @@ public class GridActionController {
                     Booking pair = takePair(candidates, block);
                     if (pair != null) markDeleted(pair);
                 }
-                blockRepo.delete(block);
+                echoChannels = echoChannelNames(tenantId, block.getId());
+                block.setCancelledAt(LocalDateTime.now());
+                block.setUpdatedAt(LocalDateTime.now());
+                blockRepo.save(block);
                 deleted = true;
             }
         } else if (id != null && "booking".equals(parts[0])) {
@@ -285,11 +320,69 @@ public class GridActionController {
 
         if (deleted) {
             redirect.addFlashAttribute("success", "Запись удалена, даты снова свободны");
-            log.info("Grid delete: tenant={}, entry={}", tenantId, entry);
+            if (!echoChannels.isEmpty()) {
+                redirect.addFlashAttribute("echoWarning", "Эта запись была экспортирована в: "
+                        + String.join(", ", echoChannels)
+                        + ". Для полного удаления на этих площадках может потребоваться удалить её"
+                        + " вручную в их кабинетах, так как они не всегда снимают импортированные"
+                        + " блокировки автоматически.");
+            }
+            log.info("Grid delete: tenant={}, entry={}, echoChannels={}", tenantId, entry, echoChannels);
         } else {
             redirect.addFlashAttribute("error", "Запись не найдена или её нельзя удалить");
         }
         return backToGrid(returnMonth, viewFrom, viewDays, fallback);
+    }
+
+    /**
+     * «Открыть даты» / «Закрыть снова» для блокировки, пришедшей с площадки.
+     * Влияет только на нас: день становится свободным в шахматке и перестаёт уходить
+     * в экспорт другим площадкам. На самой площадке-источнике даты остаются закрытыми.
+     */
+    @PostMapping("/toggle-channel-block")
+    @Transactional
+    public String toggleChannelBlock(
+            @RequestParam String entry,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate viewFrom,
+            @RequestParam(required = false) Integer viewDays,
+            @RequestParam(required = false) String returnMonth,
+            RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        LocalDate fallback = LocalDate.now();
+
+        Long id = null;
+        String[] parts = entry.split(":", 2);
+        try {
+            if (parts.length == 2) id = Long.valueOf(parts[1]);
+        } catch (NumberFormatException e) {
+            // id останется null
+        }
+        CalendarBlock block = id == null ? null : blockRepo.findById(id).orElse(null);
+        if (block == null || !tenantId.equals(block.getTenantId()) || block.getChannelId() == null
+                || block.getBlockType() != CalendarBlock.BlockType.CHANNEL_SYNC) {
+            redirect.addFlashAttribute("error", "Блокировка не найдена");
+            return backToGrid(returnMonth, viewFrom, viewDays, fallback);
+        }
+
+        boolean open = !Boolean.TRUE.equals(block.getIgnored());
+        block.setIgnored(open);
+        block.setUpdatedAt(LocalDateTime.now());
+        blockRepo.save(block);
+        log.info("Grid channel block {}: tenant={}, block={}", open ? "opened" : "closed", tenantId, id);
+        redirect.addFlashAttribute("success", open
+                ? "Даты открыты. На самой площадке они остаются закрытыми — откройте их и там"
+                : "Блокировка площадки снова учитывается");
+        return backToGrid(returnMonth, viewFrom, viewDays, block.getFromDate());
+    }
+
+    /** Названия каналов, с которых эта ручная запись возвращалась к нам эхом. */
+    private List<String> echoChannelNames(Long tenantId, Long blockId) {
+        List<Long> channelIds = echoRepo.findByManualBlockId(blockId).stream()
+                .map(ManualBlockEcho::getChannelId).distinct().toList();
+        if (channelIds.isEmpty()) return List.of();
+        return channelRepo.findAllById(channelIds).stream()
+                .filter(c -> tenantId.equals(c.getTenantId()))
+                .map(Channel::getName).sorted().toList();
     }
 
     private void markDeleted(Booking b) {
