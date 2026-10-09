@@ -56,6 +56,9 @@ public final class ICalWriter {
             if (p.cancelled()) {
                 // TRANSPARENT — подстраховка для импортёров, которые не читают STATUS,
                 // но смотрят на TRANSP: отменённое событие не должно закрывать даты.
+                // SEQUENCE выше, чем у живого события (у него 0 по умолчанию): часть
+                // парсеров принимает отмену только как новую ревизию события.
+                sb.append("SEQUENCE:1").append(CRLF);
                 sb.append("STATUS:CANCELLED").append(CRLF);
                 sb.append("TRANSP:TRANSPARENT").append(CRLF);
             } else {

@@ -140,6 +140,11 @@ class ICalExportEventsTest {
                 List.of(), List.of(block(1, null, null, 20, 22)), List.of(cancelled), 9L));
 
         assertThat(ics).containsOnlyOnce("STATUS:CANCELLED");
+        // отмена — новая ревизия события: SEQUENCE выше, чем у живого (0 по умолчанию)
+        assertThat(ics).containsOnlyOnce("SEQUENCE:1");
+        assertThat(ics).containsOnlyOnce("TRANSP:TRANSPARENT");
+        // METHOD — свойство календаря, а не события: внутри VEVENT его быть не должно
+        assertThat(ics).containsOnlyOnce("METHOD:").contains("METHOD:PUBLISH");
         List<ICalEvent> events = ICalParser.parse(ics);
         assertThat(events).extracting(ICalEvent::uid).containsExactly(
                 "optirent-manual-42@optirent.ru", "optirent-manual-1@optirent.ru");

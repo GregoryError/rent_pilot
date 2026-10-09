@@ -180,7 +180,20 @@
             .then(r => r.ok ? r.json() : [])
             .then(list => {
                 if (request !== entriesRequest || !Array.isArray(list) || !list.length) return;
-                list.forEach(entry => {
+                // Блокировки с площадок в обычном сценарии не трогают: кнопки для них
+                // спрятаны в свёрнутый блок «Устранить блокировку».
+                const advanced = document.createElement('details');
+                advanced.className = 'action-entries__advanced';
+                const summary = document.createElement('summary');
+                summary.textContent = 'Устранить блокировку';
+                advanced.appendChild(summary);
+                const advancedHint = document.createElement('div');
+                advancedHint.className = 'text-sm muted';
+                advancedHint.textContent = 'Если площадка держит даты закрытыми, а брони на них нет, '
+                    + 'их можно открыть вручную. На самой площадке даты останутся закрытыми.';
+                advanced.appendChild(advancedHint);
+
+                function entryRow(entry, withButton) {
                     const row = document.createElement('div');
                     row.className = 'action-entries__row';
 
@@ -196,6 +209,8 @@
                         details.textContent = entry.details;
                         text.appendChild(details);
                     }
+                    row.appendChild(text);
+                    if (!withButton) return row;
 
                     // type="button", а не submit: иначе Enter в любом поле формы
                     // нажал бы первую кнопку удаления как кнопку по умолчанию
@@ -212,11 +227,22 @@
                         btn.textContent = 'Удалить';
                         btn.addEventListener('click', () => deleteEntry(entry));
                     }
-
-                    row.appendChild(text);
                     row.appendChild(btn);
-                    entriesList.appendChild(row);
+                    return row;
+                }
+
+                let channelBlocks = 0;
+                list.forEach(entry => {
+                    if (entry.kind === 'channel' || entry.kind === 'channel-ignored') {
+                        channelBlocks++;
+                        advanced.appendChild(entryRow(entry, true));
+                        // действующая блокировка видна и в основном списке, но без кнопки
+                        if (entry.kind === 'channel') entriesList.appendChild(entryRow(entry, false));
+                    } else {
+                        entriesList.appendChild(entryRow(entry, true));
+                    }
                 });
+                if (channelBlocks) entriesList.appendChild(advanced);
                 entriesBox.style.display = '';
             })
             .catch(() => { /* список вторичен: без него модалка работает как раньше */ });

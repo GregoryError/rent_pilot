@@ -25,7 +25,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ManualBlockRetentionService {
 
-    static final int RETENTION_DAYS = 30;
+    static final int RETENTION_DAYS = 90;
 
     private final CalendarBlockRepository blockRepo;
 

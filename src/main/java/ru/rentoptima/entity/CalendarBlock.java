@@ -85,7 +85,7 @@ public class CalendarBlock {
 
     /**
      * Ручная запись удалена хостом (мягко, см. V26): занятостью не считается, но ещё
-     * 30 дней уходит в экспорт со STATUS:CANCELLED и держит свои эхо-связи. null — жива.
+     * 90 дней уходит в экспорт со STATUS:CANCELLED и держит свои эхо-связи. null — жива.
      */
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;

@@ -206,8 +206,9 @@ public class GridActionController {
 
     /**
      * Записи категории на конкретный день для модалки: ручные — с кнопкой «Удалить»,
-     * импортированные с площадок — с кнопкой «Открыть даты». Удалить блок площадки
-     * нельзя (вернётся при следующей синхронизации), поэтому его помечают ignored.
+     * импортированные с площадок — в свёрнутом блоке «Устранить блокировку» с кнопкой
+     * «Открыть даты». Удалить блок площадки нельзя (вернётся при следующей
+     * синхронизации), поэтому его помечают ignored.
      */
     @GetMapping("/entries")
     @ResponseBody
@@ -238,7 +239,9 @@ public class GridActionController {
                 result.add(new ManualEntry(ignored ? "channel-ignored" : "channel", b.getId(),
                         "С площадки: " + channelNames.getOrDefault(b.getChannelId(), "канал"),
                         b.getFromDate().toString(), b.getToDate().minusDays(1).toString(),
-                        ignored ? "Вы открыли эти даты — блокировка не учитывается"
+                        ignored ? (b.getShadowOfManualId() != null
+                                        ? "Копия ручной записи — скрыта, даты свободны"
+                                        : "Вы открыли эти даты — блокировка не учитывается")
                                 : b.getShadowOfManualId() != null
                                 ? "Те же даты, что у ручной записи, — вероятно, её копия на площадке"
                                 : "Закрыто в календаре площадки"));
@@ -264,17 +267,17 @@ public class GridActionController {
 
     /**
      * Удаление ручной записи. Блок удаляется мягко (cancelled_at): занятостью он больше
-     * не считается, но ещё 30 дней уходит в iCal-экспорт со STATUS:CANCELLED и держит
+     * не считается, но ещё 90 дней уходит в iCal-экспорт со STATUS:CANCELLED и держит
      * свои эхо-связи — иначе копия, оставшаяся у площадки, вернулась бы к нам
      * блокировкой «от канала». Бронь помечается DELETED — перестаёт занимать даты и
      * считаться в выручке, но остаётся в базе.
      * <p>
-     * Если запись успели увидеть на площадках (manual_block_echoes), хост получает
-     * их список: не каждая площадка снимает импортированную блокировку сама.
-     * <p>
-     * «Тени» записи (блокировки каналов с shadow_of_manual_id) не удаляются: совпадение
-     * дат могло оказаться настоящей бронью. Они продолжают закрывать даты, пока
-     * событие есть в фиде площадки, — и хосту об этом говорится прямо.
+     * «Тени» записи (блокировки каналов с shadow_of_manual_id) физически не удаляются.
+     * Тень без признаков настоящей брони ({@link #realBookingSign}) скрывается
+     * автоматически — ей ставится ignored, как кнопкой «Открыть даты»: хост удалил
+     * бронь и ждёт, что даты освободятся. Вернуть её можно там же, «Закрыть снова».
+     * Тень с признаками настоящей брони остаётся закрывать даты, и хост получает
+     * предупреждение — только в этом случае.
      */
     @PostMapping("/delete")
     @Transactional
@@ -296,7 +299,7 @@ public class GridActionController {
         }
 
         boolean deleted = false;
-        boolean shadowed = false;
+        List<String> keptShadows = List.of();
         List<String> echoChannels = List.of();
         if (id != null && "block".equals(parts[0])) {
             CalendarBlock block = blockRepo.findById(id).orElse(null);
@@ -310,8 +313,7 @@ public class GridActionController {
                     if (pair != null) markDeleted(pair);
                 }
                 echoChannels = echoChannelNames(tenantId, block.getId());
-                shadowed = blockRepo.findByShadowOfManualId(block.getId()).stream()
-                        .anyMatch(s -> !Boolean.TRUE.equals(s.getIgnored()));
+                keptShadows = releaseShadows(tenantId, block.getId());
                 block.setCancelledAt(LocalDateTime.now());
                 block.setUpdatedAt(LocalDateTime.now());
                 blockRepo.save(block);
@@ -328,24 +330,19 @@ public class GridActionController {
         }
 
         if (deleted) {
-            redirect.addFlashAttribute("success", shadowed
-                    ? "Запись удалена, но даты остаются закрытыми блокировкой с площадки"
-                    : "Запись удалена, даты снова свободны");
-            if (!echoChannels.isEmpty()) {
-                String warning = "Эта запись была экспортирована в: "
-                        + String.join(", ", echoChannels)
-                        + ". Для полного удаления на этих площадках может потребоваться удалить её"
-                        + " вручную в их кабинетах, так как они не всегда снимают импортированные"
-                        + " блокировки автоматически.";
-                if (shadowed) {
-                    warning += " Площадка отдаёт бронь на те же даты, поэтому в шахматке они пока"
-                            + " остаются закрытыми. Если это копия вашей записи — удалите её в кабинете"
-                            + " площадки или нажмите «Открыть даты»; если настоящая бронь — ничего не делайте.";
-                }
-                redirect.addFlashAttribute("echoWarning", warning);
+            if (keptShadows.isEmpty()) {
+                redirect.addFlashAttribute("success", "Запись удалена");
+            } else {
+                redirect.addFlashAttribute("success",
+                        "Запись удалена, но даты остаются закрытыми бронью с площадки");
+                redirect.addFlashAttribute("echoWarning", "Внимание: "
+                        + String.join("; ", keptShadows)
+                        + ". Проверьте, что это не настоящая бронь. Пока она есть на площадке, даты"
+                        + " в шахматке остаются закрытыми. Если это копия удалённой записи — откройте"
+                        + " день и снимите её в «Устранить блокировку».");
             }
-            log.info("Grid delete: tenant={}, entry={}, echoChannels={}, shadowed={}",
-                    tenantId, entry, echoChannels, shadowed);
+            log.info("Grid delete: tenant={}, entry={}, echoChannels={}, keptShadows={}",
+                    tenantId, entry, echoChannels, keptShadows.size());
         } else {
             redirect.addFlashAttribute("error", "Запись не найдена или её нельзя удалить");
         }
@@ -391,6 +388,64 @@ public class GridActionController {
                 ? "Даты открыты. На самой площадке они остаются закрытыми — откройте их и там"
                 : "Блокировка площадки снова учитывается");
         return backToGrid(returnMonth, viewFrom, viewDays, block.getFromDate());
+    }
+
+    /**
+     * Скрывает тени удаляемой ручной записи, в которых нет признаков настоящей брони.
+     *
+     * @return описания теней, оставленных закрывать даты, — для предупреждения хосту
+     */
+    private List<String> releaseShadows(Long tenantId, Long manualBlockId) {
+        List<String> kept = new ArrayList<>();
+        Map<Long, String> names = new HashMap<>();
+        for (CalendarBlock shadow : blockRepo.findByShadowOfManualId(manualBlockId)) {
+            if (!tenantId.equals(shadow.getTenantId()) || Boolean.TRUE.equals(shadow.getIgnored())) continue;
+            String sign = realBookingSign(shadow);
+            if (sign == null) {
+                shadow.setIgnored(true);
+                shadow.setUpdatedAt(LocalDateTime.now());
+                blockRepo.save(shadow);
+                log.info("Grid delete: shadow block {} (channel={}, uid={}) of manual block {} auto-ignored",
+                        shadow.getId(), shadow.getChannelId(), shadow.getExternalUid(), manualBlockId);
+                continue;
+            }
+            String channel = names.computeIfAbsent(shadow.getChannelId(), id -> channelRepo.findById(id)
+                    .filter(c -> tenantId.equals(c.getTenantId())).map(Channel::getName).orElse("канал"));
+            kept.add("на площадке «" + channel + "» есть похожая бронь " + sign);
+            log.info("Grid delete: shadow block {} (channel={}, uid={}) of manual block {} kept: {}",
+                    shadow.getId(), shadow.getChannelId(), shadow.getExternalUid(), manualBlockId, sign);
+        }
+        return kept;
+    }
+
+    /**
+     * Признак того, что тень — настоящая бронь, а не копия нашей записи: за ней стоит
+     * бронь с именем гостя либо её UID не похож на технический идентификатор.
+     *
+     * @return пояснение для хоста или null, если признаков нет
+     */
+    private String realBookingSign(CalendarBlock shadow) {
+        String guest = shadow.getExternalUid() == null ? null
+                : bookingRepo.findByChannelIdAndExternalId(shadow.getChannelId(), shadow.getExternalUid())
+                        .map(Booking::getGuestName).filter(n -> !n.isBlank())
+                        .map(PdAnonymizer::toInitial).orElse(null);
+        if (guest != null) return "с именем гостя " + guest;
+        if (!looksTechnicalUid(shadow.getExternalUid())) return "с необычным идентификатором";
+        return null;
+    }
+
+    private static final java.util.regex.Pattern TECHNICAL_UID = java.util.regex.Pattern.compile(
+            "\\d+|[0-9a-fA-F]{6,}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
+    /**
+     * UID — безликий идентификатор (число, hex-хэш, UUID), каким площадки помечают и
+     * импортированные у нас блокировки. Часть после «@» — домен площадки, не учитывается.
+     */
+    static boolean looksTechnicalUid(String uid) {
+        if (uid == null || uid.isBlank()) return false;
+        int at = uid.indexOf('@');
+        String id = (at > 0 ? uid.substring(0, at) : uid).trim();
+        return TECHNICAL_UID.matcher(id).matches();
     }
 
     /** Названия каналов, с которых эта ручная запись возвращалась к нам эхом. */

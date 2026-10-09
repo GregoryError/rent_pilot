@@ -178,6 +178,8 @@ public class ICalChannelAdapter implements ChannelAdapter {
                     log.info("iCal channel {}: блокировка uid={} больше не тень ручной записи {} — даты изменились",
                             channel.getId(), ev.uid(), b.getShadowOfManualId());
                     b.setShadowOfManualId(null);
+                    // Автоматически скрытая копия ожила на площадке — снова считаем её занятостью
+                    b.setIgnored(false);
                 }
                 String reason = reasonOf(ev, channel);
                 if (!Objects.equals(b.getReason(), reason)) {

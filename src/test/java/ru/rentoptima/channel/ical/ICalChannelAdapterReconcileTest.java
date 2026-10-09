@@ -478,6 +478,7 @@ class ICalChannelAdapterReconcileTest {
     @DisplayName("у тени на площадке сдвинули даты → пометка снимается, это самостоятельная блокировка")
     void shadowWithShiftedDates_becomesPlainBlock() {
         CalendarBlock shadow = shadow();
+        shadow.setIgnored(true); // была скрыта автоматически при удалении ручной записи
         echoLinkInDb();
         when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
                 .thenReturn(Optional.of(shadow));
@@ -489,6 +490,7 @@ class ICalChannelAdapterReconcileTest {
 
         assertThat(result.updated()).isEqualTo(1);
         assertThat(shadow.getShadowOfManualId()).isNull();
+        assertThat(shadow.getIgnored()).isFalse();
         assertThat(shadow.getToDate()).isEqualTo(ECHO_TO.plusDays(2));
     }
 

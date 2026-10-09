@@ -45,7 +45,7 @@ logging:
     org.springframework.security: INFO
 
 app:
-  # Удалённые ручные записи ещё 30 дней уходят в iCal-экспорт со STATUS:CANCELLED.
+  # Удалённые ручные записи ещё 90 дней уходят в iCal-экспорт со STATUS:CANCELLED.
   # false — не отдавать (если площадка не читает STATUS и закрывает даты по ним).
   ical:
     export-cancelled: ${APP_ICAL_EXPORT_CANCELLED:true}
