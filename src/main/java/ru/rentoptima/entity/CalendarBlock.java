@@ -90,6 +90,15 @@ public class CalendarBlock {
     @Column(name = "cancelled_at")
     private LocalDateTime cancelledAt;
 
+    /**
+     * Блокировка канала, совпавшая по датам с ручной записью: вероятно, её эхо,
+     * вернувшееся от площадки под чужим UID (см. V27). Пока та ручная запись жива,
+     * тень не показывается и не считается занятостью; после её удаления остаётся
+     * обычной блокировкой — на случай, если это всё-таки настоящая бронь.
+     */
+    @Column(name = "shadow_of_manual_id")
+    private Long shadowOfManualId;
+
     /** Для HOLD по заявке с виджета: когда резерв снимается сам. null — бессрочно. */
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;

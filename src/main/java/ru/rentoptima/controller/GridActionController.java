@@ -239,6 +239,8 @@ public class GridActionController {
                         "С площадки: " + channelNames.getOrDefault(b.getChannelId(), "канал"),
                         b.getFromDate().toString(), b.getToDate().minusDays(1).toString(),
                         ignored ? "Вы открыли эти даты — блокировка не учитывается"
+                                : b.getShadowOfManualId() != null
+                                ? "Те же даты, что у ручной записи, — вероятно, её копия на площадке"
                                 : "Закрыто в календаре площадки"));
                 continue;
             }
@@ -269,6 +271,10 @@ public class GridActionController {
      * <p>
      * Если запись успели увидеть на площадках (manual_block_echoes), хост получает
      * их список: не каждая площадка снимает импортированную блокировку сама.
+     * <p>
+     * «Тени» записи (блокировки каналов с shadow_of_manual_id) не удаляются: совпадение
+     * дат могло оказаться настоящей бронью. Они продолжают закрывать даты, пока
+     * событие есть в фиде площадки, — и хосту об этом говорится прямо.
      */
     @PostMapping("/delete")
     @Transactional
@@ -290,6 +296,7 @@ public class GridActionController {
         }
 
         boolean deleted = false;
+        boolean shadowed = false;
         List<String> echoChannels = List.of();
         if (id != null && "block".equals(parts[0])) {
             CalendarBlock block = blockRepo.findById(id).orElse(null);
@@ -303,6 +310,8 @@ public class GridActionController {
                     if (pair != null) markDeleted(pair);
                 }
                 echoChannels = echoChannelNames(tenantId, block.getId());
+                shadowed = blockRepo.findByShadowOfManualId(block.getId()).stream()
+                        .anyMatch(s -> !Boolean.TRUE.equals(s.getIgnored()));
                 block.setCancelledAt(LocalDateTime.now());
                 block.setUpdatedAt(LocalDateTime.now());
                 blockRepo.save(block);
@@ -319,15 +328,24 @@ public class GridActionController {
         }
 
         if (deleted) {
-            redirect.addFlashAttribute("success", "Запись удалена, даты снова свободны");
+            redirect.addFlashAttribute("success", shadowed
+                    ? "Запись удалена, но даты остаются закрытыми блокировкой с площадки"
+                    : "Запись удалена, даты снова свободны");
             if (!echoChannels.isEmpty()) {
-                redirect.addFlashAttribute("echoWarning", "Эта запись была экспортирована в: "
+                String warning = "Эта запись была экспортирована в: "
                         + String.join(", ", echoChannels)
                         + ". Для полного удаления на этих площадках может потребоваться удалить её"
                         + " вручную в их кабинетах, так как они не всегда снимают импортированные"
-                        + " блокировки автоматически.");
+                        + " блокировки автоматически.";
+                if (shadowed) {
+                    warning += " Площадка отдаёт бронь на те же даты, поэтому в шахматке они пока"
+                            + " остаются закрытыми. Если это копия вашей записи — удалите её в кабинете"
+                            + " площадки или нажмите «Открыть даты»; если настоящая бронь — ничего не делайте.";
+                }
+                redirect.addFlashAttribute("echoWarning", warning);
             }
-            log.info("Grid delete: tenant={}, entry={}, echoChannels={}", tenantId, entry, echoChannels);
+            log.info("Grid delete: tenant={}, entry={}, echoChannels={}, shadowed={}",
+                    tenantId, entry, echoChannels, shadowed);
         } else {
             redirect.addFlashAttribute("error", "Запись не найдена или её нельзя удалить");
         }

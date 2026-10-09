@@ -101,6 +101,38 @@ class GridActionControllerDeleteTest {
     }
 
     @Test
+    @DisplayName("у записи есть тень с площадки → тень не трогаем, хосту говорим, что даты остаются закрытыми")
+    void shadowIsKeptOnDelete() {
+        CalendarBlock manual = new CalendarBlock();
+        manual.setId(265L);
+        manual.setTenantId(TENANT_ID);
+        manual.setUnitTypeId(10L);
+        manual.setBlockType(CalendarBlock.BlockType.MAINTENANCE);
+        manual.setFromDate(LocalDate.of(2026, 11, 13));
+        manual.setToDate(LocalDate.of(2026, 11, 14));
+
+        CalendarBlock shadow = new CalendarBlock();
+        shadow.setId(267L);
+        shadow.setChannelId(8L);
+        shadow.setExternalUid("199904867");
+        shadow.setShadowOfManualId(265L);
+
+        when(blockRepo.findById(265L)).thenReturn(Optional.of(manual));
+        when(blockRepo.findByShadowOfManualId(265L)).thenReturn(List.of(shadow));
+
+        RedirectAttributesModelMap redirect = new RedirectAttributesModelMap();
+        controller.delete("block:265", null, null, null, redirect);
+
+        assertThat(manual.getCancelledAt()).isNotNull();
+        verify(blockRepo).save(manual);
+        verify(blockRepo, never()).save(shadow);
+        verify(blockRepo, never()).delete(any());
+        assertThat(shadow.getShadowOfManualId()).isEqualTo(265L);
+        assertThat((String) redirect.getFlashAttributes().get("success"))
+                .contains("остаются закрытыми");
+    }
+
+    @Test
     @DisplayName("уже удалённую запись повторно удалить нельзя")
     void alreadyCancelled() {
         CalendarBlock manual = new CalendarBlock();

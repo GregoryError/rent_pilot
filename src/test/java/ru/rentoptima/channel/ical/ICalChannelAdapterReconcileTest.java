@@ -335,8 +335,8 @@ class ICalChannelAdapterReconcileTest {
     }
 
     @Test
-    @DisplayName("чужой UID, даты совпали со свежей ручной записью → блокировки нет, связь записана")
-    void foreignUidSameDatesAsRecentManual_linked() {
+    @DisplayName("чужой UID, даты совпали со свежей ручной записью → блокировка-тень и связь")
+    void foreignUidSameDatesAsRecentManual_importedAsShadow() {
         manualBlocksInDb(manual(265L, 0));
         when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
                 .thenReturn(Optional.empty());
@@ -345,9 +345,13 @@ class ICalChannelAdapterReconcileTest {
         ChannelSyncResult result = adapter.reconcile(ctx(),
                 List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
 
-        assertThat(result.imported()).isZero();
-        assertThat(result.skipped()).isEqualTo(1);
-        verify(blockRepo, never()).save(any());
+        assertThat(result.imported()).isEqualTo(1);
+        ArgumentCaptor<CalendarBlock> block = ArgumentCaptor.forClass(CalendarBlock.class);
+        verify(blockRepo).save(block.capture());
+        assertThat(block.getValue().getChannelId()).isEqualTo(CHANNEL_ID);
+        assertThat(block.getValue().getExternalUid()).isEqualTo("199904867");
+        assertThat(block.getValue().getBlockType()).isEqualTo(CalendarBlock.BlockType.CHANNEL_SYNC);
+        assertThat(block.getValue().getShadowOfManualId()).isEqualTo(265L);
 
         ArgumentCaptor<ManualBlockEcho> echo = ArgumentCaptor.forClass(ManualBlockEcho.class);
         verify(echoRepo).save(echo.capture());
@@ -355,6 +359,24 @@ class ICalChannelAdapterReconcileTest {
         assertThat(echo.getValue().getChannelId()).isEqualTo(CHANNEL_ID);
         assertThat(echo.getValue().getExternalUid()).isEqualTo("199904867");
         assertThat(echo.getValue().getTenantId()).isEqualTo(TENANT_ID);
+    }
+
+    @Test
+    @DisplayName("удалённая ручная запись с теми же датами тенью не обзаводится — обычная блокировка")
+    void foreignUidSameDatesAsCancelledManual_plainBlock() {
+        CalendarBlock cancelled = manual(265L, 0);
+        cancelled.setCancelledAt(LocalDateTime.now());
+        manualBlocksInDb(cancelled);
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.empty());
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+        adapter.reconcile(ctx(), List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
+
+        ArgumentCaptor<CalendarBlock> block = ArgumentCaptor.forClass(CalendarBlock.class);
+        verify(blockRepo).save(block.capture());
+        assertThat(block.getValue().getShadowOfManualId()).isNull();
+        verify(echoRepo, never()).save(any());
     }
 
     @Test
@@ -389,26 +411,101 @@ class ICalChannelAdapterReconcileTest {
         verify(echoRepo, never()).save(any());
     }
 
-    @Test
-    @DisplayName("уже привязанное эхо пропускается и после окна в 7 дней, и после удаления ручной записи")
-    void knownEcho_skippedWithoutNewLink() {
-        CalendarBlock old = manual(265L, 20);
-        old.setCancelledAt(LocalDateTime.now().minusDays(1));
+    /** Тень ручной записи 265, уже лежащая в базе. */
+    private CalendarBlock shadow() {
+        CalendarBlock shadow = new CalendarBlock();
+        shadow.setId(267L);
+        shadow.setChannelId(CHANNEL_ID);
+        shadow.setExternalUid("199904867");
+        shadow.setUnitTypeId(UNIT_TYPE_ID);
+        shadow.setBlockType(CalendarBlock.BlockType.CHANNEL_SYNC);
+        shadow.setFromDate(ECHO_FROM);
+        shadow.setToDate(ECHO_TO);
+        shadow.setReason("test-summary");
+        shadow.setShadowOfManualId(265L);
+        return shadow;
+    }
+
+    private void echoLinkInDb() {
         ManualBlockEcho known = new ManualBlockEcho();
         known.setManualBlockId(265L);
         known.setChannelId(CHANNEL_ID);
         known.setExternalUid("199904867");
-
         when(echoRepo.findByChannelId(CHANNEL_ID)).thenReturn(List.of(known));
-        when(blockRepo.findById(265L)).thenReturn(Optional.of(old));
-        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+    }
+
+    @Test
+    @DisplayName("эхо по датам → ручную запись удалили → тень остаётся, дубликат не создаётся")
+    void shadowSurvivesManualDeletion() {
+        CalendarBlock shadow = shadow();
+        CalendarBlock deletedManual = manual(265L, 1);
+        deletedManual.setCancelledAt(LocalDateTime.now());
+
+        echoLinkInDb();
+        manualBlocksInDb(deletedManual);
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.of(shadow));
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any()))
+                .thenReturn(List.of(shadow));
 
         ChannelSyncResult result = adapter.reconcile(ctx(),
                 List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
 
         assertThat(result.imported()).isZero();
-        assertThat(result.skipped()).isEqualTo(1);
+        assertThat(result.updated()).isZero();
+        assertThat(result.removed()).isZero();
         verify(blockRepo, never()).save(any());
+        verify(blockRepo, never()).delete(any());
+        verify(echoRepo, never()).save(any());
+        assertThat(shadow.getShadowOfManualId()).isEqualTo(265L);
+    }
+
+    @Test
+    @DisplayName("площадка сняла событие → тень удаляется обычной сверкой")
+    void shadowRemovedWhenEventDisappears() {
+        CalendarBlock shadow = shadow();
+        echoLinkInDb();
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any()))
+                .thenReturn(List.of(shadow));
+
+        ChannelSyncResult result = adapter.reconcile(ctx(), List.of());
+
+        assertThat(result.removed()).isEqualTo(1);
+        verify(blockRepo).delete(shadow);
+    }
+
+    @Test
+    @DisplayName("у тени на площадке сдвинули даты → пометка снимается, это самостоятельная блокировка")
+    void shadowWithShiftedDates_becomesPlainBlock() {
+        CalendarBlock shadow = shadow();
+        echoLinkInDb();
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.of(shadow));
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any()))
+                .thenReturn(List.of(shadow));
+
+        ChannelSyncResult result = adapter.reconcile(ctx(),
+                List.of(event("199904867", ECHO_FROM, ECHO_TO.plusDays(2), false)));
+
+        assertThat(result.updated()).isEqualTo(1);
+        assertThat(shadow.getShadowOfManualId()).isNull();
+        assertThat(shadow.getToDate()).isEqualTo(ECHO_TO.plusDays(2));
+    }
+
+    @Test
+    @DisplayName("привязанное событие без блокировки (исчезало и вернулось) снова становится тенью, даже если записи больше 7 дней")
+    void knownEchoWithoutBlock_recreatedAsShadow() {
+        echoLinkInDb();
+        when(blockRepo.findById(265L)).thenReturn(Optional.of(manual(265L, 20)));
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.empty());
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+        adapter.reconcile(ctx(), List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
+
+        ArgumentCaptor<CalendarBlock> block = ArgumentCaptor.forClass(CalendarBlock.class);
+        verify(blockRepo).save(block.capture());
+        assertThat(block.getValue().getShadowOfManualId()).isEqualTo(265L);
         verify(echoRepo, never()).save(any());
     }
 

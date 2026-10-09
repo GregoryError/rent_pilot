@@ -65,12 +65,15 @@ public interface CalendarBlockRepository extends JpaRepository<CalendarBlock, Lo
                                                          @Param("from") LocalDate from,
                                                          @Param("to") LocalDate to);
 
+    /** Блокировки каналов, помеченные тенью этой ручной записи. */
+    List<CalendarBlock> findByShadowOfManualId(Long manualBlockId);
+
     /** Удалённые ручные записи, срок хранения которых истёк, кросс-тенант. Для очистки. */
     List<CalendarBlock> findByCancelledAtBefore(java.time.LocalDateTime moment);
 
     /**
      * Ручные записи категории, заведённые после указанного момента, включая удалённые
-     * (cancelledAt). По ним импорт опознаёт эхо от каналов, которые меняют UID.
+     * (cancelledAt). По живым из них импорт опознаёт эхо от каналов, которые меняют UID.
      */
     List<CalendarBlock> findByUnitTypeIdAndChannelIdIsNullAndCreatedAtAfter(
             Long unitTypeId, java.time.LocalDateTime since);

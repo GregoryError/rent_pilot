@@ -74,7 +74,7 @@ public class AvailabilityService {
         for (Booking b : bookingRepo.findActiveByUnitTypesInRange(ids, from, to)) {
             addRange(occupancy, b.getCheckIn(), b.getCheckOut(), from, to);
         }
-        for (CalendarBlock b : blockRepo.findByUnitTypesInRange(ids, from, to)) {
+        for (CalendarBlock b : withoutActiveShadows(blockRepo.findByUnitTypesInRange(ids, from, to))) {
             if (excludeChannelId != null && excludeChannelId.equals(b.getChannelId())) continue;
             addRange(occupancy, b.getFromDate(), b.getToDate(), from, to);
         }
@@ -141,6 +141,8 @@ public class AvailabilityService {
      * Одна запись — одно событие, без склейки.
      * <ul>
      *   <li>записи канала {@code excludeChannelId} не отдаются (anti-echo);</li>
+     *   <li>тень живой ручной записи не отдаётся — те же даты уже закрыты самой
+     *       записью ({@link #withoutActiveShadows});</li>
      *   <li>ручная бронь хранится парой «блокировка + бронь» с одинаковыми датами —
      *       в фид идёт только блокировка;</li>
      *   <li>UID ручной записи — {@code optirent-manual-<id>@optirent.ru}: по этому
@@ -169,7 +171,7 @@ public class AvailabilityService {
         Set<String> usedUids = new HashSet<>();
         Map<ManualKey, Integer> manualBlocks = new HashMap<>();
 
-        for (CalendarBlock b : blocks) {
+        for (CalendarBlock b : withoutActiveShadows(blocks)) {
             if (b.getFromDate() == null || b.getToDate() == null) continue;
             if (excludeChannelId != null && excludeChannelId.equals(b.getChannelId())) continue;
             if (b.getChannelId() == null && b.getBlockType() == CalendarBlock.BlockType.MANUAL_BOOKING) {
@@ -273,7 +275,7 @@ public class AvailabilityService {
             Map<LocalDate, Integer> m = grid.get(b.getUnitTypeId());
             if (m != null) addRange(m, b.getCheckIn(), b.getCheckOut(), from, to);
         }
-        for (CalendarBlock b : blockRepo.findByUnitTypesInRange(unitTypeIds, from, to)) {
+        for (CalendarBlock b : withoutActiveShadows(blockRepo.findByUnitTypesInRange(unitTypeIds, from, to))) {
             Map<LocalDate, Integer> m = grid.get(b.getUnitTypeId());
             if (m != null) addRange(m, b.getFromDate(), b.getToDate(), from, to);
         }
@@ -323,7 +325,7 @@ public class AvailabilityService {
                             "booking:" + b.getId(), b.getCheckIn(), nightlyAmount(b), b.getCreatedAt()),
                     b.getCheckIn(), b.getCheckOut(), from, to);
         }
-        for (CalendarBlock b : blocks) {
+        for (CalendarBlock b : withoutActiveShadows(blocks)) {
             Map<LocalDate, DayOccupancy> m = grid.get(b.getUnitTypeId());
             if (m == null) continue;
             boolean manual = b.getChannelId() == null;
@@ -340,6 +342,32 @@ public class AvailabilityService {
                     b.getFromDate(), b.getToDate(), from, to);
         }
         return grid;
+    }
+
+    /**
+     * Убирает «тени» живых ручных записей — блокировки каналов с
+     * {@code shadow_of_manual_id}, чья ручная запись есть в этом же списке (см. V27).
+     * <p>
+     * Из пары «ручная запись + её тень» остаётся ручная: на ней сумма и гость, её
+     * можно удалить, и в экспорт она идёт под UID-маркером. Тень на те же даты ничего
+     * не добавляет, а посчитанная вместе с ручной даёт двойную занятость и ложный
+     * конфликт «ручная + площадка». Когда ручную запись удаляют, она пропадает из
+     * выборки (cancelled_at), и тень начинает учитываться как обычная блокировка канала.
+     */
+    static List<CalendarBlock> withoutActiveShadows(List<CalendarBlock> blocks) {
+        Set<Long> liveManualIds = new HashSet<>();
+        boolean hasShadows = false;
+        for (CalendarBlock b : blocks) {
+            if (b.getShadowOfManualId() != null) hasShadows = true;
+            else if (b.isHandMade() && b.getCancelledAt() == null && b.getId() != null) {
+                liveManualIds.add(b.getId());
+            }
+        }
+        if (!hasShadows) return blocks;
+        return blocks.stream()
+                .filter(b -> b.getShadowOfManualId() == null
+                        || !liveManualIds.contains(b.getShadowOfManualId()))
+                .toList();
     }
 
     /** Бронь завёл человек: явный MANUAL либо импорт из таблицы без канала и RC-привязки. */

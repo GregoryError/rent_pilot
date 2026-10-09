@@ -156,4 +156,20 @@ class ICalExportEventsTest {
         assertThat(events).extracting(ICalEvent::uid)
                 .containsExactly("12345", "block-2@optirent.ru");
     }
+
+    @Test
+    @DisplayName("тень живой ручной записи в фид не идёт; после удаления записи — идёт всем, кроме своего канала")
+    void shadowIsExportedOnlyWithoutLiveManual() {
+        CalendarBlock manual = block(42, null, null, 10, 12);
+        CalendarBlock shadow = block(7, 8L, "199904867", 10, 12);
+        shadow.setShadowOfManualId(42L);
+
+        assertThat(feed(List.of(), List.of(manual, shadow), 9L)).extracting(ICalEvent::uid)
+                .containsExactly("optirent-manual-42@optirent.ru");
+
+        // ручную запись удалили: в выборке занятости её больше нет
+        assertThat(feed(List.of(), List.of(shadow), 9L)).extracting(ICalEvent::uid)
+                .containsExactly("199904867");
+        assertThat(feed(List.of(), List.of(shadow), 8L)).isEmpty();
+    }
 }
