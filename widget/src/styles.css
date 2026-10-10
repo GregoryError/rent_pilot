@@ -415,6 +415,11 @@ dialog.lb[open] {
     min-width: 0;
 }
 
+/* Цена «от» приходит с календарём — место под две её строки занято заранее */
+.launch .bar-price {
+    min-height: 2.75rem;
+}
+
 .launch-title {
     font-weight: 650;
     overflow: hidden;

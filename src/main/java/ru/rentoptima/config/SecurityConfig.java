@@ -33,22 +33,21 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf
                         .ignoringRequestMatchers(
-                                new AntPathRequestMatcher("/api/**"),
                                 new AntPathRequestMatcher("/housekeeper/**"),
                                 new AntPathRequestMatcher("/ical/**"),
-                                // Заявка с виджета приходит с чужих сайтов и из iframe, где
-                                // сессионной cookie нет вовсе — CSRF-токену там взяться неоткуда.
-                                new AntPathRequestMatcher("/widget/**")))
+                                // /api/** включает публичный API виджета: запросы идут с чужих
+                                // сайтов и из фрейма, сессионной cookie там нет — токену взяться неоткуда
+                                new AntPathRequestMatcher("/api/**")))
                 // CORS публичного API виджета — по списку сайтов, разрешённых хозяином
                 // (бин corsConfigurationSource из WidgetCorsConfig)
                 .cors(Customizer.withDefaults())
-                // Встраивание в iframe запрещено везде, кроме страницы виджета /widget/{secret}:
+                // Встраивание в iframe запрещено везде, кроме страницы виджета /b/{slug}/embed:
                 // она сама отдаёт frame-ancestors со списком разрешённых сайтов
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.disable())
                         .addHeaderWriter(new DelegatingRequestMatcherHeaderWriter(
                                 new NegatedRequestMatcher(new OrRequestMatcher(
-                                        new AntPathRequestMatcher("/widget/*"),
+                                        new AntPathRequestMatcher("/b/*/embed"),
                                         // фрейм превью в конструкторе: сам отдаёт SAMEORIGIN
                                         new AntPathRequestMatcher("/settings/widgets/*/frame"))),
                                 new XFrameOptionsHeaderWriter(XFrameOptionsHeaderWriter.XFrameOptionsMode.DENY))))

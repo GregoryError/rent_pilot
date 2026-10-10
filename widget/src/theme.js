@@ -55,7 +55,11 @@ export function palette(accent, mode) {
     return { accent, fg, text, soft: mix(bg, accent, mode === 'dark' ? 0.22 : 0.12) };
 }
 
-/** Шрифт подключается к документу: @font-face внутри Shadow DOM браузеры не учитывают. */
+/**
+ * Шрифт подключается к документу: @font-face внутри Shadow DOM браузеры не учитывают.
+ * font-display: optional — если шрифт не успел к первой отрисовке, текст остаётся системным
+ * и не перескакивает (нет сдвига вёрстки); со второго захода шрифт уже в кэше.
+ */
 function loadFont(key, base) {
     const font = FONTS[key];
     if (!font) return SYSTEM;
@@ -64,7 +68,7 @@ function loadFont(key, base) {
         const style = document.createElement('style');
         style.id = id;
         style.textContent = Object.keys(SUBSETS).map(subset =>
-            `@font-face{font-family:'${font[0]}';font-style:normal;font-display:swap;font-weight:${font[1]};`
+            `@font-face{font-family:'${font[0]}';font-style:normal;font-display:optional;font-weight:${font[1]};`
             + `src:url(${base}/fonts/${key}-${subset}-wght-normal.woff2) format('woff2');unicode-range:${SUBSETS[subset]}}`
         ).join('');
         document.head.append(style);

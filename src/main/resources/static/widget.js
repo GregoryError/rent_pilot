@@ -1,6 +1,9 @@
-// Загрузчик виджета бронирования OptiRent для вставки на сайт:
+// Прежний способ вставки виджета бронирования OptiRent:
 //   <div id="optirent-widget" data-secret="..."></div>
 //   <script src="https://optirent.ru/widget.js" async></script>
+//
+// Он продолжает работать без срока: этот файл подменяет старую вставку новым
+// компонентом <optirent-booking>. Новым сайтам — код из конструктора виджета.
 (function () {
     var script = document.currentScript;
     if (!script) {
@@ -12,25 +15,33 @@
     if (!script) return;
     var base = new URL(script.src, window.location.href).origin;
 
+    function upgrade(node) {
+        var secret = node.getAttribute('data-secret');
+        if (!secret || node.getAttribute('data-optirent-mounted')) return;
+        node.setAttribute('data-optirent-mounted', '1');
+        fetch(base + '/widget/' + encodeURIComponent(secret) + '/slug')
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data || !data.slug) return;
+                var widget = document.createElement('optirent-booking');
+                widget.setAttribute('data-widget', data.slug);
+                widget.setAttribute('data-base', base);
+                node.appendChild(widget);
+            })
+            .catch(function () {});
+    }
+
     function boot() {
         var nodes = document.querySelectorAll('#optirent-widget, [data-optirent-widget]');
-        for (var i = 0; i < nodes.length; i++) {
-            var node = nodes[i];
-            var secret = node.getAttribute('data-secret');
-            if (!secret || node.getAttribute('data-optirent-mounted')) continue;
-            node.setAttribute('data-optirent-mounted', '1');
-            window.OptiRentWidget.mount(node, { baseUrl: base, secret: secret });
+        for (var i = 0; i < nodes.length; i++) upgrade(nodes[i]);
+        if (!customElements.get('optirent-booking')) {
+            var core = document.createElement('script');
+            core.async = true;
+            core.src = base + '/w.js';
+            document.head.appendChild(core);
         }
     }
 
-    function ready() {
-        if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
-        else boot();
-    }
-
-    if (window.OptiRentWidget) return ready();
-    var core = document.createElement('script');
-    core.src = base + '/js/widget-core.js';
-    core.onload = ready;
-    document.head.appendChild(core);
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
 })();

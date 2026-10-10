@@ -27,6 +27,18 @@ const NARROW = 600;
 /** Дней календаря за один запрос. Ближайшие — сразу, дальние — когда гость долистает. */
 const CHUNK = 93;
 
+/** Настройки из <script type="application/json" data-optirent-config="slug"> на той же странице. */
+function inlineConfig(slug) {
+    try {
+        const node = [...document.querySelectorAll('script[data-optirent-config]')]
+            .find(n => n.dataset.optirentConfig === slug);
+        const cfg = node && JSON.parse(node.textContent);
+        return cfg && cfg.slug === slug ? cfg : null;
+    } catch (e) {
+        return null;
+    }
+}
+
 let sheet;
 try {
     sheet = new CSSStyleSheet();
@@ -111,10 +123,14 @@ class OptirentBooking extends HTMLElement {
     }
 
     async load() {
-        try {
-            this.cfg = await this.get('/config');
-        } catch (e) {
-            return this.fail(e.status === 404 ? 'notFound' : 'loadError', e.status !== 404);
+        // На странице бронирования настройки встроены в неё саму — рисуем сразу, без запроса
+        this.cfg = inlineConfig(this.dataset.widget);
+        if (!this.cfg) {
+            try {
+                this.cfg = await this.get('/config');
+            } catch (e) {
+                return this.fail(e.status === 404 ? 'notFound' : 'loadError', e.status !== 404);
+            }
         }
         const c = this.cfg;
         if (this.over) Object.assign(c, { layout: this.over.layout, theme: this.over.mode });
@@ -231,6 +247,8 @@ class OptirentBooking extends HTMLElement {
         this.live = h('div', { class: 'sr', 'aria-live': 'polite' });
 
         this.cal = new Calendar({
+            // data-vt — на нашей собственной странице: там смену месяца можно отдать View Transitions
+            vt: this.hasAttribute('data-vt'),
             t, cfg: c, days: this.days, sel: this.sel,
             onSelect: () => this.changed(),
             onNeed: d => this.need(d),
@@ -327,6 +345,10 @@ class OptirentBooking extends HTMLElement {
         if (this.ro) this.ro.disconnect();
         this.ro = new ResizeObserver(() => this.resize());
         this.ro.observe(this.card);
+        // Узкий режим определяем до первой отрисовки, а не по первому срабатыванию
+        // наблюдателя: иначе на телефоне виджет сначала рисуется широким и перестраивается
+        const width = this.card.clientWidth;
+        if (width) this.narrow = width < NARROW;
         this.layout();
         this.paintAll();
     }

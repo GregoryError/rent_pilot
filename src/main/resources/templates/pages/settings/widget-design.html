@@ -132,6 +132,13 @@
                     <textarea readonly id="dz-embed" rows="3" class="form-input form-input--sm"
                               style="font-family: var(--font-mono);" th:text="${embedCode}"></textarea>
                     <button type="button" class="btn btn-ghost" data-copy="dz-embed" style="margin-top: var(--sp-2);">Скопировать код встраивания</button>
+                    <details style="margin-top: var(--sp-3);">
+                        <summary class="text-sm" style="cursor: pointer;">Сайт на Tilda, Wix или другом конструкторе</summary>
+                        <div class="form-hint">Если первый код конструктор не пропускает, вставьте этот — виджет откроется во фрейме.</div>
+                        <textarea readonly id="dz-iframe" rows="4" class="form-input form-input--sm"
+                                  style="font-family: var(--font-mono);" th:text="${iframeCode}"></textarea>
+                        <button type="button" class="btn btn-ghost" data-copy="dz-iframe" style="margin-top: var(--sp-2);">Скопировать код фрейма</button>
+                    </details>
                     <div class="form-hint" th:unless="${hasOrigins}" style="color: var(--amber);">
                         Виджет заработает только на сайтах из списка разрешённых — сейчас он пуст. Добавьте свой сайт в
                         <a th:href="@{'/settings/widgets/' + ${w.id}}">настройках</a>, раздел «Адрес и встраивание».

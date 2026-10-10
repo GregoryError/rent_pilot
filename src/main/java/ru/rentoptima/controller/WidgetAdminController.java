@@ -34,6 +34,7 @@ import ru.rentoptima.config.WidgetCorsConfig;
 import ru.rentoptima.service.PhotoProcessor;
 import ru.rentoptima.service.WidgetBookingService;
 import ru.rentoptima.service.WidgetCalendar;
+import ru.rentoptima.service.WidgetConfigService;
 import ru.rentoptima.service.WidgetFunnelService;
 import ru.rentoptima.service.WidgetLayout;
 import ru.rentoptima.service.WidgetPhotoService;
@@ -99,7 +100,7 @@ public class WidgetAdminController {
         for (BookingWidget w : widgetRepo.findByTenantIdAndActiveTrueOrderByCreatedAtAsc(tenantId)) {
             rows.add(new WidgetRow(w.getId(), w.getTitle(),
                     unitLabels.getOrDefault(w.getUnitTypeId(), "категория удалена"),
-                    baseUrl + "/book/" + w.getSecret(), "widget-link-" + w.getId()));
+                    baseUrl + "/b/" + w.getSlug(), "widget-link-" + w.getId()));
         }
         List<UnitOption> options = new ArrayList<>();
         unitLabels.forEach((id, label) -> options.add(new UnitOption(id, label)));
@@ -162,19 +163,16 @@ public class WidgetAdminController {
             return "redirect:/settings/widgets";
         }
         String baseUrl = baseUrl(request);
-        String secret = w.getSecret();
 
         model.addAttribute("activePage", "widgets");
         model.addAttribute("w", w);
         model.addAttribute("unitLabel", unitLabels(tenantId).getOrDefault(w.getUnitTypeId(), ""));
-        model.addAttribute("photosText", String.join("\n", WidgetPublicController.photosOf(w)));
+        model.addAttribute("photosText", String.join("\n", WidgetConfigService.photoLinks(w)));
         model.addAttribute("checkin", w.getCheckinTime().toString());
         model.addAttribute("checkout", w.getCheckoutTime().toString());
-        model.addAttribute("directLink", baseUrl + "/book/" + secret);
-        model.addAttribute("iframeCode", "<iframe src=\"" + baseUrl + "/widget/" + secret
-                + "\" width=\"100%\" height=\"760\" frameborder=\"0\"></iframe>");
-        model.addAttribute("jsCode", "<div id=\"optirent-widget\" data-secret=\"" + secret + "\"></div>\n"
-                + "<script src=\"" + baseUrl + "/widget.js\" async></script>");
+        model.addAttribute("directLink", baseUrl + "/b/" + w.getSlug());
+        model.addAttribute("jsCode", embedCode(baseUrl, w));
+        model.addAttribute("iframeCode", iframeCode(baseUrl, w));
         model.addAttribute("holdHours", Math.max(1, (w.getHoldMinutes() + 59) / 60));
         model.addAttribute("cleaningFee", w.getCleaningFee().setScale(0, RoundingMode.HALF_UP).toPlainString());
         model.addAttribute("noCheckinDays", dayOptions(w.getNoCheckinDays()));
@@ -326,7 +324,7 @@ public class WidgetAdminController {
         String baseUrl = baseUrl(request);
         // Какие блоки есть чем заполнить: пустые конструктор помечает, чтобы хозяин не искал их в превью
         List<String> empty = new ArrayList<>();
-        if (photos.list(w.getId()).isEmpty() && WidgetPublicController.photosOf(w).isEmpty()) empty.add("gallery");
+        if (photos.list(w.getId()).isEmpty() && WidgetConfigService.photoLinks(w).isEmpty()) empty.add("gallery");
         if (clean(w.getDescription(), 10) == null) empty.add("description");
         if (WidgetLayout.amenities(w.getAmenities()).isEmpty()) empty.add("amenities");
         if (clean(w.getRules(), 10) == null && clean(w.getCancellationPolicy(), 10) == null) empty.add("rules");
@@ -349,10 +347,29 @@ public class WidgetAdminController {
         model.addAttribute("w", w);
         model.addAttribute("designData", data.toString());
         model.addAttribute("pageLink", baseUrl + "/b/" + w.getSlug());
-        model.addAttribute("embedCode", "<script async src=\"" + baseUrl + "/w.js\"></script>\n"
-                + "<optirent-booking data-widget=\"" + w.getSlug() + "\"></optirent-booking>");
+        model.addAttribute("embedCode", embedCode(baseUrl, w));
+        model.addAttribute("iframeCode", iframeCode(baseUrl, w));
         model.addAttribute("hasOrigins", !WidgetOrigins.parse(w.getAllowedOrigins()).isEmpty());
         return "pages/settings/widget-design";
+    }
+
+    /** Код встраивания: скрипт и тег компонента. */
+    static String embedCode(String baseUrl, BookingWidget w) {
+        return "<script async src=\"" + baseUrl + "/w.js\"></script>\n"
+                + "<optirent-booking data-widget=\"" + w.getSlug() + "\"></optirent-booking>";
+    }
+
+    /**
+     * Запасной код для конструкторов сайтов, которые режут сторонние скрипты и теги:
+     * фрейм и короткий скрипт, подгоняющий его высоту по сообщениям от нашей страницы.
+     * Если и этот скрипт вырежут, фрейм останется фиксированной высоты с прокруткой.
+     */
+    static String iframeCode(String baseUrl, BookingWidget w) {
+        String id = "optirent-" + w.getSlug();
+        return "<iframe id=\"" + id + "\" src=\"" + baseUrl + "/b/" + w.getSlug() + "/embed\" title=\"Бронирование\""
+                + " style=\"width:100%;border:0\" height=\"760\" loading=\"lazy\"></iframe>\n"
+                + "<script>addEventListener('message',function(e){if(e.origin==='" + baseUrl + "'&&e.data&&e.data.optirent==='"
+                + w.getSlug() + "')document.getElementById('" + id + "').style.height=e.data.height+'px'})</script>";
     }
 
     /** Страница для фрейма превью: только виджет. Открывается лишь с нашего же домена. */

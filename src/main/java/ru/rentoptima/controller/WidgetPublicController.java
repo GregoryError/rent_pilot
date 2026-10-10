@@ -1,228 +1,121 @@
 package ru.rentoptima.controller;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.BookingWidget;
-import ru.rentoptima.service.PublicRateLimiter;
 import ru.rentoptima.service.WidgetBookingService;
-import ru.rentoptima.service.WidgetNotifier;
+import ru.rentoptima.service.WidgetConfigService;
+import ru.rentoptima.service.WidgetLayout;
 import ru.rentoptima.service.WidgetOrigins;
-import ru.rentoptima.service.WidgetPricing;
-import ru.rentoptima.service.WidgetBookingService.StayRequest;
-import ru.rentoptima.service.WidgetBookingService.Submission;
 
-import java.math.RoundingMode;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
+import java.net.URI;
 import java.util.Map;
 
 /**
- * Публичная часть виджета бронирования (блок 4.9), без авторизации.
- * <p>
- * Три способа показа используют один и тот же интерфейс (static/js/widget-core.js)
- * и одни и те же JSON-эндпоинты:
+ * Публичные страницы виджета бронирования, без авторизации.
  * <ul>
- *   <li>{@code GET /book/{secret}} — полная страница для отправки ссылкой в мессенджер;</li>
- *   <li>{@code GET /widget/{secret}} — минимальная обёртка для iframe;</li>
- *   <li>{@code /widget.js} — статический загрузчик для вставки скриптом на чужой сайт.</li>
+ *   <li>{@code GET /b/{slug}} — страница бронирования: ссылка для мессенджеров, с
+ *       превью (OpenGraph) и настройками виджета, встроенными в страницу;</li>
+ *   <li>{@code GET /b/{slug}/embed} — она же для вставки во фрейм на сайт хозяина
+ *       (конструкторы сайтов, которые режут скрипты): сообщает родителю свою высоту;</li>
+ *   <li>прежние адреса {@code /book/{secret}} и {@code /widget/{secret}} — постоянные
+ *       редиректы на новые. Срока у них нет: ссылки, которые хозяева уже разослали
+ *       гостям и вставили на сайты, должны работать всегда. Не удалять.</li>
  * </ul>
- * JSON-эндпоинты без CSRF: сессии и cookie здесь не участвуют, доступ определяется
- * секретом виджета. С чужих сайтов они доступны только из списка разрешённых у
- * виджета (WidgetCorsConfig), тем же списком ограничено встраивание в iframe
- * (frame-ancestors). Защита от спама — лимит запросов по IP и honeypot.
- * <p>
- * Это прежний виджет (блок 4.9). Новый работает через WidgetApiController; эти адреса
- * остаются, пока виджет v2 не выйдет целиком, а потом станут постоянными редиректами.
+ * Прежняя вставка скриптом ({@code /widget.js} + {@code <div data-secret>}) тоже жива:
+ * статический {@code widget.js} подменяет её новым компонентом, а адрес виджета по
+ * секрету узнаёт у {@link #slug}.
  */
-@Slf4j
 @Controller
 @RequiredArgsConstructor
 public class WidgetPublicController {
 
-    /** Заявок с одного IP в час: защита от спама, обычному гостю хватит с запасом. */
-    private static final int REQUESTS_PER_HOUR = 10;
-    private static final DateTimeFormatter HOLD_TIME = DateTimeFormatter.ofPattern("dd.MM HH:mm");
-
     private final WidgetBookingService widgets;
-    private final PublicRateLimiter rateLimiter;
-    private final WidgetNotifier notifier;
+    private final WidgetConfigService configs;
 
-    // --- Страницы
-
-    @GetMapping("/book/{secret}")
-    public String landing(@PathVariable String secret, Model model, HttpServletRequest request) {
-        BookingWidget w = require(secret);
-        String baseUrl = ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
-        List<String> photos = photosOf(w);
-
-        model.addAttribute("widget", w);
-        model.addAttribute("baseUrl", baseUrl);
-        model.addAttribute("currentUrl", baseUrl + "/book/" + w.getSecret());
-        model.addAttribute("photos", photos);
-        model.addAttribute("firstPhoto", photos.isEmpty() ? null : photos.get(0));
-        model.addAttribute("ogDescription", ogDescription(w));
-        model.addAttribute("checkin", w.getCheckinTime().toString());
-        model.addAttribute("checkout", w.getCheckoutTime().toString());
-        model.addAttribute("bodyClass", "book-page book-page--" + themeOf(w));
-        return "pages/widget/book";
-    }
-
-    /**
-     * Страница бронирования с новым виджетом — адрес, который хозяин даёт гостям.
-     * Пока минимальная: превью для мессенджеров и встраивание во фрейм — следующая фаза.
-     */
     @GetMapping("/b/{slug}")
-    public String page(@PathVariable String slug, Model model) {
-        BookingWidget w = widgets.findBySlug(slug)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        model.addAttribute("widget", w);
-        model.addAttribute("ogDescription", ogDescription(w));
-        model.addAttribute("pageClass", "page page--" + themeOf(w));
+    public String page(@PathVariable String slug, Model model, HttpServletRequest request) {
+        fill(model, bySlug(slug), request, false);
         return "pages/widget/page";
     }
 
-    @GetMapping("/widget/{secret}")
-    public String frame(@PathVariable String secret, Model model, HttpServletRequest request,
+    /** Страница для фрейма. Встраивать можно только на наш домен и сайты, разрешённые хозяином. */
+    @GetMapping("/b/{slug}/embed")
+    public String embed(@PathVariable String slug, Model model, HttpServletRequest request,
                         HttpServletResponse response) {
-        BookingWidget w = require(secret);
-        // Встраивать можно только на наш домен и сайты, разрешённые хозяином
+        BookingWidget w = bySlug(slug);
         response.setHeader("Content-Security-Policy", WidgetOrigins.frameAncestors(w.getAllowedOrigins()));
+        fill(model, w, request, true);
+        return "pages/widget/page";
+    }
+
+    private void fill(Model model, BookingWidget w, HttpServletRequest request, boolean embed) {
+        String baseUrl = ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
+        var theme = WidgetLayout.normalize(w.getConfigJson()).path("theme");
+        String accent = theme.path("accent").asText();
+        // Выбранный шрифт подгружается заранее: тогда он успевает к первой отрисовке
+        String font = theme.path("font").asText();
+        model.addAttribute("fontFiles", "system".equals(font) ? java.util.List.of() : java.util.List.of(
+                baseUrl + "/fonts/" + font + "-cyrillic-wght-normal.woff2",
+                baseUrl + "/fonts/" + font + "-latin-wght-normal.woff2"));
         model.addAttribute("widget", w);
-        model.addAttribute("baseUrl",
-                ServletUriComponentsBuilder.fromContextPath(request).build().toUriString());
-        return "pages/widget/frame";
+        model.addAttribute("embed", embed);
+        model.addAttribute("configJson", configs.inlineJson(w, baseUrl));
+        model.addAttribute("pageUrl", baseUrl + "/b/" + w.getSlug());
+        model.addAttribute("shareImage", configs.shareImage(w, baseUrl));
+        model.addAttribute("shareDescription", shareDescription(w));
+        model.addAttribute("pageClass", (embed ? "embed " : "") + "page page--" + themeOf(w));
+        model.addAttribute("themeColor", accent);
     }
 
-    // --- JSON API
+    // --- Прежние адреса
 
-    /** Настройки виджета и занятые ночи на всё окно бронирования. */
-    @GetMapping("/widget/{secret}/availability")
+    @GetMapping("/book/{secret}")
+    public ResponseEntity<Void> legacyPage(@PathVariable String secret, HttpServletRequest request) {
+        return moved("/b/" + bySecret(secret).getSlug(), request);
+    }
+
+    @GetMapping("/widget/{secret}")
+    public ResponseEntity<Void> legacyFrame(@PathVariable String secret, HttpServletRequest request) {
+        return moved("/b/" + bySecret(secret).getSlug() + "/embed", request);
+    }
+
+    /**
+     * Адрес виджета по секрету — для прежней вставки скриптом. CORS — как у остального
+     * API: только сайты, разрешённые хозяином.
+     */
+    @GetMapping("/widget/{secret}/slug")
     @ResponseBody
-    public Map<String, Object> availability(@PathVariable String secret) {
-        BookingWidget w = require(secret);
-        LocalDate today = LocalDate.now();
-
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("title", w.getTitle());
-        body.put("today", today.toString());
-        body.put("maxDate", WidgetBookingService.maxDate(w, today).toString());
-        body.put("minNights", w.getMinNights());
-        body.put("maxNights", w.getMaxNights());
-        body.put("maxGuests", w.getMaxGuests());
-        body.put("showPrice", Boolean.TRUE.equals(w.getShowPrice()));
-        body.put("showPoweredBy", Boolean.TRUE.equals(w.getShowPoweredBy()));
-        body.put("theme", themeOf(w));
-        body.put("checkinTime", w.getCheckinTime().toString());
-        body.put("checkoutTime", w.getCheckoutTime().toString());
-        body.put("holdHours", Math.max(1, (w.getHoldMinutes() + 59) / 60));
-        body.put("busyDays", widgets.busyNights(w, today).stream().map(LocalDate::toString).toList());
-        return body;
+    public Map<String, String> slug(@PathVariable String secret) {
+        return Map.of("slug", bySecret(secret).getSlug());
     }
 
-    @GetMapping("/widget/{secret}/price")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> price(
-            @PathVariable String secret,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) Integer guests) {
-        BookingWidget w = require(secret);
-        String error = WidgetBookingService.validateStay(from, to, LocalDate.now(),
-                w.getMinNights(), w.getMaxNights(), w.getBookingWindowDays());
-        if (error != null) return ResponseEntity.badRequest().body(Map.of("message", error));
-
-        WidgetPricing.Quote quote = widgets.quote(w, from, to, null);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("nights", quote.nights());
-        // Хост скрыл цены или задал их не на все ночи — отдаём только число ночей
-        boolean show = Boolean.TRUE.equals(w.getShowPrice()) && quote.complete();
-        body.put("price", show ? quote.total() : null);
-        List<Map<String, Object>> breakdown = new ArrayList<>();
-        if (show) {
-            for (WidgetPricing.NightPrice n : quote.breakdown()) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("date", n.date().toString());
-                row.put("price", n.price().setScale(0, RoundingMode.HALF_UP));
-                breakdown.add(row);
-            }
-        }
-        body.put("breakdown", breakdown);
-        return ResponseEntity.ok(body);
+    /** 301 с сохранением параметров: ссылка «на конкретные даты» остаётся ссылкой на эти даты. */
+    private static ResponseEntity<Void> moved(String path, HttpServletRequest request) {
+        String query = request.getQueryString();
+        String target = request.getContextPath() + path + (query == null ? "" : "?" + query);
+        return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY)
+                .header(HttpHeaders.LOCATION, URI.create(target).toASCIIString())
+                .build();
     }
 
-    @PostMapping("/widget/{secret}/request")
-    @ResponseBody
-    public ResponseEntity<Map<String, Object>> request(@PathVariable String secret,
-                                                       @RequestBody RequestForm form,
-                                                       HttpServletRequest http) {
-        BookingWidget w = require(secret);
-        String ip = http.getRemoteAddr();
-
-        // Honeypot: поле скрыто от людей, заполняют его только боты. Отвечаем «успехом»,
-        // чтобы бот не подбирал, что именно не так.
-        if (form.website() != null && !form.website().isBlank()) {
-            return ResponseEntity.ok(Map.of("status", "PENDING",
-                    "message", "Заявка отправлена. Хозяин свяжется с вами."));
-        }
-        if (!rateLimiter.allow("widget-request:" + ip, REQUESTS_PER_HOUR, 3_600_000L)) {
-            return error(HttpStatus.TOO_MANY_REQUESTS, "Слишком много заявок. Попробуйте позже.");
-        }
-        LocalDate from;
-        LocalDate to;
-        try {
-            from = LocalDate.parse(form.from());
-            to = LocalDate.parse(form.to());
-        } catch (Exception e) {
-            return error(HttpStatus.BAD_REQUEST, "Выберите даты заезда и выезда");
-        }
-
-        Submission result = widgets.submit(w, StayRequest.legacy(
-                from, to, form.guests() == null ? 1 : form.guests(),
-                form.name(), form.phone(), form.email(), form.note(),
-                Boolean.TRUE.equals(form.consent())));
-        if (!result.ok()) return error(HttpStatus.BAD_REQUEST, result.errorMessage());
-
-        notifier.created(w, result.booking(), result.holdExpiresAt(),
-                ServletUriComponentsBuilder.fromContextPath(http).build().toUriString());
-
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("status", result.booking().getStatus());
-        if (result.holdExpiresAt() == null) {
-            body.put("message", "Бронь подтверждена. Хозяин свяжется с вами.");
-        } else {
-            body.put("holdExpiresAt", result.holdExpiresAt().toString());
-            body.put("message", "Заявка отправлена. Даты за вами до "
-                    + result.holdExpiresAt().format(HOLD_TIME) + " — хозяин свяжется с вами для подтверждения.");
-        }
-        return ResponseEntity.ok(body);
+    private BookingWidget bySlug(String slug) {
+        return widgets.findBySlug(slug).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
-    private BookingWidget require(String secret) {
-        return widgets.findActive(secret)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-    }
-
-    private static ResponseEntity<Map<String, Object>> error(HttpStatus status, String message) {
-        return ResponseEntity.status(status).body(Map.of("message", message));
+    private BookingWidget bySecret(String secret) {
+        return widgets.findActive(secret).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
     private static String themeOf(BookingWidget w) {
@@ -230,25 +123,11 @@ public class WidgetPublicController {
         return "dark".equals(theme) || "auto".equals(theme) ? theme : "light";
     }
 
-    static List<String> photosOf(BookingWidget w) {
-        List<String> photos = new ArrayList<>();
-        JsonNode json = w.getPhotosJson();
-        if (json != null && json.isArray()) {
-            for (JsonNode n : json) {
-                if (n.isTextual() && n.asText().startsWith("https://")) photos.add(n.asText());
-            }
-        }
-        return photos;
-    }
-
-    private static String ogDescription(BookingWidget w) {
+    /** Описание для превью ссылки: начало описания жилья, иначе общая фраза. */
+    static String shareDescription(BookingWidget w) {
         String d = w.getDescription();
         if (d == null || d.isBlank()) return "Бронирование напрямую у хозяина, без комиссии площадок.";
         String flat = d.replaceAll("\\s+", " ").trim();
         return flat.length() > 200 ? flat.substring(0, 197) + "…" : flat;
     }
-
-    public record RequestForm(String from, String to, Integer guests,
-                              String name, String phone, String email, String note,
-                              Boolean consent, String captchaToken, String website) {}
 }

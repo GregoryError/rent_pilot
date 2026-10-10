@@ -2,7 +2,6 @@ package ru.rentoptima.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +21,6 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.BookingWidget;
-import ru.rentoptima.entity.WidgetPhoto;
 import ru.rentoptima.payment.PaymentProvider;
 import ru.rentoptima.service.PublicRateLimiter;
 import ru.rentoptima.service.WidgetBookingService;
@@ -30,13 +28,12 @@ import ru.rentoptima.service.WidgetBookingService.PromoCheck;
 import ru.rentoptima.service.WidgetBookingService.StayRequest;
 import ru.rentoptima.service.WidgetBookingService.Submission;
 import ru.rentoptima.service.WidgetCalendar;
+import ru.rentoptima.service.WidgetConfigService;
 import ru.rentoptima.service.WidgetError;
 import ru.rentoptima.service.WidgetFormToken;
 import ru.rentoptima.service.WidgetFunnelService;
 import ru.rentoptima.service.WidgetGuestCalendar;
-import ru.rentoptima.service.WidgetLayout;
 import ru.rentoptima.service.WidgetNotifier;
-import ru.rentoptima.service.WidgetPhotoService;
 import ru.rentoptima.service.WidgetPricing;
 
 import java.math.BigDecimal;
@@ -79,57 +76,14 @@ public class WidgetApiController {
     private final PublicRateLimiter rateLimiter;
     private final WidgetNotifier notifier;
     private final PaymentProvider payments;
-    private final WidgetPhotoService photos;
+    private final WidgetConfigService configs;
     private final WidgetFunnelService funnel;
 
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> config(@PathVariable String slug, HttpServletRequest http) {
         BookingWidget w = require(slug);
-        LocalDate today = LocalDate.now();
-
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("slug", w.getSlug());
-        body.put("title", w.getTitle());
-        body.put("mode", w.getMode());
-        body.put("currency", "RUB");
-        body.put("today", today.toString());
-        body.put("maxDate", WidgetBookingService.maxDate(w, today).toString());
-        body.put("minNights", w.getMinNights());
-        body.put("maxNights", w.getMaxNights());
-        body.put("maxGuests", w.getMaxGuests());
-        body.put("petsAllowed", Boolean.TRUE.equals(w.getPetsAllowed()));
-        body.put("checkinTime", w.getCheckinTime().toString());
-        body.put("checkoutTime", w.getCheckoutTime().toString());
-        body.put("holdMinutes", w.getHoldMinutes());
-        body.put("showPrice", Boolean.TRUE.equals(w.getShowPrice()));
-        body.put("showPoweredBy", Boolean.TRUE.equals(w.getShowPoweredBy()));
-        body.put("theme", w.getTheme());
-        body.put("weeklyDiscountPercent", w.getWeeklyDiscountPercent());
-        body.put("monthlyDiscountPercent", w.getMonthlyDiscountPercent());
-        body.put("prepaymentPercent", w.getPrepaymentPercent());
-        body.put("description", w.getDescription());
-        body.put("rules", w.getRules());
-        body.put("cancellationPolicy", w.getCancellationPolicy());
-        body.put("addressHint", w.getAddressHint());
-        // Сначала загруженные фото (с вариантами и заглушкой), затем ссылки, заданные раньше
         String baseUrl = ServletUriComponentsBuilder.fromContextPath(http).build().toUriString();
-        List<Map<String, Object>> gallery = new ArrayList<>();
-        for (WidgetPhoto p : photos.list(w.getId())) gallery.add(photos.view(p, baseUrl));
-        for (String url : WidgetPublicController.photosOf(w)) gallery.add(Map.of("src", url));
-        body.put("photos", gallery);
-        ObjectNode layout = WidgetLayout.normalize(w.getConfigJson());
-        body.put("layout", layout);
-        body.put("metrikaId", w.getMetrikaId());
-        body.put("amenities", WidgetLayout.amenities(w.getAmenities()));
-        body.put("mapUrl", WidgetLayout.mapUrl(w.getMapUrl()));
-        // Контакты до брони отдаём, только если хозяин оставил блок «Контакты» видимым
-        if (!WidgetLayout.hidden(layout, "contacts")) {
-            Map<String, Object> contacts = new LinkedHashMap<>();
-            contacts.put("phone", w.getContactPhone());
-            contacts.put("telegram", w.getContactTelegram());
-            contacts.put("whatsapp", w.getContactWhatsapp());
-            body.put("contacts", contacts);
-        }
+        Map<String, Object> body = configs.config(w, baseUrl);
         return ResponseEntity.ok().cacheControl(CACHE).body(body);
     }
 

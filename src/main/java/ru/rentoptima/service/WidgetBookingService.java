@@ -499,13 +499,6 @@ public class WidgetBookingService {
                               boolean consent, String promoCode, BigDecimal expectedTotal,
                               String locale, String utmSource, String utmMedium, String utmCampaign,
                               String referrer) {
-
-        /** Заявка прежнего виджета: только число гостей, без промокода и меток. */
-        public static StayRequest legacy(LocalDate from, LocalDate to, int guests, String name,
-                                         String phone, String email, String note, boolean consent) {
-            return new StayRequest(from, to, guests, 0, 0, name, phone, email, note, consent,
-                    null, null, "ru", null, null, null, null);
-        }
     }
 
     /** promo == null и error == null — промокод не вводили. */

@@ -326,7 +326,7 @@ class WidgetBookingIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", ALLOWED_ORIGIN));
 
-        String legacy = "/widget/" + widget.getSecret() + "/availability";
+        String legacy = "/widget/" + widget.getSecret() + "/slug";
         mvc.perform(get(legacy).header("Origin", "https://evil.example")).andExpect(status().isForbidden());
         mvc.perform(get(legacy).header("Origin", ALLOWED_ORIGIN)).andExpect(status().isOk());
         // Без Origin — запрос с нашего же домена
@@ -334,17 +334,59 @@ class WidgetBookingIntegrationTest {
     }
 
     @Test
-    @DisplayName("iframe: страница виджета отдаёт frame-ancestors со списком сайтов, остальное — X-Frame-Options DENY")
-    void frameAncestors() throws Exception {
-        mvc.perform(get("/widget/" + widget.getSecret()))
+    @DisplayName("страница /b/: превью для мессенджеров, встроенные настройки; фрейм — только разрешённым сайтам")
+    void publicPageAndEmbed() throws Exception {
+        jdbc.update("UPDATE booking_widgets SET description = ?, photos_json = ?::jsonb WHERE id = ?",
+                "Светлый лофт </script><script>alert(1)</script> у парка", "[\"https://img.example/a.jpg\"]", widget.getId());
+
+        String html = mvc.perform(get("/b/" + slug)).andExpect(status().isOk())
+                .andExpect(header().string("X-Frame-Options", "DENY"))
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(html).contains(
+                "<meta property=\"og:title\" content=\"Лофт у парка\">",
+                "<meta property=\"og:image\" content=\"https://img.example/a.jpg\">",
+                "<meta property=\"og:url\" content=\"http://localhost/b/" + slug + "\">",
+                "<optirent-booking data-widget=\"" + slug + "\" data-vt>",
+                "data-optirent-config=\"" + slug + "\"");
+        // Текст хозяина не может закрыть тег script и стать разметкой
+        assertThat(html).doesNotContain("</script><script>alert(1)").contains("\\u003c/script>");
+        String inline = html.substring(html.indexOf("data-optirent-config"));
+        inline = inline.substring(inline.indexOf('>') + 1, inline.indexOf("</script>"));
+        JsonNode cfg = json.readTree(inline);
+        assertThat(cfg.path("slug").asText()).isEqualTo(slug);
+        assertThat(cfg.path("description").asText()).contains("</script><script>alert(1)</script>");
+        assertThat(cfg.path("photos").get(0).path("src").asText()).isEqualTo("https://img.example/a.jpg");
+
+        mvc.perform(get("/b/" + slug + "/embed"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Content-Security-Policy", "frame-ancestors 'self' " + ALLOWED_ORIGIN))
-                .andExpect(header().doesNotExist("X-Frame-Options"));
-        mvc.perform(get("/book/" + widget.getSecret()))
-                .andExpect(status().isOk())
-                .andExpect(header().string("X-Frame-Options", "DENY"));
+                .andExpect(header().doesNotExist("X-Frame-Options"))
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("postMessage", "noindex"));
         mvc.perform(get("/api/widget/" + slug + "/config"))
                 .andExpect(header().string("X-Frame-Options", "DENY"));
+    }
+
+    @Test
+    @DisplayName("старые ссылки — постоянные редиректы с сохранением параметров; старая вставка скриптом узнаёт адрес виджета")
+    void legacyLinks() throws Exception {
+        String secret = widget.getSecret();
+        mvc.perform(get("/book/" + secret).queryParam("checkin", "2026-11-13").queryParam("utm_source", "telegram"))
+                .andExpect(status().isMovedPermanently())
+                .andExpect(header().string("Location", "/b/" + slug + "?checkin=2026-11-13&utm_source=telegram"));
+        mvc.perform(get("/book/" + secret)).andExpect(header().string("Location", "/b/" + slug));
+        mvc.perform(get("/widget/" + secret))
+                .andExpect(status().isMovedPermanently())
+                .andExpect(header().string("Location", "/b/" + slug + "/embed"));
+        mvc.perform(get("/book/no-such-secret")).andExpect(status().isNotFound());
+
+        mvc.perform(get("/widget/" + secret + "/slug").header("Origin", ALLOWED_ORIGIN))
+                .andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("\"slug\":\"" + slug + "\""));
+        mvc.perform(get("/widget.js")).andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("optirent-booking", "/slug"));
+        // Прежнего API по секрету больше нет
+        mvc.perform(post("/widget/" + secret + "/request").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(r -> assertThat(r.getResponse().getStatus()).isIn(403, 404, 405));
     }
 
     @Test
@@ -577,8 +619,7 @@ class WidgetBookingIntegrationTest {
 
         // Страница бронирования по адресу виджета
         mvc.perform(get("/b/" + slug)).andExpect(status().isOk())
-                .andExpect(r -> assertThat(r.getResponse().getContentAsString())
-                        .contains("<optirent-booking data-widget=\"" + slug + "\">", "/w.js"));
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("data-widget=\"" + slug + "\"", "/w.js"));
         mvc.perform(get("/b/no-such-widget")).andExpect(status().isNotFound());
 
         JsonNode cfg = json.readTree(mvc.perform(get("/api/widget/" + slug + "/config"))

@@ -17,6 +17,7 @@ export class Calendar {
      * @param o.onSelect выбор изменился
      * @param o.onNeed   нужны дни до указанной даты
      * @param o.say      объявить текст скринридеру
+     * @param o.vt       сменять месяц через View Transitions API
      */
     constructor(o) {
         this.o = o;
@@ -93,10 +94,15 @@ export class Calendar {
 
     go(dir) {
         const target = addMonths(this.month, dir);
-        const { cfg } = this.o;
+        const { cfg, vt } = this.o;
         if (target < monthStart(cfg.today) || target > monthStart(cfg.maxDate)) return;
         this.month = target;
-        this.build(dir);
+        // View Transitions плавно сменяет месяц средствами браузера. Только там, где это
+        // разрешено явно (наша страница бронирования): переход делает снимок всей страницы,
+        // на чужом сайте так нельзя. Иначе и в старых браузерах — сдвиг на CSS.
+        const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (vt && !still && document.startViewTransition) document.startViewTransition(() => this.build());
+        else this.build(dir);
     }
 
     build(dir) {

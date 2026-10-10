@@ -23,8 +23,8 @@
         <div class="card__title" style="margin-bottom: var(--sp-4);">Как дать гостям забронировать</div>
         <div class="embed-tabs" style="display: flex; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-4);">
             <button type="button" class="btn btn-primary" data-embed-tab="link">Прямая ссылка</button>
-            <button type="button" class="btn btn-ghost" data-embed-tab="iframe">Встраивание на сайт</button>
-            <button type="button" class="btn btn-ghost" data-embed-tab="js">Для разработчиков</button>
+            <button type="button" class="btn btn-ghost" data-embed-tab="js">Код для сайта</button>
+            <button type="button" class="btn btn-ghost" data-embed-tab="iframe">Для Tilda и Wix</button>
         </div>
 
         <div data-embed-panel="link">
@@ -34,15 +34,8 @@
                 <button type="button" class="btn btn-ghost" data-copy="embed-link">Копировать</button>
                 <a class="btn btn-ghost" th:href="${directLink}" target="_blank" rel="noopener">Открыть</a>
             </div>
-            <div class="form-hint">Отправьте эту ссылку в WhatsApp, Telegram или Instagram.</div>
-        </div>
-        <div data-embed-panel="iframe" style="display: none;">
-            <div style="display: flex; gap: var(--sp-2); align-items: flex-start;">
-                <textarea readonly id="embed-iframe" rows="2" class="form-input form-input--sm"
-                          style="flex: 1; min-width: 0; font-family: var(--font-mono);" th:text="${iframeCode}"></textarea>
-                <button type="button" class="btn btn-ghost" data-copy="embed-iframe">Копировать</button>
-            </div>
-            <div class="form-hint">Вставьте этот код на свой сайт в любое место.</div>
+            <div class="form-hint">Отправьте эту ссылку в WhatsApp, Telegram или Instagram. Чтобы видеть в статистике, откуда пришли гости,
+                добавляйте метку: <code>?utm_source=telegram</code>.</div>
         </div>
         <div data-embed-panel="js" style="display: none;">
             <div style="display: flex; gap: var(--sp-2); align-items: flex-start;">
@@ -50,7 +43,16 @@
                           style="flex: 1; min-width: 0; font-family: var(--font-mono);" th:text="${jsCode}"></textarea>
                 <button type="button" class="btn btn-ghost" data-copy="embed-js">Копировать</button>
             </div>
-            <div class="form-hint">Для разработчиков: форма встраивается прямо в страницу, без iframe.</div>
+            <div class="form-hint">Вставьте этот код на свой сайт в любое место. Сайт должен быть в списке разрешённых ниже.</div>
+        </div>
+        <div data-embed-panel="iframe" style="display: none;">
+            <div style="display: flex; gap: var(--sp-2); align-items: flex-start;">
+                <textarea readonly id="embed-iframe" rows="4" class="form-input form-input--sm"
+                          style="flex: 1; min-width: 0; font-family: var(--font-mono);" th:text="${iframeCode}"></textarea>
+                <button type="button" class="btn btn-ghost" data-copy="embed-iframe">Копировать</button>
+            </div>
+            <div class="form-hint">Запасной вариант для Tilda, Wix и других конструкторов, которые не пропускают первый код.
+                Сайт тоже должен быть в списке разрешённых.</div>
         </div>
     </div>
 
@@ -176,7 +178,7 @@
                     <input type="text" name="slug" maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" th:value="${w.slug}"
                            class="form-input form-input--sm" style="flex: 1; min-width: 180px;">
                 </div>
-                <div class="form-hint">Латинские буквы, цифры и дефис. Страница по этому адресу появится с новым виджетом; пока работает ссылка выше.</div>
+                <div class="form-hint">Латинские буквы, цифры и дефис. Если поменять адрес, прежняя ссылка /b/… перестанет открываться.</div>
             </div>
             <div class="form-group">
                 <label class="form-label">Счётчик Яндекс.Метрики</label>
@@ -356,8 +358,8 @@
         <div class="card__title" style="margin-bottom: var(--sp-3);">Ссылка и удаление</div>
         <div style="display: flex; gap: var(--sp-3); flex-wrap: wrap;">
             <form method="post" th:action="@{'/settings/widgets/' + ${w.id} + '/regenerate'}" style="margin: 0;"
-                  onsubmit="return confirm('Перевыпустить ссылку? Старая ссылка и код на сайте сразу перестанут работать.');">
-                <button type="submit" class="btn btn-ghost" style="color: var(--amber);">Перевыпустить ссылку</button>
+                  onsubmit="return confirm('Отключить ссылки старого образца (/book/… и /widget/…)? Те, что вы уже разослали, перестанут открываться. Новая ссылка /b/… продолжит работать.');">
+                <button type="submit" class="btn btn-ghost" style="color: var(--amber);">Отключить старые ссылки</button>
             </form>
             <form method="post" th:action="@{'/settings/widgets/' + ${w.id} + '/delete'}" style="margin: 0;"
                   onsubmit="return confirm('Удалить страницу бронирования? Ссылка перестанет открываться, уже полученные заявки останутся.');">

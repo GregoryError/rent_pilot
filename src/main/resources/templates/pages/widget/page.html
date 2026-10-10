@@ -4,20 +4,56 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title th:text="${widget.title}">Бронирование</title>
-    <meta name="description" th:content="${ogDescription}">
+    <meta name="description" th:content="${shareDescription}">
+    <meta name="theme-color" th:content="${themeColor}">
+    <link rel="canonical" th:href="${pageUrl}">
+    <meta name="robots" content="noindex" th:if="${embed}">
+    <!-- Превью ссылки в мессенджерах и соцсетях -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="OptiRent">
+    <meta property="og:title" th:content="${widget.title}">
+    <meta property="og:description" th:content="${shareDescription}">
+    <meta property="og:url" th:content="${pageUrl}">
+    <meta property="og:image" th:if="${shareImage != null}" th:content="${shareImage}">
+    <meta name="twitter:card" th:content="${shareImage != null ? 'summary_large_image' : 'summary'}">
+    <link rel="preload" as="font" type="font/woff2" crossorigin th:each="f : ${fontFiles}" th:href="${f}">
     <style>
         html, body { margin: 0; }
-        body { background: #f6f5f2; }
+        body { background: #f6f5f2; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; }
         .page--dark { background: #0e0f11; }
         @media (prefers-color-scheme: dark) { .page--auto { background: #0e0f11; } }
         .page-wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
         @media (max-width: 600px) { .page-wrap { padding: 12px 8px 32px; } }
+        /* Во фрейме на сайте хозяина — без своего фона и полей */
+        .embed { background: transparent; }
+        .embed .page-wrap { max-width: none; padding: 0; }
+        .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+        noscript p { max-width: 560px; margin: 48px auto; padding: 0 16px; font-size: 1rem; line-height: 1.5; color: #1b1b19; }
     </style>
 </head>
 <body th:class="${pageClass}">
-<div class="page-wrap">
-    <optirent-booking th:data-widget="${widget.slug}"></optirent-booking>
-</div>
+<main class="page-wrap">
+    <h1 class="sr-only" th:text="${widget.title}">Бронирование</h1>
+    <!-- Настройки виджета встроены в страницу: он рисуется сразу, без запроса и без скелетона -->
+    <script type="application/json" th:attr="data-optirent-config=${widget.slug}" th:utext="${configJson}"></script>
+    <optirent-booking th:data-widget="${widget.slug}" data-vt></optirent-booking>
+    <noscript><p>Чтобы выбрать даты и отправить заявку, включите JavaScript в браузере.</p></noscript>
+</main>
 <script async th:src="@{/w.js}"></script>
+<!-- Фрейм сообщает странице хозяина свою высоту, чтобы та подогнала его без прокрутки -->
+<script th:if="${embed}" th:inline="javascript">
+    (function () {
+        var slug = /*[[${widget.slug}]]*/ 'slug';
+        var last = 0;
+        function report() {
+            var height = Math.ceil(document.documentElement.getBoundingClientRect().height);
+            if (height === last) return;
+            last = height;
+            parent.postMessage({ optirent: slug, height: height }, '*');
+        }
+        new ResizeObserver(report).observe(document.documentElement);
+        addEventListener('load', report);
+    })();
+</script>
 </body>
 </html>
