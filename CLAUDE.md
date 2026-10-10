@@ -153,7 +153,7 @@ AI-режим — только рекомендации. `PricingEngine.runForPr
 
 ### Виджет бронирования: публичный API и встраивание
 
-Идёт переделка виджета (v2) по фазам — `patches/INTEGRATION_BOOKING_WIDGET_V2.md`. Сделана фаза 1 (сервер, V29).
+Идёт переделка виджета (v2) по фазам — `patches/INTEGRATION_BOOKING_WIDGET_V2.md`. Сделаны фаза 1 (сервер, V29) и фаза 2 (Web Component).
 
 - Новый API — `/api/widget/{slug}/…` (`WidgetApiController`), ключ — `booking_widgets.slug`. Прежние `/book/{secret}`, `/widget/{secret}`, `/widget.js` работают и останутся постоянными редиректами — не удалять.
 - Сумму считает только сервер: `WidgetPricing` (ночи → скидка за длительность → промокод → уборка). Правила дат и состояния дней календаря — `WidgetCalendar`. Оба без БД, тестируются напрямую.
@@ -162,6 +162,7 @@ AI-режим — только рекомендации. `PricingEngine.runForPr
 - Капчи нет. Защита от спама: honeypot, лимит по IP, `WidgetFormToken` (время заполнения формы).
 - Режимы: `REQUEST` (резерв `hold_minutes`, по умолчанию сутки) и `INSTANT`. Бронь создаётся под `SELECT … FOR UPDATE` по строке категории.
 - `booking_widgets.cleaning_fee` — сбор с гостя. Настройка `cleaning_cost` — расход хозяина, в цену для гостя не входит.
+- Сам виджет (фаза 2) — Web Component `<optirent-booking>` с Shadow DOM, исходники в `widget/src`, сборка `cd widget && npm run build` → `static/w.js`. Бандл лежит в репозитории; `WidgetBundleTest` падает, если он собран не из текущих исходников, — после правок в `widget/` пересобрать и закоммитить `w.js`. Внутри только ванильный JS, без фреймворков; бюджет 35 КБ JS + 15 КБ CSS (gzip). Тексты хозяина вставляются только через `textContent`. Посмотреть виджет — `/settings/widgets/{id}/preview`; гостям он пока не отдаётся.
 - Письма гостю — `EmailService.send`, включается `SMTP_HOST` + `MAIL_FROM`; без них пропускаются.
 
 ### Подписи в настройках
@@ -200,6 +201,7 @@ AI-режим — только рекомендации. `PricingEngine.runForPr
 - **Блок 4.9** (V22): Booking Widget MVP — `booking_widgets`, `ChannelType.WIDGET`, WidgetBookingService (hold + бронь PENDING), публичные /book/{secret}, /widget/{secret}, /widget.js, админка /settings/widgets, заявки /bookings/pending. Отступления от плана ниже и непроверенное — в `patches/INTEGRATION_BLOCK4_9.md`. Заодно: раздел /staff «Сотрудники» (ссылка и PIN горничной), починена вёрстка «Отзывов».
 - **Цвета каналов** (V23): `channels.color` из фиксированной палитры `ChannelPalette`; занятый день в шахматке закрашен цветом канала с первой буквой его названия, закрытый вручную — чёрный. См. `patches/INTEGRATION_CHANNEL_COLORS.md`.
 - **Открытие дат, закрытых площадкой** (V25): `calendar_blocks.ignored` — блокировку с канала нельзя удалить (вернётся из фида), поэтому хост помечает её в модалке шахматки «Открыть даты»; такие блокировки не считаются занятостью и не уходят в экспорт. Запрос `findByUnitTypesInRange` их отфильтровывает, `findOverlapping` — нет.
+- **Виджет бронирования v2, фаза 2**: Web Component `<optirent-booking>` (`widget/`, бандл `static/w.js`), предпросмотр в настройках виджета.
 - **Виджет бронирования v2, фаза 1** (V29): публичный API `/api/widget/{slug}`, расчёт суммы на сервере, промокоды, скидки за длительность, режим мгновенной брони, эхо-защита броней виджета, CORS по списку сайтов. См. `patches/INTEGRATION_BOOKING_WIDGET_V2.md`.
 - **Эхо ручных записей** (V26, V27): UID-маркер `optirent-manual-*`, `manual_block_echoes`, мягкое удаление ручных записей (`calendar_blocks.cancelled_at`, `STATUS:CANCELLED` в экспорте 90 дней), «тени» для эха по датам (`calendar_blocks.shadow_of_manual_id`). См. раздел «Ручные записи в многоканальной среде» и `patches/INTEGRATION_MANUAL_ECHO.md`.
 

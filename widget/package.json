@@ -1,0 +1,13 @@
+{
+  "name": "optirent-widget",
+  "private": true,
+  "type": "module",
+  "description": "Виджет бронирования OptiRent: исходники и сборка static/w.js",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10"
+  }
+}

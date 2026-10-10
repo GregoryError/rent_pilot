@@ -389,6 +389,15 @@ class WidgetBookingIntegrationTest {
                 .andExpect(r -> assertThat(r.getResponse().getContentAsString())
                         .contains("Промокоды", "Сайты, где можно разместить виджет", slug));
 
+        // Предпросмотр нового виджета и его бандл (бандл — без входа)
+        mvc.perform(get(page + "/preview").with(user(host())))
+                .andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString())
+                        .contains("<optirent-booking data-widget=\"" + slug + "\">", "/w.js"));
+        mvc.perform(get("/w.js"))
+                .andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("optirent-booking"));
+
         mvc.perform(post(page + "/update").with(user(host())).with(csrf())
                         .param("title", "Лофт у парка").param("minNights", "2").param("maxNights", "30")
                         .param("maxGuests", "4").param("bookingWindowDays", "180").param("holdHours", "12")

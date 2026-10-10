@@ -185,9 +185,6 @@ public class WidgetApiController {
             fake.put("status", WidgetBookingService.STATUS_PENDING);
             return ResponseEntity.ok(fake);
         }
-        if (!rateLimiter.allow("widget-request:" + ip, BOOKINGS_PER_HOUR, 3_600_000L)) {
-            return error(HttpStatus.TOO_MANY_REQUESTS, WidgetError.RATE_LIMIT, w);
-        }
         switch (formToken.check(w.getId(), form.formToken())) {
             case TOO_FAST -> {
                 return error(HttpStatus.BAD_REQUEST, WidgetError.TOO_FAST, w);
@@ -199,6 +196,12 @@ public class WidgetApiController {
         }
         if (form.name() == null || form.name().isBlank()) {
             return error(HttpStatus.BAD_REQUEST, WidgetError.NAME, w);
+        }
+
+        // Лимит считает только правдоподобные заявки: виджет сам повторяет отправку после
+        // TOO_FAST (автозаполнение формы), и эта попытка не должна съедать лимит гостя.
+        if (!rateLimiter.allow("widget-request:" + ip, BOOKINGS_PER_HOUR, 3_600_000L)) {
+            return error(HttpStatus.TOO_MANY_REQUESTS, WidgetError.RATE_LIMIT, w);
         }
 
         Utm utm = form.utm() == null ? new Utm(null, null, null) : form.utm();

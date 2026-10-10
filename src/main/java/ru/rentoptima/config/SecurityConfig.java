@@ -57,6 +57,7 @@ public class SecurityConfig {
                                 "/book/**",
                                 "/widget/**",
                                 "/widget.js",
+                                "/w.js",
                                 "/libs/**",
                                 "/css/**",
                                 "/js/**",

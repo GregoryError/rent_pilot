@@ -166,6 +166,19 @@ public class WidgetAdminController {
         return "pages/settings/widget-edit";
     }
 
+    /** Новый виджет (v2) на странице хозяина — посмотреть до того, как он заменит прежний. */
+    @GetMapping("/{id}/preview")
+    public String preview(@PathVariable Long id, Model model, RedirectAttributes redirect) {
+        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, AuthContext.tenantId()).orElse(null);
+        if (w == null) {
+            redirect.addFlashAttribute("error", "Страница бронирования не найдена");
+            return "redirect:/settings/widgets";
+        }
+        model.addAttribute("activePage", "widgets");
+        model.addAttribute("w", w);
+        return "pages/settings/widget-preview";
+    }
+
     @PostMapping("/{id}/update")
     public String update(@PathVariable Long id,
                          @RequestParam String title,
