@@ -58,6 +58,7 @@ public class SecurityConfig {
                                 "/widget/**",
                                 "/widget.js",
                                 "/w.js",
+                                "/media/**",
                                 "/libs/**",
                                 "/css/**",
                                 "/js/**",

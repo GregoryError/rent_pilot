@@ -12,12 +12,14 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.Channel;
 import ru.rentoptima.entity.PromoCode;
 import ru.rentoptima.entity.Property;
+import ru.rentoptima.entity.WidgetPhoto;
 import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.BookingWidgetRepository;
 import ru.rentoptima.repository.ChannelRepository;
@@ -26,7 +28,9 @@ import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.config.WidgetCorsConfig;
+import ru.rentoptima.service.PhotoProcessor;
 import ru.rentoptima.service.WidgetCalendar;
+import ru.rentoptima.service.WidgetPhotoService;
 import ru.rentoptima.service.WidgetOrigins;
 import ru.rentoptima.service.WidgetSlug;
 
@@ -62,6 +66,8 @@ public class WidgetAdminController {
     private final UnitTypeRepository unitTypeRepo;
     private final PropertyRepository propertyRepo;
     private final PromoCodeRepository promoRepo;
+    private final WidgetPhotoService photos;
+    private final PhotoProcessor photoProcessor;
     private final WidgetCorsConfig cors;
 
     private static final String[] WEEKDAYS = {"Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"};
@@ -163,6 +169,16 @@ public class WidgetAdminController {
             promos.add(promoRow(p));
         }
         model.addAttribute("promos", promos);
+        List<PhotoRow> photoRows = new ArrayList<>();
+        List<WidgetPhoto> uploaded = photos.list(w.getId());
+        for (int i = 0; i < uploaded.size(); i++) {
+            WidgetPhoto p = uploaded.get(i);
+            photoRows.add(new PhotoRow(p.getId(), photos.previewUrl(p, baseUrl), i == 0 ? "Обложка" : "Фото " + (i + 1),
+                    i > 0, i < uploaded.size() - 1));
+        }
+        model.addAttribute("photoRows", photoRows);
+        model.addAttribute("photosLeft", WidgetPhotoService.MAX_PHOTOS - uploaded.size());
+        model.addAttribute("webpOff", !photoProcessor.webpAvailable());
         return "pages/settings/widget-edit";
     }
 
@@ -285,6 +301,58 @@ public class WidgetAdminController {
             redirect.addFlashAttribute("success", "Сохранено");
         }
         return "redirect:/settings/widgets/" + id;
+    }
+
+    // --- Фотографии
+
+    @PostMapping("/{id}/photos")
+    public String uploadPhotos(@PathVariable Long id,
+                               @RequestParam("files") List<MultipartFile> files,
+                               RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
+        if (w == null) return "redirect:/settings/widgets";
+
+        int added = 0;
+        List<String> errors = new ArrayList<>();
+        for (MultipartFile file : files) {
+            if (file.isEmpty()) continue;
+            try {
+                photos.add(w, file.getBytes());
+                added++;
+            } catch (PhotoProcessor.PhotoException e) {
+                errors.add(fileLabel(file) + ": " + e.getMessage());
+            } catch (java.io.IOException e) {
+                errors.add(fileLabel(file) + ": не удалось прочитать файл");
+            }
+        }
+        if (added > 0) redirect.addFlashAttribute("success", "Загружено фотографий: " + added);
+        if (!errors.isEmpty()) redirect.addFlashAttribute("error", String.join(". ", errors));
+        if (added == 0 && errors.isEmpty()) redirect.addFlashAttribute("error", "Выберите файлы");
+        return "redirect:/settings/widgets/" + id + "#photos";
+    }
+
+    @PostMapping("/{id}/photos/{photoId}/delete")
+    public String deletePhoto(@PathVariable Long id, @PathVariable Long photoId, RedirectAttributes redirect) {
+        if (!photos.delete(AuthContext.tenantId(), id, photoId)) {
+            redirect.addFlashAttribute("error", "Фото не найдено");
+        }
+        return "redirect:/settings/widgets/" + id + "#photos";
+    }
+
+    @PostMapping("/{id}/photos/{photoId}/move")
+    public String movePhoto(@PathVariable Long id, @PathVariable Long photoId,
+                            @RequestParam String dir) {
+        photos.move(AuthContext.tenantId(), id, photoId, "up".equals(dir));
+        return "redirect:/settings/widgets/" + id + "#photos";
+    }
+
+    /** Имя файла в сообщении об ошибке — без путей и не длиннее 40 символов. */
+    private static String fileLabel(MultipartFile file) {
+        String name = file.getOriginalFilename();
+        if (name == null || name.isBlank()) return "Файл";
+        name = name.replaceAll(".*[/\\\\]", "").replaceAll("[\\p{Cntrl}<>\"]", "");
+        return name.length() > 40 ? name.substring(0, 40) + "…" : name;
     }
 
     // --- Промокоды
@@ -460,6 +528,8 @@ public class WidgetAdminController {
     public record WidgetRow(Long id, String title, String unitLabel, String link, String inputId) {}
 
     public record UnitOption(Long id, String label) {}
+
+    public record PhotoRow(Long id, String url, String label, boolean canUp, boolean canDown) {}
 
     public record DayOption(int value, String label, boolean checked) {}
 

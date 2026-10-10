@@ -95,6 +95,202 @@
     white-space: nowrap;
 }
 
+/* --- Галерея: место под фото занято заранее (aspect-ratio), сдвигов вёрстки нет */
+
+.gal {
+    position: relative;
+    margin: -20px -20px 20px;
+    border-radius: calc(var(--radius) + 5px) calc(var(--radius) + 5px) 0 0;
+    overflow: hidden;
+    background: var(--surface);
+}
+
+.w[data-narrow] .gal {
+    margin: -16px -16px 16px;
+}
+
+.gal-track {
+    display: flex;
+    aspect-ratio: 3 / 2;
+    max-height: 460px;
+    width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+}
+
+.gal-track::-webkit-scrollbar {
+    display: none;
+}
+
+.gal-track:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.gal-item {
+    all: unset;
+    box-sizing: border-box;
+    flex: none;
+    display: block;
+    width: 100%;
+    height: 100%;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    background: center / cover no-repeat;
+    cursor: zoom-in;
+}
+
+.gal-item:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
+}
+
+.gal picture,
+.lb picture {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.gal img,
+.lb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity .25s var(--ease);
+}
+
+.gal img.on,
+.lb img.on {
+    opacity: 1;
+}
+
+.gal-count {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, .6);
+    color: #fff;
+    font-size: .75rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+
+.gal-dots {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 14px;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    pointer-events: none;
+}
+
+.gal-dots i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #fff;
+    opacity: .5;
+    transition: opacity .2s var(--ease), transform .2s var(--ease);
+}
+
+.gal-dots i.on {
+    opacity: 1;
+    transform: scale(1.3);
+}
+
+/* Специфичность выше, чем у общего сброса кнопок (.icon-btn { all: unset }) ниже по файлу */
+.gal > .gal-prev,
+.gal > .gal-next,
+.lb > .gal-prev,
+.lb > .gal-next,
+.lb > .lb-close {
+    position: absolute;
+    top: 50%;
+    margin-top: -22px;
+    background: rgba(255, 255, 255, .92);
+    color: #1b1b19;
+}
+
+.gal > .gal-prev,
+.lb > .gal-prev {
+    left: 12px;
+}
+
+.gal > .gal-next,
+.lb > .gal-next {
+    right: 12px;
+}
+
+/* Стрелки — тем, у кого мышь; на тач-экране листают пальцем */
+@media (hover: none) {
+    .gal > .gal-prev,
+    .gal > .gal-next,
+    .lb > .gal-prev,
+    .lb > .gal-next {
+        display: none;
+    }
+}
+
+/* Полноэкранный просмотр */
+dialog.lb {
+    inset: 0;
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+    background: #000;
+}
+
+dialog.lb[open] {
+    display: block;
+    animation: fade .2s var(--ease);
+}
+
+.lb .gal-track {
+    aspect-ratio: auto;
+    max-height: none;
+    height: 100%;
+}
+
+/* В полноэкранном просмотре лента занимает всё окно — рамка фокуса вокруг него лишняя */
+.lb .gal-track:focus-visible {
+    outline: none;
+}
+
+.lb .gal-item {
+    background-size: contain;
+    cursor: default;
+}
+
+.lb img {
+    object-fit: contain;
+}
+
+.lb .gal-count {
+    right: auto;
+    left: 50%;
+    bottom: calc(16px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+}
+
+.lb > .lb-close {
+    top: calc(12px + env(safe-area-inset-top));
+    right: 12px;
+    margin-top: 0;
+}
+
 /* --- Шапка */
 
 .hd {
@@ -120,7 +316,9 @@
     font-size: .875rem;
 }
 
+/* Высота занята заранее: цена «от» приходит вместе с календарём и не должна сдвигать вёрстку */
 .from {
+    min-height: 1.75rem;
     margin-top: 10px;
     font-size: 1rem;
 }

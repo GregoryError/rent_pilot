@@ -12,3 +12,6 @@ target/
 
 # Сборка виджета бронирования (widget/): зависимости ставятся через npm install
 widget/node_modules/
+
+# Локальный каталог загруженных фото (APP_UPLOADS_DIR по умолчанию)
+/uploads/

@@ -19,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.BookingWidget;
+import ru.rentoptima.entity.WidgetPhoto;
 import ru.rentoptima.payment.PaymentProvider;
 import ru.rentoptima.service.PublicRateLimiter;
 import ru.rentoptima.service.WidgetBookingService;
@@ -30,6 +31,7 @@ import ru.rentoptima.service.WidgetError;
 import ru.rentoptima.service.WidgetFormToken;
 import ru.rentoptima.service.WidgetGuestCalendar;
 import ru.rentoptima.service.WidgetNotifier;
+import ru.rentoptima.service.WidgetPhotoService;
 import ru.rentoptima.service.WidgetPricing;
 
 import java.math.BigDecimal;
@@ -72,9 +74,10 @@ public class WidgetApiController {
     private final PublicRateLimiter rateLimiter;
     private final WidgetNotifier notifier;
     private final PaymentProvider payments;
+    private final WidgetPhotoService photos;
 
     @GetMapping("/config")
-    public ResponseEntity<Map<String, Object>> config(@PathVariable String slug) {
+    public ResponseEntity<Map<String, Object>> config(@PathVariable String slug, HttpServletRequest http) {
         BookingWidget w = require(slug);
         LocalDate today = LocalDate.now();
 
@@ -102,7 +105,12 @@ public class WidgetApiController {
         body.put("rules", w.getRules());
         body.put("cancellationPolicy", w.getCancellationPolicy());
         body.put("addressHint", w.getAddressHint());
-        body.put("photos", WidgetPublicController.photosOf(w));
+        // Сначала загруженные фото (с вариантами и заглушкой), затем ссылки, заданные раньше
+        String baseUrl = ServletUriComponentsBuilder.fromContextPath(http).build().toUriString();
+        List<Map<String, Object>> gallery = new ArrayList<>();
+        for (WidgetPhoto p : photos.list(w.getId())) gallery.add(photos.view(p, baseUrl));
+        for (String url : WidgetPublicController.photosOf(w)) gallery.add(Map.of("src", url));
+        body.put("photos", gallery);
         body.put("layout", w.getConfigJson());
         return ResponseEntity.ok().cacheControl(CACHE).body(body);
     }

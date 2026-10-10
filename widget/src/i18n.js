@@ -96,6 +96,11 @@ const ru = {
     notFound: 'Страница бронирования не найдена или выключена.',
     powered: 'Работает на OptiRent',
     lang: 'Язык',
+    photos: 'Фотографии',
+    photoOf: 'Фото {i} из {n}',
+    openPhoto: 'Открыть на весь экран',
+    prevPhoto: 'Предыдущее фото',
+    nextPhoto: 'Следующее фото',
     E: {
         DATES_TAKEN: 'Эти даты только что заняли. Выберите другие.',
         UNAVAILABLE: 'Бронирование временно недоступно.',
@@ -208,6 +213,11 @@ const en = {
     notFound: 'This booking page was not found or is switched off.',
     powered: 'Powered by OptiRent',
     lang: 'Language',
+    photos: 'Photos',
+    photoOf: 'Photo {i} of {n}',
+    openPhoto: 'Open full screen',
+    prevPhoto: 'Previous photo',
+    nextPhoto: 'Next photo',
     E: {
         DATES_TAKEN: 'These dates have just been booked. Please choose other dates.',
         UNAVAILABLE: 'Booking is temporarily unavailable.',

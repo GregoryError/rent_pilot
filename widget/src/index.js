@@ -12,6 +12,7 @@
 // success) — на них вешается аналитика.
 import css from './styles.css';
 import { Calendar } from './calendar.js';
+import { gallery } from './gallery.js';
 import { addDays, diff, isIso } from './dates.js';
 import { validStay, groupNights } from './rules.js';
 import { detectLang, translator, money } from './i18n.js';
@@ -216,7 +217,7 @@ class OptirentBooking extends HTMLElement {
         this.altEl = h('div', {});
         this.sumEl = h('div', {});
         this.formEl = this.buildForm();
-        this.headPrice = h('div', { class: 'from' });
+        this.headPrice = h('div', { class: 'from', hidden: !c.showPrice });
 
         this.bar = h('div', { class: 'bar' },
             this.barPrice = h('div', { class: 'bar-price' }),
@@ -238,6 +239,7 @@ class OptirentBooking extends HTMLElement {
 
         const sub = [c.addressHint, t('times', { a: c.checkinTime, b: c.checkoutTime })].filter(Boolean).join(' · ');
         this.card = h('div', { class: 'card' },
+            c.photos && c.photos.length > 0 && gallery(t, c.photos, this.box),
             h('div', { class: 'hd' },
                 h('div', {},
                     h('h2', { class: 'title', text: c.title }),

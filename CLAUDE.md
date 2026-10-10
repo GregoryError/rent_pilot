@@ -19,7 +19,7 @@
 - Java 21
 - Spring Boot 3.3.2 (Spring MVC + Thymeleaf + Spring Security + Spring Data JPA)
 - PostgreSQL 16
-- Flyway (миграции V1..V29+)
+- Flyway (миграции V1..V30+)
 - Thymeleaf + Layout Dialect
 - Lombok
 - Hibernate Hypersistence Utils (JSONB поддержка)
@@ -153,7 +153,7 @@ AI-режим — только рекомендации. `PricingEngine.runForPr
 
 ### Виджет бронирования: публичный API и встраивание
 
-Идёт переделка виджета (v2) по фазам — `patches/INTEGRATION_BOOKING_WIDGET_V2.md`. Сделаны фаза 1 (сервер, V29) и фаза 2 (Web Component).
+Идёт переделка виджета (v2) по фазам — `patches/INTEGRATION_BOOKING_WIDGET_V2.md`. Сделаны фазы 1 (сервер, V29), 2 (Web Component) и 3 (фото и галерея, V30).
 
 - Новый API — `/api/widget/{slug}/…` (`WidgetApiController`), ключ — `booking_widgets.slug`. Прежние `/book/{secret}`, `/widget/{secret}`, `/widget.js` работают и останутся постоянными редиректами — не удалять.
 - Сумму считает только сервер: `WidgetPricing` (ночи → скидка за длительность → промокод → уборка). Правила дат и состояния дней календаря — `WidgetCalendar`. Оба без БД, тестируются напрямую.
@@ -163,6 +163,7 @@ AI-режим — только рекомендации. `PricingEngine.runForPr
 - Режимы: `REQUEST` (резерв `hold_minutes`, по умолчанию сутки) и `INSTANT`. Бронь создаётся под `SELECT … FOR UPDATE` по строке категории.
 - `booking_widgets.cleaning_fee` — сбор с гостя. Настройка `cleaning_cost` — расход хозяина, в цену для гостя не входит.
 - Сам виджет (фаза 2) — Web Component `<optirent-booking>` с Shadow DOM, исходники в `widget/src`, сборка `cd widget && npm run build` → `static/w.js`. Бандл лежит в репозитории; `WidgetBundleTest` падает, если он собран не из текущих исходников, — после правок в `widget/` пересобрать и закоммитить `w.js`. Внутри только ванильный JS, без фреймворков; бюджет 35 КБ JS + 15 КБ CSS (gzip). Тексты хозяина вставляются только через `textContent`. Посмотреть виджет — `/settings/widgets/{id}/preview`; гостям он пока не отдаётся.
+- Фото страницы бронирования (фаза 3, V30) загружаются к нам: `PhotoProcessor` поворачивает по EXIF и режет варианты 480/960/1600 в JPEG и WebP (WebP — утилитой `cwebp`, в образе пакет `libwebp-tools`; без неё только JPEG), `WidgetPhotoService` пишет их в каталог `APP_UPLOADS_DIR` — в docker это том, **его нужно бэкапить вместе с дампом БД**. Отдаёт `/media/widget/**`. Оригинал и EXIF не хранятся.
 - Письма гостю — `EmailService.send`, включается `SMTP_HOST` + `MAIL_FROM`; без них пропускаются.
 
 ### Подписи в настройках
@@ -201,6 +202,7 @@ AI-режим — только рекомендации. `PricingEngine.runForPr
 - **Блок 4.9** (V22): Booking Widget MVP — `booking_widgets`, `ChannelType.WIDGET`, WidgetBookingService (hold + бронь PENDING), публичные /book/{secret}, /widget/{secret}, /widget.js, админка /settings/widgets, заявки /bookings/pending. Отступления от плана ниже и непроверенное — в `patches/INTEGRATION_BLOCK4_9.md`. Заодно: раздел /staff «Сотрудники» (ссылка и PIN горничной), починена вёрстка «Отзывов».
 - **Цвета каналов** (V23): `channels.color` из фиксированной палитры `ChannelPalette`; занятый день в шахматке закрашен цветом канала с первой буквой его названия, закрытый вручную — чёрный. См. `patches/INTEGRATION_CHANNEL_COLORS.md`.
 - **Открытие дат, закрытых площадкой** (V25): `calendar_blocks.ignored` — блокировку с канала нельзя удалить (вернётся из фида), поэтому хост помечает её в модалке шахматки «Открыть даты»; такие блокировки не считаются занятостью и не уходят в экспорт. Запрос `findByUnitTypesInRange` их отфильтровывает, `findOverlapping` — нет.
+- **Виджет бронирования v2, фаза 3** (V30): загрузка и обработка фото, том под загрузки, галерея с полноэкранным просмотром.
 - **Виджет бронирования v2, фаза 2**: Web Component `<optirent-booking>` (`widget/`, бандл `static/w.js`), предпросмотр в настройках виджета.
 - **Виджет бронирования v2, фаза 1** (V29): публичный API `/api/widget/{slug}`, расчёт суммы на сервере, промокоды, скидки за длительность, режим мгновенной брони, эхо-защита броней виджета, CORS по списку сайтов. См. `patches/INTEGRATION_BOOKING_WIDGET_V2.md`.
 - **Эхо ручных записей** (V26, V27): UID-маркер `optirent-manual-*`, `manual_block_echoes`, мягкое удаление ручных записей (`calendar_blocks.cancelled_at`, `STATUS:CANCELLED` в экспорте 90 дней), «тени» для эха по датам (`calendar_blocks.shadow_of_manual_id`). См. раздел «Ручные записи в многоканальной среде» и `patches/INTEGRATION_MANUAL_ECHO.md`.
@@ -517,7 +519,7 @@ Dockerfile собирает `./mvnw package -DskipTests`. Нужно: либо �
 2. Проверить какая активная ветка: обычно работаем на feat/channels-mvp или фичевой ветке от неё. Main защищена (но Григорий как админ может пушить).
 3. Если задача про Property или bookings — помнить про двойной маппинг tenant_id.
 4. Если про шаблоны — pipe-syntax или th:classappend, не плюсы. Для шахматки — все классы в контроллере, не в шаблоне.
-5. Если про миграции — обязательно V-номер больше последнего (сейчас V29), не удалять поля из существующих.
+5. Если про миграции — обязательно V-номер больше последнего (сейчас V30), не удалять поля из существующих.
 6. Если про UI — следовать существующей стилистике (CSS vars из core.css). По умолчанию тема светлая (`static/js/theme.js` ставит `data-theme="light"`, тёмная — только по выбору пользователя); любая автономная страница без layout должна подключать `theme.js`. Проверять обе темы.
 7. Если делаешь блок — завершить INTEGRATION_<N>.md в patches/ с инструкциями по применению.
 8. **Git-операции — предлагай, но не выполняй сам.**

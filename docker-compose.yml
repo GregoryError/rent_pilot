@@ -19,6 +19,10 @@ services:
       - SMTP_USERNAME=${SMTP_USERNAME:-}
       - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - MAIL_FROM=${MAIL_FROM:-}
+      - APP_UPLOADS_DIR=/data/uploads
+    volumes:
+      # Загруженные фото страниц бронирования. Бэкапить вместе с дампом БД.
+      - staging-uploads:/data/uploads
       - JAVA_TOOL_OPTIONS=-Xmx512m -XX:MaxRAMPercentage=60
     depends_on:
       db:
@@ -44,6 +48,8 @@ services:
     restart: unless-stopped
 
 volumes:
+  staging-uploads:
+    name: rentoptima-staging_uploads
   staging-pgdata:
     external: true
     name: rentoptima-staging_pgdata-staging

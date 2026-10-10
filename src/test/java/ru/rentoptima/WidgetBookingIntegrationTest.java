@@ -10,6 +10,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -41,8 +42,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.flash;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -56,7 +59,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock}.
  */
 @Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest
+@SpringBootTest(properties = "app.uploads.dir=target/test-uploads")
 @AutoConfigureMockMvc
 @DisplayName("Виджет бронирования на PostgreSQL: гонка, API, CORS, экспорт, админка")
 class WidgetBookingIntegrationTest {
@@ -479,5 +482,63 @@ class WidgetBookingIntegrationTest {
                 .andExpect(status().is3xxRedirection());
         assertThat(jdbc.queryForObject("SELECT status FROM bookings WHERE id = ?", String.class,
                 confirmed.booking().getId())).isEqualTo("CANCELLED");
+    }
+
+    @Test
+    @DisplayName("фото: загрузка через админку → варианты отдаются с кэшем на год → попадают в настройки виджета → удаляются")
+    void photos() throws Exception {
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(1200, 800, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        java.io.ByteArrayOutputStream jpeg = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(img, "jpg", jpeg);
+        String page = "/settings/widgets/" + widget.getId();
+
+        mvc.perform(multipart(page + "/photos")
+                        .file(new MockMultipartFile("files", "IMG_0001.jpg", "image/jpeg", jpeg.toByteArray()))
+                        .file(new MockMultipartFile("files", "notes.txt", "text/plain", "не фото".getBytes()))
+                        .with(user(host())).with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("success", "Загружено фотографий: 1"))
+                .andExpect(flash().attribute("error", org.hamcrest.Matchers.containsString("notes.txt")));
+
+        String key = jdbc.queryForObject("SELECT file_key FROM widget_photos WHERE widget_id = ?", String.class, widget.getId());
+        assertThat(jdbc.queryForObject("SELECT widths FROM widget_photos WHERE widget_id = ?", String.class, widget.getId()))
+                .isEqualTo("480,960");
+
+        // Файл отдаётся без входа, с кэшем на год; чужие имена — 404
+        mvc.perform(get("/media/widget/" + key + "-960.jpg"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/jpeg"))
+                .andExpect(header().string("Cache-Control", "max-age=31536000, public, immutable"));
+        mvc.perform(get("/media/widget/" + key + "-1600.jpg")).andExpect(status().isNotFound());
+        mvc.perform(get("/media/widget/..%2F..%2Fpom.xml")).andExpect(r ->
+                assertThat(r.getResponse().getStatus()).isIn(400, 404));
+
+        MvcResult config = mvc.perform(get("/api/widget/" + slug + "/config")).andReturn();
+        JsonNode photo = json.readTree(config.getResponse().getContentAsString()).path("photos").get(0);
+        assertThat(photo.path("jpg").asText()).contains("/media/widget/" + key + "-480.jpg 480w");
+        assertThat(photo.path("lqip").asText()).startsWith("data:image/jpeg;base64,");
+        assertThat(photo.path("w").asInt()).isEqualTo(960);
+
+        mvc.perform(get(page).with(user(host())))
+                .andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains(key + "-960.jpg", "Обложка"));
+
+        // Чужой tenant удалить фото не может
+        Long photoId = jdbc.queryForObject("SELECT id FROM widget_photos WHERE widget_id = ?", Long.class, widget.getId());
+        Tenant stranger = new Tenant();
+        stranger.setId(widget.getTenantId() + 1000);
+        User other = new User();
+        other.setId(3L);
+        other.setTenant(stranger);
+        other.setUsername("other");
+        other.setPasswordHash("x");
+        other.setDisplayName("Чужой");
+        other.setRole(User.Role.OWNER);
+        mvc.perform(post(page + "/photos/" + photoId + "/delete").with(user(new TenantUserDetails(other))).with(csrf()));
+        mvc.perform(get("/media/widget/" + key + "-960.jpg")).andExpect(status().isOk());
+
+        mvc.perform(post(page + "/photos/" + photoId + "/delete").with(user(host())).with(csrf()))
+                .andExpect(status().is3xxRedirection());
+        mvc.perform(get("/media/widget/" + key + "-960.jpg")).andExpect(status().isNotFound());
     }
 }
