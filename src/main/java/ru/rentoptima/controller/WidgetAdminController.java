@@ -16,22 +16,34 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.Channel;
+import ru.rentoptima.entity.PromoCode;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.BookingWidgetRepository;
 import ru.rentoptima.repository.ChannelRepository;
+import ru.rentoptima.repository.PromoCodeRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.config.WidgetCorsConfig;
+import ru.rentoptima.service.WidgetCalendar;
+import ru.rentoptima.service.WidgetOrigins;
+import ru.rentoptima.service.WidgetSlug;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.security.SecureRandom;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Настройка страниц / виджетов бронирования (блок 4.9).
@@ -49,6 +61,11 @@ public class WidgetAdminController {
     private final ChannelRepository channelRepo;
     private final UnitTypeRepository unitTypeRepo;
     private final PropertyRepository propertyRepo;
+    private final PromoCodeRepository promoRepo;
+    private final WidgetCorsConfig cors;
+
+    private static final String[] WEEKDAYS = {"Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"};
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     @GetMapping
     public String list(Model model, HttpServletRequest request) {
@@ -105,6 +122,7 @@ public class WidgetAdminController {
         w.setChannelId(channel.getId());
         w.setUnitTypeId(unitTypeId);
         w.setSecret(generateSecret());
+        w.setSlug(WidgetSlug.unique(WidgetSlug.fromTitle(cleanTitle), widgetRepo::existsBySlug));
         w.setTitle(cleanTitle);
         widgetRepo.save(w);
 
@@ -135,6 +153,16 @@ public class WidgetAdminController {
                 + "\" width=\"100%\" height=\"760\" frameborder=\"0\"></iframe>");
         model.addAttribute("jsCode", "<div id=\"optirent-widget\" data-secret=\"" + secret + "\"></div>\n"
                 + "<script src=\"" + baseUrl + "/widget.js\" async></script>");
+        model.addAttribute("holdHours", Math.max(1, (w.getHoldMinutes() + 59) / 60));
+        model.addAttribute("cleaningFee", w.getCleaningFee().setScale(0, RoundingMode.HALF_UP).toPlainString());
+        model.addAttribute("noCheckinDays", dayOptions(w.getNoCheckinDays()));
+        model.addAttribute("noCheckoutDays", dayOptions(w.getNoCheckoutDays()));
+        model.addAttribute("publicAddress", baseUrl + "/b/");
+        List<PromoRow> promos = new ArrayList<>();
+        for (PromoCode p : promoRepo.findByWidgetIdAndTenantIdOrderByCreatedAtDesc(w.getId(), tenantId)) {
+            promos.add(promoRow(p));
+        }
+        model.addAttribute("promos", promos);
         return "pages/settings/widget-edit";
     }
 
@@ -156,6 +184,19 @@ public class WidgetAdminController {
                          @RequestParam(required = false) String cancellationPolicy,
                          @RequestParam(required = false) String addressHint,
                          @RequestParam(required = false) String photos,
+                         @RequestParam(required = false) String slug,
+                         @RequestParam(required = false, defaultValue = "REQUEST") String mode,
+                         @RequestParam(required = false) BigDecimal cleaningFee,
+                         @RequestParam(required = false) Integer weeklyDiscountPercent,
+                         @RequestParam(required = false) Integer monthlyDiscountPercent,
+                         @RequestParam(required = false) Integer prepaymentPercent,
+                         @RequestParam(required = false, defaultValue = "false") boolean petsAllowed,
+                         @RequestParam(required = false) List<Integer> noCheckinDays,
+                         @RequestParam(required = false) List<Integer> noCheckoutDays,
+                         @RequestParam(required = false) String allowedOrigins,
+                         @RequestParam(required = false) String contactPhone,
+                         @RequestParam(required = false) String contactTelegram,
+                         @RequestParam(required = false) String contactWhatsapp,
                          RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
         BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
@@ -183,7 +224,20 @@ public class WidgetAdminController {
         w.setMaxNights(Math.max(w.getMinNights(), clamp(maxNights, 1, 365)));
         w.setMaxGuests(clamp(maxGuests, 1, 50));
         w.setBookingWindowDays(clamp(bookingWindowDays, 7, 540));
-        w.setHoldHours(clamp(holdHours, 1, 168));
+        w.setHoldMinutes(clamp(holdHours, 1, 168) * 60);
+        w.setMode(BookingWidget.MODE_INSTANT.equals(mode) ? BookingWidget.MODE_INSTANT : BookingWidget.MODE_REQUEST);
+        w.setCleaningFee(cleaningFee == null || cleaningFee.signum() < 0 ? BigDecimal.ZERO
+                : cleaningFee.min(BigDecimal.valueOf(1_000_000)).setScale(2, RoundingMode.HALF_UP));
+        w.setWeeklyDiscountPercent(clamp(weeklyDiscountPercent, 0, 90));
+        w.setMonthlyDiscountPercent(clamp(monthlyDiscountPercent, 0, 90));
+        w.setPrepaymentPercent(clamp(prepaymentPercent, 0, 100));
+        w.setPetsAllowed(petsAllowed);
+        w.setNoCheckinDays(WidgetCalendar.formatDays(noCheckinDays));
+        w.setNoCheckoutDays(WidgetCalendar.formatDays(noCheckoutDays));
+        w.setAllowedOrigins(WidgetOrigins.normalize(allowedOrigins));
+        w.setContactPhone(clean(contactPhone, 40));
+        w.setContactTelegram(clean(contactTelegram, 80));
+        w.setContactWhatsapp(clean(contactWhatsapp, 40));
         w.setCheckinTime(in);
         w.setCheckoutTime(out);
         w.setTheme("dark".equals(theme) || "auto".equals(theme) ? theme : "light");
@@ -195,10 +249,122 @@ public class WidgetAdminController {
         w.setAddressHint(clean(addressHint, 255));
         w.setPhotosJson(parsePhotos(photos));
         w.setUpdatedAt(LocalDateTime.now());
-        widgetRepo.save(w);
 
-        redirect.addFlashAttribute("success", "Сохранено");
+        // Адрес меняем последним: если он занят или с ошибкой, остальное всё равно сохраняется
+        String slugError = null;
+        String newSlug = slug == null ? "" : slug.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!newSlug.isEmpty() && !newSlug.equals(w.getSlug())) {
+            if (!WidgetSlug.valid(newSlug)) {
+                slugError = "Адрес страницы — от " + WidgetSlug.MIN + " до " + WidgetSlug.MAX
+                        + " символов: латинские буквы, цифры и дефис";
+            } else if (widgetRepo.existsBySlug(newSlug)) {
+                slugError = "Адрес «" + newSlug + "» уже занят";
+            } else {
+                w.setSlug(newSlug);
+            }
+        }
+        widgetRepo.save(w);
+        cors.evict();
+
+        if (slugError != null) {
+            redirect.addFlashAttribute("error", "Сохранено всё, кроме адреса страницы. " + slugError);
+        } else {
+            redirect.addFlashAttribute("success", "Сохранено");
+        }
         return "redirect:/settings/widgets/" + id;
+    }
+
+    // --- Промокоды
+
+    @PostMapping("/{id}/promo")
+    public String createPromo(@PathVariable Long id,
+                              @RequestParam String code,
+                              @RequestParam String discountType,
+                              @RequestParam BigDecimal discountValue,
+                              @RequestParam(required = false) String validUntil,
+                              @RequestParam(required = false) Integer maxUses,
+                              RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
+        if (w == null) return "redirect:/settings/widgets";
+
+        String normalized = PromoCode.normalize(code);
+        boolean percent = PromoCode.TYPE_PERCENT.equals(discountType);
+        String error = null;
+        LocalDate until = null;
+        if (normalized == null || normalized.length() > 40 || !normalized.matches("[A-ZА-ЯЁ0-9_-]+")) {
+            error = "Код — буквы, цифры, дефис и подчёркивание, до 40 символов";
+        } else if (discountValue == null || discountValue.signum() <= 0
+                || (percent && discountValue.compareTo(BigDecimal.valueOf(100)) > 0)) {
+            error = percent ? "Скидка — от 1 до 100 %" : "Укажите сумму скидки";
+        } else if (promoRepo.existsByWidgetIdAndCode(w.getId(), normalized)) {
+            error = "Промокод «" + normalized + "» уже есть";
+        } else if (validUntil != null && !validUntil.isBlank()) {
+            try {
+                until = LocalDate.parse(validUntil);
+            } catch (Exception e) {
+                error = "Дата окончания — в формате ГГГГ-ММ-ДД";
+            }
+        }
+        if (error != null) {
+            redirect.addFlashAttribute("error", error);
+            return "redirect:/settings/widgets/" + id;
+        }
+
+        PromoCode p = new PromoCode();
+        p.setTenantId(tenantId);
+        p.setWidgetId(w.getId());
+        p.setCode(normalized);
+        p.setDiscountType(percent ? PromoCode.TYPE_PERCENT : PromoCode.TYPE_AMOUNT);
+        p.setDiscountValue(discountValue.setScale(percent ? 0 : 2, RoundingMode.HALF_UP));
+        p.setValidUntil(until);
+        p.setMaxUses(maxUses == null || maxUses < 1 ? null : maxUses);
+        promoRepo.save(p);
+        redirect.addFlashAttribute("success", "Промокод " + normalized + " создан");
+        return "redirect:/settings/widgets/" + id;
+    }
+
+    /** Выключает или снова включает промокод. Не удаляем: на него ссылаются брони. */
+    @PostMapping("/{id}/promo/{promoId}/toggle")
+    public String togglePromo(@PathVariable Long id, @PathVariable Long promoId,
+                              RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        PromoCode p = promoRepo.findByIdAndTenantId(promoId, tenantId)
+                .filter(x -> x.getWidgetId().equals(id)).orElse(null);
+        if (p == null) {
+            redirect.addFlashAttribute("error", "Промокод не найден");
+            return "redirect:/settings/widgets/" + id;
+        }
+        p.setActive(!Boolean.TRUE.equals(p.getActive()));
+        promoRepo.save(p);
+        redirect.addFlashAttribute("success", Boolean.TRUE.equals(p.getActive())
+                ? "Промокод снова действует" : "Промокод выключен");
+        return "redirect:/settings/widgets/" + id;
+    }
+
+    private static PromoRow promoRow(PromoCode p) {
+        boolean percent = PromoCode.TYPE_PERCENT.equals(p.getDiscountType());
+        String discount = p.getDiscountValue().setScale(0, RoundingMode.HALF_UP).toPlainString()
+                + (percent ? " %" : " ₽");
+        String uses = p.getUsedCount() + (p.getMaxUses() == null ? "" : " из " + p.getMaxUses());
+        boolean active = Boolean.TRUE.equals(p.getActive());
+        boolean expired = p.getValidUntil() != null && LocalDate.now().isAfter(p.getValidUntil());
+        boolean exhausted = p.getMaxUses() != null && p.getUsedCount() >= p.getMaxUses();
+        String status = !active ? "Выключен" : expired ? "Срок истёк" : exhausted ? "Исчерпан" : "Действует";
+        return new PromoRow(p.getId(), p.getCode(), discount,
+                p.getValidUntil() == null ? "бессрочно" : "до " + p.getValidUntil().format(DAY),
+                uses, status,
+                active && !expired && !exhausted ? "tag tag--green" : "tag tag--muted",
+                active ? "Выключить" : "Включить");
+    }
+
+    private static List<DayOption> dayOptions(String stored) {
+        Set<DayOfWeek> chosen = WidgetCalendar.parseDays(stored);
+        List<DayOption> options = new ArrayList<>();
+        for (int n = 1; n <= 7; n++) {
+            options.add(new DayOption(n, WEEKDAYS[n - 1], chosen.contains(DayOfWeek.of(n))));
+        }
+        return options;
     }
 
     @PostMapping("/{id}/regenerate")
@@ -209,6 +375,7 @@ public class WidgetAdminController {
         w.setSecret(generateSecret());
         w.setUpdatedAt(LocalDateTime.now());
         widgetRepo.save(w);
+        cors.evict();
         redirect.addFlashAttribute("success", "Ссылка перевыпущена. Старые ссылки и код на сайте больше не работают.");
         return "redirect:/settings/widgets/" + id;
     }
@@ -280,4 +447,9 @@ public class WidgetAdminController {
     public record WidgetRow(Long id, String title, String unitLabel, String link, String inputId) {}
 
     public record UnitOption(Long id, String label) {}
+
+    public record DayOption(int value, String label, boolean checked) {}
+
+    public record PromoRow(Long id, String code, String discount, String validity, String uses,
+                           String status, String statusCss, String toggleLabel) {}
 }

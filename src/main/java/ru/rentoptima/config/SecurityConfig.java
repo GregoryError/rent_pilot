@@ -38,13 +38,15 @@ public class SecurityConfig {
                                 // Заявка с виджета приходит с чужих сайтов и из iframe, где
                                 // сессионной cookie нет вовсе — CSRF-токену там взяться неоткуда.
                                 new AntPathRequestMatcher("/widget/**")))
-                // Preflight-запросы виджета, встроенного на сайт хоста (@CrossOrigin на API)
+                // CORS публичного API виджета — по списку сайтов, разрешённых хозяином
+                // (бин corsConfigurationSource из WidgetCorsConfig)
                 .cors(Customizer.withDefaults())
-                // Запрет на встраивание в iframe остаётся везде, кроме /widget/** — он для этого и сделан
+                // Встраивание в iframe запрещено везде, кроме страницы виджета /widget/{secret}:
+                // она сама отдаёт frame-ancestors со списком разрешённых сайтов
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.disable())
                         .addHeaderWriter(new DelegatingRequestMatcherHeaderWriter(
-                                new NegatedRequestMatcher(new AntPathRequestMatcher("/widget/**")),
+                                new NegatedRequestMatcher(new AntPathRequestMatcher("/widget/*")),
                                 new XFrameOptionsHeaderWriter(XFrameOptionsHeaderWriter.XFrameOptionsMode.DENY))))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
@@ -63,6 +65,7 @@ public class SecurityConfig {
                                 "/error/**",
                                 "/feedback/**",
                                 "/api/feedback/**",
+                                "/api/widget/**",
                                 "/housekeeper/**"
                         ).permitAll()
                         .anyRequest().authenticated()

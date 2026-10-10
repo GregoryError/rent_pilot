@@ -83,8 +83,15 @@
                     <input type="time" name="checkoutTime" required th:value="${checkout}" class="form-input form-input--sm">
                 </div>
                 <div class="form-group">
+                    <label class="form-label">Как бронируют</label>
+                    <select name="mode" class="form-input form-input--sm">
+                        <option value="REQUEST" th:selected="${w.mode == 'REQUEST'}">Заявка — подтверждаю сам</option>
+                        <option value="INSTANT" th:selected="${w.mode == 'INSTANT'}">Сразу бронь, без подтверждения</option>
+                    </select>
+                </div>
+                <div class="form-group">
                     <label class="form-label">Держать даты по заявке, часов</label>
-                    <input type="number" name="holdHours" min="1" max="168" required th:value="${w.holdHours}" class="form-input form-input--sm">
+                    <input type="number" name="holdHours" min="1" max="168" required th:value="${holdHours}" class="form-input form-input--sm">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Оформление</label>
@@ -95,6 +102,30 @@
                     </select>
                 </div>
             </div>
+            <div class="form-hint" style="margin-bottom: var(--sp-4);">
+                Заявка держит даты указанное время и ждёт вашего ответа; за два часа до истечения придёт напоминание в Telegram.
+                «Сразу бронь» закрывает даты без вашего участия — включайте, если календарь всегда актуален.
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label">Нет заезда в дни</label>
+                    <div style="display: flex; gap: var(--sp-3); flex-wrap: wrap;">
+                        <label th:each="d : ${noCheckinDays}"><input type="checkbox" name="noCheckinDays"
+                               th:value="${d.value}" th:checked="${d.checked}"> <span th:text="${d.label}">Пн</span></label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Нет выезда в дни</label>
+                    <div style="display: flex; gap: var(--sp-3); flex-wrap: wrap;">
+                        <label th:each="d : ${noCheckoutDays}"><input type="checkbox" name="noCheckoutDays"
+                               th:value="${d.value}" th:checked="${d.checked}"> <span th:text="${d.label}">Пн</span></label>
+                    </div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" name="petsAllowed" value="true" th:checked="${w.petsAllowed}">
+                    Можно с питомцами</label>
+            </div>
             <div class="form-group">
                 <label><input type="checkbox" name="showPrice" value="true" th:checked="${w.showPrice}">
                     Показывать гостю стоимость</label>
@@ -103,6 +134,69 @@
             <div class="form-group" style="margin-bottom: 0;">
                 <label><input type="checkbox" name="showPoweredBy" value="true" th:checked="${w.showPoweredBy}">
                     Показывать подпись «Работает на OptiRent»</label>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__title" style="margin-bottom: var(--sp-4);">Стоимость</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label">Уборка, ₽</label>
+                    <input type="number" name="cleaningFee" min="0" max="1000000" step="1" th:value="${cleaningFee}" class="form-input form-input--sm">
+                    <div class="form-hint">Добавляется к сумме один раз. 0 — уборка входит в цену.</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Скидка от 7 ночей, %</label>
+                    <input type="number" name="weeklyDiscountPercent" min="0" max="90" th:value="${w.weeklyDiscountPercent}" class="form-input form-input--sm">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Скидка от 28 ночей, %</label>
+                    <input type="number" name="monthlyDiscountPercent" min="0" max="90" th:value="${w.monthlyDiscountPercent}" class="form-input form-input--sm">
+                    <div class="form-hint">Скидки не складываются: действует бо́льшая.</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Предоплата, %</label>
+                    <input type="number" name="prepaymentPercent" min="0" max="100" th:value="${w.prepaymentPercent}" class="form-input form-input--sm">
+                    <div class="form-hint">Гость увидит сумму предоплаты. Деньги сервис не принимает — договаривайтесь с гостем сами.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__title" style="margin-bottom: var(--sp-4);">Адрес и встраивание</div>
+            <div class="form-group">
+                <label class="form-label">Адрес страницы</label>
+                <div style="display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;">
+                    <span class="muted text-sm" th:text="${publicAddress}">https://optirent.ru/b/</span>
+                    <input type="text" name="slug" maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" th:value="${w.slug}"
+                           class="form-input form-input--sm" style="flex: 1; min-width: 180px;">
+                </div>
+                <div class="form-hint">Латинские буквы, цифры и дефис. Страница по этому адресу появится с новым виджетом; пока работает ссылка выше.</div>
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label">Сайты, где можно разместить виджет</label>
+                <textarea name="allowedOrigins" rows="3" class="form-input form-input--sm" th:text="${w.allowedOrigins}"
+                          placeholder="mysite.ru"></textarea>
+                <div class="form-hint">По одному адресу в строке, до 10. На других сайтах виджет не заработает. Для ссылки в мессенджере ничего указывать не нужно.</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__title">Контакты для гостя</div>
+            <div class="text-sm muted" style="margin-bottom: var(--sp-4);">Гость увидит их после бронирования. Все поля необязательные.</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label">Телефон</label>
+                    <input type="text" name="contactPhone" maxlength="40" th:value="${w.contactPhone}" class="form-input form-input--sm" placeholder="+7 900 000-00-00">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Telegram</label>
+                    <input type="text" name="contactTelegram" maxlength="80" th:value="${w.contactTelegram}" class="form-input form-input--sm" placeholder="@username">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">WhatsApp</label>
+                    <input type="text" name="contactWhatsapp" maxlength="40" th:value="${w.contactWhatsapp}" class="form-input form-input--sm" placeholder="+7 900 000-00-00">
+                </div>
             </div>
         </div>
 
@@ -136,6 +230,58 @@
 
         <button type="submit" class="btn btn-primary" style="margin-bottom: var(--sp-6);">Сохранить</button>
     </form>
+
+    <div class="card">
+        <div class="card__title">Промокоды</div>
+        <div class="text-sm muted" style="margin-bottom: var(--sp-4);">Скидка по коду считается от стоимости проживания, уборку не уменьшает.</div>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(promos)}" style="margin-bottom: var(--sp-4);">
+            <table>
+                <thead><tr><th>Код</th><th>Скидка</th><th>Срок</th><th>Применён</th><th>Статус</th><th></th></tr></thead>
+                <tbody>
+                <tr th:each="p : ${promos}">
+                    <td><strong th:text="${p.code}">LETO10</strong></td>
+                    <td th:text="${p.discount}" style="white-space: nowrap;">10 %</td>
+                    <td th:text="${p.validity}" style="white-space: nowrap;">до 31.12.2026</td>
+                    <td th:text="${p.uses}">2 из 10</td>
+                    <td><span th:class="${p.statusCss}" th:text="${p.status}">Действует</span></td>
+                    <td>
+                        <form method="post" style="margin: 0;"
+                              th:action="@{'/settings/widgets/' + ${w.id} + '/promo/' + ${p.id} + '/toggle'}">
+                            <button type="submit" class="btn btn-ghost" th:text="${p.toggleLabel}">Выключить</button>
+                        </form>
+                    </td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <form method="post" th:action="@{'/settings/widgets/' + ${w.id} + '/promo'}"
+              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-3); align-items: end; margin: 0;">
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label">Код</label>
+                <input type="text" name="code" required maxlength="40" class="form-input form-input--sm" placeholder="LETO10">
+            </div>
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label">Скидка</label>
+                <input type="number" name="discountValue" required min="1" step="1" class="form-input form-input--sm">
+            </div>
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label">В чём</label>
+                <select name="discountType" class="form-input form-input--sm">
+                    <option value="PERCENT">проценты</option>
+                    <option value="AMOUNT">рубли</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label">Действует до</label>
+                <input type="date" name="validUntil" class="form-input form-input--sm">
+            </div>
+            <div class="form-group" style="margin: 0;">
+                <label class="form-label">Сколько раз</label>
+                <input type="number" name="maxUses" min="1" class="form-input form-input--sm" placeholder="без лимита">
+            </div>
+            <button type="submit" class="btn btn-ghost">Добавить</button>
+        </form>
+    </div>
 
     <div class="card">
         <div class="card__title" style="margin-bottom: var(--sp-3);">Ссылка и удаление</div>

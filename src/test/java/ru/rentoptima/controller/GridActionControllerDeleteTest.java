@@ -5,7 +5,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.TestingAuthenticationToken;
@@ -24,6 +23,7 @@ import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.TenantRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.TenantUserDetails;
+import ru.rentoptima.service.EchoShadowService;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -52,10 +52,13 @@ class GridActionControllerDeleteTest {
     @Mock ManualBlockEchoRepository echoRepo;
     @Mock PlannedPriceRepository plannedPriceRepo;
 
-    @InjectMocks GridActionController controller;
+    GridActionController controller;
 
     @BeforeEach
     void signIn() {
+        controller = new GridActionController(unitTypeRepo, propertyRepo, tenantRepo, bookingRepo,
+                blockRepo, channelRepo, echoRepo, plannedPriceRepo,
+                new EchoShadowService(blockRepo, bookingRepo, channelRepo));
         TenantUserDetails user = mock(TenantUserDetails.class);
         lenient().when(user.getTenantId()).thenReturn(TENANT_ID);
         SecurityContextHolder.getContext().setAuthentication(new TestingAuthenticationToken(user, null));
@@ -194,13 +197,13 @@ class GridActionControllerDeleteTest {
     @Test
     @DisplayName("технический UID: число, hex-хэш, UUID, в том числе с доменом площадки")
     void technicalUid() {
-        assertThat(GridActionController.looksTechnicalUid("199904867")).isTrue();
-        assertThat(GridActionController.looksTechnicalUid("199904867@realty.example")).isTrue();
-        assertThat(GridActionController.looksTechnicalUid("a3f9c21b7d")).isTrue();
-        assertThat(GridActionController.looksTechnicalUid("3f2b8c1e-9a4d-4c7e-8b1a-2d5f6e7a8b9c")).isTrue();
-        assertThat(GridActionController.looksTechnicalUid("booking-ivan-petrov")).isFalse();
-        assertThat(GridActionController.looksTechnicalUid("Иванов 13-14 ноября")).isFalse();
-        assertThat(GridActionController.looksTechnicalUid(null)).isFalse();
+        assertThat(EchoShadowService.looksTechnicalUid("199904867")).isTrue();
+        assertThat(EchoShadowService.looksTechnicalUid("199904867@realty.example")).isTrue();
+        assertThat(EchoShadowService.looksTechnicalUid("a3f9c21b7d")).isTrue();
+        assertThat(EchoShadowService.looksTechnicalUid("3f2b8c1e-9a4d-4c7e-8b1a-2d5f6e7a8b9c")).isTrue();
+        assertThat(EchoShadowService.looksTechnicalUid("booking-ivan-petrov")).isFalse();
+        assertThat(EchoShadowService.looksTechnicalUid("Иванов 13-14 ноября")).isFalse();
+        assertThat(EchoShadowService.looksTechnicalUid(null)).isFalse();
     }
 
     @Test

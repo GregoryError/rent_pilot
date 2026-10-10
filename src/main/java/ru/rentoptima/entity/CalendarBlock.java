@@ -33,6 +33,12 @@ public class CalendarBlock {
      */
     public static final String MANUAL_UID_PREFIX = "optirent-manual-";
 
+    /**
+     * Префикс UID заявки и брони с виджета: {@code optirent-widget-<UUID заявки>@optirent.ru}.
+     * UID один на всю жизнь заявки — и пока даты держит резерв, и после подтверждения.
+     */
+    public static final String WIDGET_UID_PREFIX = "optirent-widget-";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -47,6 +53,7 @@ public class CalendarBlock {
      * Канал-источник блокировки:
      * - null для ручных броней и MAINTENANCE/OWNER_USE/HOLD (заводит человек в UI)
      * - id iCal-канала для CHANNEL_SYNC (импорт с площадки)
+     * - id канала виджета для HOLD по заявке и WIDGET_BOOKING (см. {@link #isWidgetOwned()})
      */
     @Column(name = "channel_id")
     private Long channelId;
@@ -114,11 +121,40 @@ public class CalendarBlock {
         MAINTENANCE,      // Ремонт, уборка после ЧП
         OWNER_USE,        // Хозяин заехал сам
         HOLD,             // Резерв (например ожидание оплаты)
-        CHANNEL_SYNC      // Импортировано из iCal внешнего канала
+        CHANNEL_SYNC,     // Импортировано из iCal внешнего канала
+        /**
+         * Якорь подтверждённой брони с виджета. Занятость даёт сама бронь, поэтому
+         * AvailabilityService такой блок не считает и не показывает; нужен он, чтобы к
+         * брони, как к ручной записи, привязывались эхо-связи и тени.
+         */
+        WIDGET_BOOKING
     }
 
     /** Запись завёл человек в UI: нет ни канала-источника, ни внешнего UID. */
     public boolean isHandMade() {
         return channelId == null && (externalUid == null || externalUid.isBlank());
+    }
+
+    /**
+     * Блок заявки или брони с виджета: резерв (HOLD) либо якорь подтверждённой брони.
+     * HOLD, заведённый хозяином в шахматке, сюда не относится — у него нет канала.
+     */
+    public boolean isWidgetOwned() {
+        return channelId != null
+                && (blockType == BlockType.HOLD || blockType == BlockType.WIDGET_BOOKING);
+    }
+
+    /**
+     * Запись появилась у нас, а не пришла с площадки: ручная либо с виджета. Такие
+     * записи уходят в экспорт под UID-маркером, а их копии, вернувшиеся от площадок,
+     * считаются эхом.
+     */
+    public boolean isOwn() {
+        return isHandMade() || isWidgetOwned();
+    }
+
+    /** UID события несёт наш маркер — это эхо собственной записи. */
+    public static boolean isOwnUid(String uid) {
+        return uid != null && (uid.startsWith(MANUAL_UID_PREFIX) || uid.startsWith(WIDGET_UID_PREFIX));
     }
 }

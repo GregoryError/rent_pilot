@@ -95,6 +95,61 @@ public class Booking extends BaseEntity {
      */
     public static final String DATA_SOURCE_LEGACY = "RC";
 
+    // --- Брони с виджета (V29). У остальных броней поля пустые.
+
+    private Integer adults;
+
+    private Integer children;
+
+    private Integer pets;
+
+    /** Сохраняется только с согласием гостя — на него уходит письмо о брони. */
+    @Column(name = "guest_email")
+    private String guestEmail;
+
+    /** Язык, на котором гость оформлял бронь: ru | en. */
+    @Column(length = 5)
+    private String locale;
+
+    /** Номер брони, который видит гость. */
+    @Column(name = "public_code", length = 12)
+    private String publicCode;
+
+    /** Сбор за уборку, вошедший в amount. */
+    @Column(name = "cleaning_fee")
+    private BigDecimal cleaningFee;
+
+    /** Сумма скидок (за длительность и по промокоду), уже вычтенная из amount. */
+    @Column(name = "discount_amount")
+    private BigDecimal discountAmount;
+
+    @Column(name = "promo_code_id")
+    private Long promoCodeId;
+
+    /** Предоплата, о которой сообщили гостю. Сервис её не принимает. */
+    @Column(name = "prepayment_amount")
+    private BigDecimal prepaymentAmount;
+
+    @Column(name = "utm_source", length = 100)
+    private String utmSource;
+
+    @Column(name = "utm_medium", length = 100)
+    private String utmMedium;
+
+    @Column(name = "utm_campaign", length = 100)
+    private String utmCampaign;
+
+    @Column(length = 500)
+    private String referrer;
+
+    /** Когда гость отметил согласие на обработку контактных данных. */
+    @Column(name = "consent_at")
+    private LocalDateTime consentAt;
+
+    /** Хозяину уже напомнили, что заявка скоро истечёт. */
+    @Column(name = "hold_reminder_sent_at")
+    private LocalDateTime holdReminderSentAt;
+
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
 }

@@ -16,6 +16,7 @@ import ru.rentoptima.repository.ManualBlockEchoRepository;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -47,7 +48,9 @@ import java.util.Set;
  * ничего не трогаем: фид обычно отдаёт ограниченный горизонт, и «тишина» за его
  * краем не означает отмену.
  * <p>
- * <b>Эхо ручных записей.</b> Ручная запись уходит в экспорт всех каналов, а площадки
+ * <b>Эхо собственных записей.</b> Всё ниже относится и к ручным записям, и к заявкам /
+ * броням с виджета ({@link CalendarBlock#isOwn()}): у вторых маркер
+ * {@code optirent-widget-<UUID заявки>}. Ручная запись уходит в экспорт всех каналов, а площадки
  * (и channel manager'ы за ними) возвращают импортированное обратно. Блокировку по
  * такому событию создавать нельзя: она переживёт удаление исходной записи и будет
  * возвращаться при каждой синхронизации, а через второй канал — поддерживать сама
@@ -131,10 +134,14 @@ public class ICalChannelAdapter implements ChannelAdapter {
         }
         Integer unitCount = ctx.unitType() == null ? null : ctx.unitType().getUnitCount();
         boolean singleUnit = unitCount == null || unitCount <= 1;
-        List<CalendarBlock> recentManual = singleUnit
-                ? blockRepo.findByUnitTypeIdAndChannelIdIsNullAndCreatedAtAfter(
-                        ctx.unitTypeId(), LocalDateTime.now().minusDays(ECHO_MATCH_WINDOW_DAYS))
-                : List.of();
+        // Свои записи категории: ручные и заявки / брони с виджета
+        List<CalendarBlock> recentManual = new ArrayList<>();
+        if (singleUnit) {
+            LocalDateTime since = LocalDateTime.now().minusDays(ECHO_MATCH_WINDOW_DAYS);
+            recentManual.addAll(blockRepo.findByUnitTypeIdAndChannelIdIsNullAndCreatedAtAfter(
+                    ctx.unitTypeId(), since));
+            recentManual.addAll(blockRepo.findWidgetOwnedCreatedAfter(ctx.unitTypeId(), since));
+        }
 
         for (ICalEvent ev : events) {
             // Событие вне окна синхронизации — не наша забота на этом прогоне.
@@ -150,9 +157,10 @@ public class ICalChannelAdapter implements ChannelAdapter {
 
             // Эхо с нашим UID в seenUids не попадает: если по нему раньше успела
             // создаться блокировка, сверка ниже её снимет.
-            if (ev.uid().startsWith(CalendarBlock.MANUAL_UID_PREFIX)) {
+            if (CalendarBlock.isOwnUid(ev.uid())) {
                 if (!echoes.containsKey(ev.uid())) linkOwnUid(ctx, ev, echoes);
-                log.info("Skipped echo of own MANUAL booking: external_uid={}, channel={}",
+                log.info("Skipped echo of own {} booking: external_uid={}, channel={}",
+                        ev.uid().startsWith(CalendarBlock.WIDGET_UID_PREFIX) ? "WIDGET" : "MANUAL",
                         ev.uid(), channel.getId());
                 skipped++;
                 continue;
@@ -203,8 +211,9 @@ public class ICalChannelAdapter implements ChannelAdapter {
                     : matchRecentManual(recentManual, ev);
             if (manual != null) {
                 if (known == null) echoes.put(ev.uid(), saveEcho(ctx, manual, ev.uid()));
-                log.info("Linked echo from channel {} (UID={}) to MANUAL block {}",
-                        channel.getId(), ev.uid(), manual.getId());
+                log.info("Linked echo from channel {} (UID={}) to {} block {}",
+                        channel.getId(), ev.uid(), manual.isWidgetOwned() ? "WIDGET" : "MANUAL",
+                        manual.getId());
             }
 
             CalendarBlock b = new CalendarBlock();
@@ -240,23 +249,34 @@ public class ICalChannelAdapter implements ChannelAdapter {
      * пропускается.
      */
     private void linkOwnUid(ChannelContext ctx, ICalEvent ev, Map<String, ManualBlockEcho> echoes) {
-        String tail = ev.uid().substring(CalendarBlock.MANUAL_UID_PREFIX.length());
-        int at = tail.indexOf('@');
-        Long blockId;
-        try {
-            blockId = Long.valueOf(at >= 0 ? tail.substring(0, at) : tail);
-        } catch (NumberFormatException e) {
-            return;
-        }
-        CalendarBlock manual = blockRepo.findById(blockId).orElse(null);
-        if (manual == null || !manual.isHandMade()
+        CalendarBlock manual = ownBlockOf(ctx, ev.uid());
+        if (manual == null || !manual.isOwn()
                 || !Objects.equals(manual.getTenantId(), ctx.tenantId())
                 || !Objects.equals(manual.getUnitTypeId(), ctx.unitTypeId())) {
             return;
         }
         echoes.put(ev.uid(), saveEcho(ctx, manual, ev.uid()));
-        log.info("Linked echo from channel {} (UID={}) to MANUAL block {}",
-                ctx.channel().getId(), ev.uid(), manual.getId());
+        log.info("Linked echo from channel {} (UID={}) to {} block {}",
+                ctx.channel().getId(), ev.uid(), manual.isWidgetOwned() ? "WIDGET" : "MANUAL",
+                manual.getId());
+    }
+
+    /** Наша запись, на которую указывает UID-маркер: id ручной записи или UUID заявки с виджета. */
+    private CalendarBlock ownBlockOf(ChannelContext ctx, String uid) {
+        boolean widget = uid.startsWith(CalendarBlock.WIDGET_UID_PREFIX);
+        String tail = uid.substring((widget ? CalendarBlock.WIDGET_UID_PREFIX
+                : CalendarBlock.MANUAL_UID_PREFIX).length());
+        int at = tail.indexOf('@');
+        String key = at >= 0 ? tail.substring(0, at) : tail;
+        if (widget) {
+            List<CalendarBlock> found = blockRepo.findWidgetOwnedByRequestId(ctx.unitTypeId(), key);
+            return found.isEmpty() ? null : found.get(0);
+        }
+        try {
+            return blockRepo.findById(Long.valueOf(key)).orElse(null);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     private ManualBlockEcho saveEcho(ChannelContext ctx, CalendarBlock manual, String uid) {
@@ -289,7 +309,7 @@ public class ICalChannelAdapter implements ChannelAdapter {
     }
 
     private static boolean sameDates(CalendarBlock manual, ICalEvent ev) {
-        return manual.isHandMade() && manual.getCancelledAt() == null
+        return manual.isOwn() && manual.getCancelledAt() == null
                 && ev.start().equals(manual.getFromDate()) && ev.end().equals(manual.getToDate());
     }
 

@@ -28,6 +28,7 @@ import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.TenantRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.service.EchoShadowService;
 import ru.rentoptima.util.PdAnonymizer;
 
 import java.math.BigDecimal;
@@ -70,6 +71,7 @@ public class GridActionController {
     private final ChannelRepository channelRepo;
     private final ManualBlockEchoRepository echoRepo;
     private final PlannedPriceRepository plannedPriceRepo;
+    private final EchoShadowService shadows;
 
     @PostMapping
     @Transactional
@@ -273,7 +275,7 @@ public class GridActionController {
      * считаться в выручке, но остаётся в базе.
      * <p>
      * «Тени» записи (блокировки каналов с shadow_of_manual_id) физически не удаляются.
-     * Тень без признаков настоящей брони ({@link #realBookingSign}) скрывается
+     * Тень без признаков настоящей брони ({@link EchoShadowService}) скрывается
      * автоматически — ей ставится ignored, как кнопкой «Открыть даты»: хост удалил
      * бронь и ждёт, что даты освободятся. Вернуть её можно там же, «Закрыть снова».
      * Тень с признаками настоящей брони остаётся закрывать даты, и хост получает
@@ -313,7 +315,7 @@ public class GridActionController {
                     if (pair != null) markDeleted(pair);
                 }
                 echoChannels = echoChannelNames(tenantId, block.getId());
-                keptShadows = releaseShadows(tenantId, block.getId());
+                keptShadows = shadows.release(tenantId, block.getId());
                 block.setCancelledAt(LocalDateTime.now());
                 block.setUpdatedAt(LocalDateTime.now());
                 blockRepo.save(block);
@@ -335,11 +337,7 @@ public class GridActionController {
             } else {
                 redirect.addFlashAttribute("success",
                         "Запись удалена, но даты остаются закрытыми бронью с площадки");
-                redirect.addFlashAttribute("echoWarning", "Внимание: "
-                        + String.join("; ", keptShadows)
-                        + ". Проверьте, что это не настоящая бронь. Пока она есть на площадке, даты"
-                        + " в шахматке остаются закрытыми. Если это копия удалённой записи — откройте"
-                        + " день и снимите её в «Устранить блокировку».");
+                redirect.addFlashAttribute("echoWarning", EchoShadowService.warning(keptShadows));
             }
             log.info("Grid delete: tenant={}, entry={}, echoChannels={}, keptShadows={}",
                     tenantId, entry, echoChannels, keptShadows.size());
@@ -390,64 +388,6 @@ public class GridActionController {
         return backToGrid(returnMonth, viewFrom, viewDays, block.getFromDate());
     }
 
-    /**
-     * Скрывает тени удаляемой ручной записи, в которых нет признаков настоящей брони.
-     *
-     * @return описания теней, оставленных закрывать даты, — для предупреждения хосту
-     */
-    private List<String> releaseShadows(Long tenantId, Long manualBlockId) {
-        List<String> kept = new ArrayList<>();
-        Map<Long, String> names = new HashMap<>();
-        for (CalendarBlock shadow : blockRepo.findByShadowOfManualId(manualBlockId)) {
-            if (!tenantId.equals(shadow.getTenantId()) || Boolean.TRUE.equals(shadow.getIgnored())) continue;
-            String sign = realBookingSign(shadow);
-            if (sign == null) {
-                shadow.setIgnored(true);
-                shadow.setUpdatedAt(LocalDateTime.now());
-                blockRepo.save(shadow);
-                log.info("Grid delete: shadow block {} (channel={}, uid={}) of manual block {} auto-ignored",
-                        shadow.getId(), shadow.getChannelId(), shadow.getExternalUid(), manualBlockId);
-                continue;
-            }
-            String channel = names.computeIfAbsent(shadow.getChannelId(), id -> channelRepo.findById(id)
-                    .filter(c -> tenantId.equals(c.getTenantId())).map(Channel::getName).orElse("канал"));
-            kept.add("на площадке «" + channel + "» есть похожая бронь " + sign);
-            log.info("Grid delete: shadow block {} (channel={}, uid={}) of manual block {} kept: {}",
-                    shadow.getId(), shadow.getChannelId(), shadow.getExternalUid(), manualBlockId, sign);
-        }
-        return kept;
-    }
-
-    /**
-     * Признак того, что тень — настоящая бронь, а не копия нашей записи: за ней стоит
-     * бронь с именем гостя либо её UID не похож на технический идентификатор.
-     *
-     * @return пояснение для хоста или null, если признаков нет
-     */
-    private String realBookingSign(CalendarBlock shadow) {
-        String guest = shadow.getExternalUid() == null ? null
-                : bookingRepo.findByChannelIdAndExternalId(shadow.getChannelId(), shadow.getExternalUid())
-                        .map(Booking::getGuestName).filter(n -> !n.isBlank())
-                        .map(PdAnonymizer::toInitial).orElse(null);
-        if (guest != null) return "с именем гостя " + guest;
-        if (!looksTechnicalUid(shadow.getExternalUid())) return "с необычным идентификатором";
-        return null;
-    }
-
-    private static final java.util.regex.Pattern TECHNICAL_UID = java.util.regex.Pattern.compile(
-            "\\d+|[0-9a-fA-F]{6,}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
-
-    /**
-     * UID — безликий идентификатор (число, hex-хэш, UUID), каким площадки помечают и
-     * импортированные у нас блокировки. Часть после «@» — домен площадки, не учитывается.
-     */
-    static boolean looksTechnicalUid(String uid) {
-        if (uid == null || uid.isBlank()) return false;
-        int at = uid.indexOf('@');
-        String id = (at > 0 ? uid.substring(0, at) : uid).trim();
-        return TECHNICAL_UID.matcher(id).matches();
-    }
-
     /** Названия каналов, с которых эта ручная запись возвращалась к нам эхом. */
     private List<String> echoChannelNames(Long tenantId, Long blockId) {
         List<Long> channelIds = echoRepo.findByManualBlockId(blockId).stream()
@@ -494,6 +434,7 @@ public class GridActionController {
             case OWNER_USE -> "Личное использование";
             case HOLD -> "Hold";
             case CHANNEL_SYNC -> "Импорт с площадки";
+            case WIDGET_BOOKING -> "Бронь со страницы бронирования";
         };
     }
 

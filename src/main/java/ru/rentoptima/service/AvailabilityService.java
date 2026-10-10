@@ -148,13 +148,16 @@ public class AvailabilityService {
      *   <li>UID ручной записи — {@code optirent-manual-<id>@optirent.ru}: по этому
      *       маркеру импорт узнаёт собственное эхо, вернувшееся от площадки
      *       (см. ICalChannelAdapter);</li>
+     *   <li>заявка и бронь с виджета идут под одним UID
+     *       {@code optirent-widget-<UUID заявки>@optirent.ru} — резерв, подтверждённая
+     *       бронь и отмена для площадки одно и то же событие;</li>
      *   <li>UID блокировки с канала — её {@code external_uid}; UID брони —
      *       {@code booking-<id>@optirent.ru}. Если внешний UID в фиде уже встречался
      *       (два канала прислали одинаковый), повторный заменяется на
      *       {@code block-<id>@optirent.ru}: одинаковые UID в одном календаре
      *       площадки схлопывают в одно событие;</li>
-     *   <li>удалённые ручные записи ({@code cancelledBlocks}) идут с тем же UID и
-     *       STATUS:CANCELLED — площадка, которая это понимает, сама снимет блокировку.</li>
+     *   <li>удалённые ручные записи и отменённые заявки с виджета
+     *       ({@code cancelledBlocks}) идут с тем же UID и STATUS:CANCELLED — площадка, которая это понимает, сама снимет блокировку.</li>
      * </ul>
      */
     static List<ICalWriter.BusyPeriod> buildExportEvents(List<Booking> bookings,
@@ -178,10 +181,16 @@ public class AvailabilityService {
                 manualBlocks.merge(new ManualKey(b.getUnitTypeId(), b.getFromDate(), b.getToDate()),
                         1, Integer::sum);
             }
-            String own = b.isHandMade() ? manualUid(b) : "block-" + b.getId() + "@" + UID_DOMAIN;
-            String external = b.getExternalUid();
-            String uid = external != null && !external.isBlank() && !usedUids.contains(external)
-                    ? external : own;
+            String uid;
+            if (b.isWidgetOwned()) {
+                // Резерв по заявке: тот же UID, под которым потом пойдёт подтверждённая бронь
+                uid = widgetUid(b.getExternalUid());
+            } else {
+                String own = b.isHandMade() ? manualUid(b) : "block-" + b.getId() + "@" + UID_DOMAIN;
+                String external = b.getExternalUid();
+                uid = external != null && !external.isBlank() && !usedUids.contains(external)
+                        ? external : own;
+            }
             usedUids.add(uid);
             events.add(new ICalWriter.BusyPeriod(uid, b.getFromDate(), b.getToDate(), "Занято"));
         }
@@ -197,13 +206,15 @@ public class AvailabilityService {
                     continue;
                 }
             }
-            events.add(new ICalWriter.BusyPeriod("booking-" + b.getId() + "@" + UID_DOMAIN,
-                    b.getCheckIn(), b.getCheckOut(), "Занято"));
+            String uid = isWidget(b) ? widgetUid(b.getExternalId())
+                    : "booking-" + b.getId() + "@" + UID_DOMAIN;
+            events.add(new ICalWriter.BusyPeriod(uid, b.getCheckIn(), b.getCheckOut(), "Занято"));
         }
 
         for (CalendarBlock b : cancelledBlocks) {
-            if (b.getFromDate() == null || b.getToDate() == null || !b.isHandMade()) continue;
-            events.add(new ICalWriter.BusyPeriod(manualUid(b), b.getFromDate(), b.getToDate(),
+            if (b.getFromDate() == null || b.getToDate() == null || !b.isOwn()) continue;
+            String uid = b.isWidgetOwned() ? widgetUid(b.getExternalUid()) : manualUid(b);
+            events.add(new ICalWriter.BusyPeriod(uid, b.getFromDate(), b.getToDate(),
                     "Отменено", true));
         }
 
@@ -214,6 +225,17 @@ public class AvailabilityService {
 
     private static String manualUid(CalendarBlock b) {
         return CalendarBlock.MANUAL_UID_PREFIX + b.getId() + "@" + UID_DOMAIN;
+    }
+
+    /** UID заявки / брони с виджета: один и тот же для резерва, брони и отмены. */
+    static String widgetUid(String requestId) {
+        return CalendarBlock.WIDGET_UID_PREFIX + requestId + "@" + UID_DOMAIN;
+    }
+
+    /** Бронь пришла с виджета и знает UUID своей заявки. */
+    private static boolean isWidget(Booking b) {
+        return WidgetBookingService.DATA_SOURCE.equals(b.getDataSource())
+                && b.getExternalId() != null && !b.getExternalId().isBlank();
     }
 
     /**
@@ -345,28 +367,35 @@ public class AvailabilityService {
     }
 
     /**
-     * Убирает «тени» живых ручных записей — блокировки каналов с
-     * {@code shadow_of_manual_id}, чья ручная запись есть в этом же списке (см. V27).
-     * <p>
-     * Из пары «ручная запись + её тень» остаётся ручная: на ней сумма и гость, её
-     * можно удалить, и в экспорт она идёт под UID-маркером. Тень на те же даты ничего
-     * не добавляет, а посчитанная вместе с ручной даёт двойную занятость и ложный
-     * конфликт «ручная + площадка». Когда ручную запись удаляют, она пропадает из
-     * выборки (cancelled_at), и тень начинает учитываться как обычная блокировка канала.
+     * Убирает блоки, которые сами занятостью не являются:
+     * <ul>
+     *   <li>«тени» живых собственных записей — блокировки каналов с
+     *       {@code shadow_of_manual_id}, чья запись (ручная или с виджета) есть в этом же
+     *       списке (см. V27);</li>
+     *   <li>якоря подтверждённых броней с виджета ({@code WIDGET_BOOKING}) — даты
+     *       занимает сама бронь, якорь лишь держит на себе тени и эхо-связи.</li>
+     * </ul>
+     * Из пары «своя запись + её тень» остаётся своя: на ней сумма и гость, её можно
+     * удалить, и в экспорт она идёт под UID-маркером. Тень на те же даты ничего не
+     * добавляет, а посчитанная вместе с ней даёт двойную занятость и ложный конфликт.
+     * Когда запись удаляют, она пропадает из выборки (cancelled_at), и тень начинает
+     * учитываться как обычная блокировка канала.
      */
     static List<CalendarBlock> withoutActiveShadows(List<CalendarBlock> blocks) {
-        Set<Long> liveManualIds = new HashSet<>();
-        boolean hasShadows = false;
+        Set<Long> liveOwnIds = new HashSet<>();
+        boolean filter = false;
         for (CalendarBlock b : blocks) {
-            if (b.getShadowOfManualId() != null) hasShadows = true;
-            else if (b.isHandMade() && b.getCancelledAt() == null && b.getId() != null) {
-                liveManualIds.add(b.getId());
+            if (b.getBlockType() == CalendarBlock.BlockType.WIDGET_BOOKING) filter = true;
+            if (b.getShadowOfManualId() != null) filter = true;
+            else if (b.isOwn() && b.getCancelledAt() == null && b.getId() != null) {
+                liveOwnIds.add(b.getId());
             }
         }
-        if (!hasShadows) return blocks;
+        if (!filter) return blocks;
         return blocks.stream()
+                .filter(b -> b.getBlockType() != CalendarBlock.BlockType.WIDGET_BOOKING)
                 .filter(b -> b.getShadowOfManualId() == null
-                        || !liveManualIds.contains(b.getShadowOfManualId()))
+                        || !liveOwnIds.contains(b.getShadowOfManualId()))
                 .toList();
     }
 

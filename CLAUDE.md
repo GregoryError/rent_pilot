@@ -19,7 +19,7 @@
 - Java 21
 - Spring Boot 3.3.2 (Spring MVC + Thymeleaf + Spring Security + Spring Data JPA)
 - PostgreSQL 16
-- Flyway (миграции V1..V28+)
+- Flyway (миграции V1..V29+)
 - Thymeleaf + Layout Dialect
 - Lombok
 - Hibernate Hypersistence Utils (JSONB поддержка)
@@ -147,7 +147,22 @@ AI-режим — только рекомендации. `PricingEngine.runForPr
 - **Кнопка «Открыть даты» убрана из основного сценария**: блокировки площадок в модалке дня показываются без кнопок, действия с ними — в свёрнутом блоке «Устранить блокировку».
 - **Площадки и `STATUS:CANCELLED`.** По наблюдениям на пилоте текущие площадки (RC, Циан, DomClick) не снимают у себя блокировку по `STATUS:CANCELLED` в нашем фиде. OptiRent делает best-effort: 90 дней отдаёт отменённое событие (`STATUS:CANCELLED`, `SEQUENCE:1`, `TRANSP:TRANSPARENT`) и скрывает тень у себя. `METHOD:CANCEL` внутри VEVENT не пишем: по RFC 5545 METHOD — свойство календаря, строгий парсер может отбросить весь фид. Не проверено обратное объяснение: площадка, не читающая STATUS, может считать само присутствие события занятостью — тогда блокировку держит именно наш фид; проверяется `APP_ICAL_EXPORT_CANCELLED=false`. Гарантированное удаление брони на площадке возможно только через её нативный API — задача следующей итерации.
 
-Все пропуски и привязки пишутся в лог (`Skipped echo of own MANUAL booking`, `Linked echo from channel`). Подробности и порядок выкладки — `patches/INTEGRATION_MANUAL_ECHO.md`.
+- **Заявки и брони с виджета — тоже «свои» записи** (V29), на них действует всё перечисленное. UID в экспорте — `optirent-widget-<UUID заявки>@optirent.ru` (`CalendarBlock.WIDGET_UID_PREFIX`), один и тот же для резерва, подтверждённой брони и отмены. У заявки есть блок-«якорь» канала виджета на всё время жизни брони: `HOLD` до ответа хозяина, `WIDGET_BOOKING` после подтверждения; к нему привязываются эхо-связи и тени. Занятость подтверждённой брони даёт сама бронь — якорь `WIDGET_BOOKING` `withoutActiveShadows` отбрасывает. Отклонение, истечение и отмена — мягкое удаление якоря (`WidgetBookingService.close`) со скрытием теней (`EchoShadowService` — общий для шахматки и виджета). «Своя запись» в коде — `CalendarBlock.isOwn()`, а не `isHandMade()`.
+
+Все пропуски и привязки пишутся в лог (`Skipped echo of own MANUAL booking` / `… WIDGET booking`, `Linked echo from channel`). Подробности и порядок выкладки — `patches/INTEGRATION_MANUAL_ECHO.md`.
+
+### Виджет бронирования: публичный API и встраивание
+
+Идёт переделка виджета (v2) по фазам — `patches/INTEGRATION_BOOKING_WIDGET_V2.md`. Сделана фаза 1 (сервер, V29).
+
+- Новый API — `/api/widget/{slug}/…` (`WidgetApiController`), ключ — `booking_widgets.slug`. Прежние `/book/{secret}`, `/widget/{secret}`, `/widget.js` работают и останутся постоянными редиректами — не удалять.
+- Сумму считает только сервер: `WidgetPricing` (ночи → скидка за длительность → промокод → уборка). Правила дат и состояния дней календаря — `WidgetCalendar`. Оба без БД, тестируются напрямую.
+- Ошибки API — `{code, message}`, коды в `WidgetError`. Новая причина отказа — новый код, а не строка в контроллере.
+- CORS — по списку `booking_widgets.allowed_origins` (`WidgetCorsConfig`), тем же списком страница `/widget/{secret}` отдаёт `frame-ancestors`. `@CrossOrigin` на эндпоинты виджета не ставить.
+- Капчи нет. Защита от спама: honeypot, лимит по IP, `WidgetFormToken` (время заполнения формы).
+- Режимы: `REQUEST` (резерв `hold_minutes`, по умолчанию сутки) и `INSTANT`. Бронь создаётся под `SELECT … FOR UPDATE` по строке категории.
+- `booking_widgets.cleaning_fee` — сбор с гостя. Настройка `cleaning_cost` — расход хозяина, в цену для гостя не входит.
+- Письма гостю — `EmailService.send`, включается `SMTP_HOST` + `MAIL_FROM`; без них пропускаются.
 
 ### Подписи в настройках
 
@@ -157,7 +172,7 @@ AI-режим — только рекомендации. `PricingEngine.runForPr
 
 У Григория локально нет docker и БД. Поведение приложения проверяется через автодеплой на staging.optirent.ru. Поэтому:
 
-- Unit-тесты и компиляция локально работают: `mvn -o test` (системный Maven + заполненный `~/.m2`). Приложение целиком локально не поднять — нет docker/БД; Flyway, шаблоны и интеграции проверяются только на staging.
+- Unit-тесты и компиляция локально работают: `mvn -o test` (системный Maven + заполненный `~/.m2`). `WidgetBookingIntegrationTest` поднимает PostgreSQL в контейнере (Testcontainers) и без docker пропускается; с colima — см. `patches/INTEGRATION_BOOKING_WIDGET_V2.md`. Он же прогоняет все миграции на пустой базе. Приложение целиком локально не поднять — нет docker/БД; Flyway, шаблоны и интеграции проверяются только на staging.
 - Ошибка компиляции (в том числе тестов) блокирует docker-билд и деплой. Перед push прогонять `mvn -o test`.
 - Для sanity-проверок синтаксиса можно использовать `docker run --rm -v "$PWD":/app -w /app maven:3.9-eclipse-temurin-21 mvn compile` (на маке docker не установлен, но так на сервере через SSH).
 
@@ -185,6 +200,7 @@ AI-режим — только рекомендации. `PricingEngine.runForPr
 - **Блок 4.9** (V22): Booking Widget MVP — `booking_widgets`, `ChannelType.WIDGET`, WidgetBookingService (hold + бронь PENDING), публичные /book/{secret}, /widget/{secret}, /widget.js, админка /settings/widgets, заявки /bookings/pending. Отступления от плана ниже и непроверенное — в `patches/INTEGRATION_BLOCK4_9.md`. Заодно: раздел /staff «Сотрудники» (ссылка и PIN горничной), починена вёрстка «Отзывов».
 - **Цвета каналов** (V23): `channels.color` из фиксированной палитры `ChannelPalette`; занятый день в шахматке закрашен цветом канала с первой буквой его названия, закрытый вручную — чёрный. См. `patches/INTEGRATION_CHANNEL_COLORS.md`.
 - **Открытие дат, закрытых площадкой** (V25): `calendar_blocks.ignored` — блокировку с канала нельзя удалить (вернётся из фида), поэтому хост помечает её в модалке шахматки «Открыть даты»; такие блокировки не считаются занятостью и не уходят в экспорт. Запрос `findByUnitTypesInRange` их отфильтровывает, `findOverlapping` — нет.
+- **Виджет бронирования v2, фаза 1** (V29): публичный API `/api/widget/{slug}`, расчёт суммы на сервере, промокоды, скидки за длительность, режим мгновенной брони, эхо-защита броней виджета, CORS по списку сайтов. См. `patches/INTEGRATION_BOOKING_WIDGET_V2.md`.
 - **Эхо ручных записей** (V26, V27): UID-маркер `optirent-manual-*`, `manual_block_echoes`, мягкое удаление ручных записей (`calendar_blocks.cancelled_at`, `STATUS:CANCELLED` в экспорте 90 дней), «тени» для эха по датам (`calendar_blocks.shadow_of_manual_id`). См. раздел «Ручные записи в многоканальной среде» и `patches/INTEGRATION_MANUAL_ECHO.md`.
 
 ### Что в работе / приоритет
@@ -499,7 +515,7 @@ Dockerfile собирает `./mvnw package -DskipTests`. Нужно: либо �
 2. Проверить какая активная ветка: обычно работаем на feat/channels-mvp или фичевой ветке от неё. Main защищена (но Григорий как админ может пушить).
 3. Если задача про Property или bookings — помнить про двойной маппинг tenant_id.
 4. Если про шаблоны — pipe-syntax или th:classappend, не плюсы. Для шахматки — все классы в контроллере, не в шаблоне.
-5. Если про миграции — обязательно V-номер больше последнего (сейчас V28), не удалять поля из существующих.
+5. Если про миграции — обязательно V-номер больше последнего (сейчас V29), не удалять поля из существующих.
 6. Если про UI — следовать существующей стилистике (CSS vars из core.css). По умолчанию тема светлая (`static/js/theme.js` ставит `data-theme="light"`, тёмная — только по выбору пользователя); любая автономная страница без layout должна подключать `theme.js`. Проверять обе темы.
 7. Если делаешь блок — завершить INTEGRATION_<N>.md в patches/ с инструкциями по применению.
 8. **Git-операции — предлагай, но не выполняй сам.**

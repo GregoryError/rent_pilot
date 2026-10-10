@@ -177,4 +177,73 @@ class ICalExportEventsTest {
                 .containsExactly("199904867");
         assertThat(feed(List.of(), List.of(shadow), 8L)).isEmpty();
     }
+
+    // --- Заявки и брони с виджета: тот же механизм, что у ручных записей
+
+    private static final Long WIDGET_CHANNEL = 50L;
+    private static final String REQUEST_ID = "3f2b8c1e-9a4d-4c7e-8b1a-2d5f6e7a8b9c";
+    private static final String WIDGET_UID = "optirent-widget-" + REQUEST_ID + "@optirent.ru";
+
+    private static CalendarBlock widgetBlock(long id, CalendarBlock.BlockType type, int from, int to) {
+        CalendarBlock b = block(id, WIDGET_CHANNEL, REQUEST_ID, from, to);
+        b.setBlockType(type);
+        return b;
+    }
+
+    private static Booking widgetBooking(long id, int from, int to) {
+        Booking b = booking(id, "WIDGET", WIDGET_CHANNEL, from, to);
+        b.setExternalId(REQUEST_ID);
+        return b;
+    }
+
+    @Test
+    @DisplayName("резерв по заявке с виджета уходит в фид под UID-маркером, а не под голым UUID")
+    void widgetHoldIsExportedWithMarker() {
+        List<ICalEvent> events = feed(List.of(),
+                List.of(widgetBlock(70, CalendarBlock.BlockType.HOLD, 10, 12)), 9L);
+
+        assertThat(events).extracting(ICalEvent::uid).containsExactly(WIDGET_UID);
+    }
+
+    @Test
+    @DisplayName("подтверждённая бронь с виджета — одно событие с тем же UID, что был у резерва; якорь не дублирует")
+    void confirmedWidgetBookingKeepsUid() {
+        List<ICalEvent> events = feed(
+                List.of(widgetBooking(900, 10, 12)),
+                List.of(widgetBlock(70, CalendarBlock.BlockType.WIDGET_BOOKING, 10, 12)), 9L);
+
+        assertThat(events).hasSize(1);
+        assertThat(events.get(0).uid()).isEqualTo(WIDGET_UID);
+        assertThat(events.get(0).start()).isEqualTo(d(10));
+        assertThat(events.get(0).end()).isEqualTo(d(12));
+    }
+
+    @Test
+    @DisplayName("отклонённая или истёкшая заявка с виджета остаётся в фиде со STATUS:CANCELLED и прежним UID")
+    void cancelledWidgetRequestIsExportedAsCancelled() {
+        CalendarBlock cancelled = widgetBlock(70, CalendarBlock.BlockType.HOLD, 10, 12);
+        cancelled.setCancelledAt(java.time.LocalDateTime.now());
+
+        List<ICalEvent> events = ICalParser.parse(ICalWriter.write("Тест",
+                AvailabilityService.buildExportEvents(List.of(), List.of(), List.of(cancelled), 9L)));
+
+        assertThat(events).extracting(ICalEvent::uid).containsExactly(WIDGET_UID);
+        assertThat(events).extracting(ICalEvent::cancelled).containsExactly(true);
+    }
+
+    @Test
+    @DisplayName("тень брони с виджета в фид не идёт, пока бронь жива; после отмены — идёт всем, кроме своего канала")
+    void shadowOfWidgetBookingIsExportedOnlyAfterCancel() {
+        CalendarBlock anchor = widgetBlock(70, CalendarBlock.BlockType.WIDGET_BOOKING, 10, 12);
+        CalendarBlock shadow = block(7, 8L, "199904867", 10, 12);
+        shadow.setShadowOfManualId(70L);
+
+        assertThat(feed(List.of(widgetBooking(900, 10, 12)), List.of(anchor, shadow), 9L))
+                .extracting(ICalEvent::uid).containsExactly(WIDGET_UID);
+
+        // бронь отменили: ни её, ни якоря в выборке занятости больше нет
+        assertThat(feed(List.of(), List.of(shadow), 9L)).extracting(ICalEvent::uid)
+                .containsExactly("199904867");
+        assertThat(feed(List.of(), List.of(shadow), 8L)).isEmpty();
+    }
 }

@@ -25,6 +25,7 @@
                 <div class="card__title" th:text="${r.dates}">12.11.2026 — 14.11.2026</div>
                 <div class="text-sm muted">
                     <span th:text="${r.widgetTitle}">Квартира на Садовой</span>
+                    <span th:if="${!#strings.isEmpty(r.number)}">· <span th:text="${r.number}">№ K7M29QXA</span></span>
                     · ночей: <span th:text="${r.nights}">2</span>
                     · гостей: <span th:text="${r.guests}">2</span>
                     · <span th:text="${r.amount}">9000 ₽</span>
@@ -53,12 +54,12 @@
 
     <div class="card" th:unless="${#lists.isEmpty(history)}">
         <div class="card__header">
-            <div class="card__title">Обработанные заявки</div>
-            <div class="text-sm muted">Последние 20</div>
+            <div class="card__title">Обработанные заявки и брони</div>
+            <div class="text-sm muted">Последние 20. Подтверждённую бронь можно отменить, пока гость не выехал</div>
         </div>
         <div class="table-wrap">
             <table>
-                <thead><tr><th>Даты</th><th>Страница</th><th>Гость</th><th>Сумма</th><th>Итог</th></tr></thead>
+                <thead><tr><th>Даты</th><th>Страница</th><th>Гость</th><th>Сумма</th><th>Итог</th><th></th></tr></thead>
                 <tbody>
                 <tr th:each="r : ${history}">
                     <td th:text="${r.dates}" style="white-space: nowrap;">12.11.2026 — 14.11.2026</td>
@@ -66,6 +67,13 @@
                     <td><span th:text="${r.guestName}">И.</span>, <span th:text="${r.guestPhone}">+79000000000</span></td>
                     <td th:text="${r.amount}" style="white-space: nowrap;">9000 ₽</td>
                     <td><span th:class="${r.statusCss}" th:text="${r.status}">Подтверждена</span></td>
+                    <td>
+                        <form th:if="${r.cancellable}" method="post" style="margin: 0;"
+                              th:action="@{'/bookings/pending/' + ${r.id} + '/cancel'}"
+                              onsubmit="return confirm('Отменить бронь? Даты снова станут свободными. Гостя нужно предупредить самому.');">
+                            <button type="submit" class="btn btn-ghost">Отменить</button>
+                        </form>
+                    </td>
                 </tr>
                 </tbody>
             </table>

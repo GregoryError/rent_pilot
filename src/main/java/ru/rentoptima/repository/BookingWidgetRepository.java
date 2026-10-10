@@ -12,6 +12,12 @@ public interface BookingWidgetRepository extends JpaRepository<BookingWidget, Lo
 
     Optional<BookingWidget> findByIdAndTenantIdAndActiveTrue(Long id, Long tenantId);
 
-    /** Публичный доступ по секрету — единственный запрос без tenant-фильтра. */
+    /** Публичный доступ по секрету (старые ссылки) — без tenant-фильтра. */
     Optional<BookingWidget> findBySecretAndActiveTrue(String secret);
+
+    /** Публичный доступ по адресу виджета — без tenant-фильтра. */
+    Optional<BookingWidget> findBySlugAndActiveTrue(String slug);
+
+    /** Занят ли адрес: проверяется по всем виджетам, включая удалённые — адрес уникален в таблице. */
+    boolean existsBySlug(String slug);
 }

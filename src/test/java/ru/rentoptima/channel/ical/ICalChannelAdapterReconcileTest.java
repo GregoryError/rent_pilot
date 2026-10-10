@@ -536,4 +536,150 @@ class ICalChannelAdapterReconcileTest {
         verify(blockRepo, never()).delete(any());
         verify(echoRepo, never()).save(any());
     }
+
+    // --- Заявки и брони с виджета: те же сценарии, что для ручных записей
+
+    private static final Long WIDGET_CHANNEL = 50L;
+    private static final String REQUEST_ID = "3f2b8c1e-9a4d-4c7e-8b1a-2d5f6e7a8b9c";
+    private static final String WIDGET_UID = "optirent-widget-" + REQUEST_ID + "@optirent.ru";
+
+    /** Якорь заявки с виджета на 13–14 ноября, созданной daysAgo дней назад. */
+    private CalendarBlock widgetAnchor(long id, CalendarBlock.BlockType type, int daysAgo) {
+        CalendarBlock b = manual(id, daysAgo);
+        b.setChannelId(WIDGET_CHANNEL);
+        b.setExternalUid(REQUEST_ID);
+        b.setBlockType(type);
+        return b;
+    }
+
+    private void widgetBlocksInDb(CalendarBlock... blocks) {
+        when(blockRepo.findWidgetOwnedCreatedAfter(eq(UNIT_TYPE_ID), any()))
+                .thenAnswer(inv -> {
+                    LocalDateTime since = inv.getArgument(1);
+                    return List.of(blocks).stream()
+                            .filter(b -> b.getCreatedAt().isAfter(since)).toList();
+                });
+    }
+
+    @Test
+    @DisplayName("виджет: событие с нашим UID-маркером → блокировка не создаётся, связь запоминается")
+    void widgetUidMarker_skippedAndLinked() {
+        Logger logger = (Logger) LoggerFactory.getLogger(ICalChannelAdapter.class);
+        ListAppender<ILoggingEvent> logs = new ListAppender<>();
+        logs.start();
+        logger.addAppender(logs);
+        try {
+            when(blockRepo.findWidgetOwnedByRequestId(UNIT_TYPE_ID, REQUEST_ID))
+                    .thenReturn(List.of(widgetAnchor(70L, CalendarBlock.BlockType.HOLD, 1)));
+            when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+            ChannelSyncResult result = adapter.reconcile(ctx(), List.of(
+                    event(WIDGET_UID, ECHO_FROM, ECHO_TO, false)));
+
+            assertThat(result.imported()).isZero();
+            assertThat(result.skipped()).isEqualTo(1);
+            verify(blockRepo, never()).save(any());
+            assertThat(logs.list).extracting(ILoggingEvent::getFormattedMessage).contains(
+                    "Skipped echo of own WIDGET booking: external_uid=" + WIDGET_UID + ", channel=" + CHANNEL_ID);
+
+            ArgumentCaptor<ManualBlockEcho> echo = ArgumentCaptor.forClass(ManualBlockEcho.class);
+            verify(echoRepo).save(echo.capture());
+            assertThat(echo.getValue().getManualBlockId()).isEqualTo(70L);
+            assertThat(echo.getValue().getChannelId()).isEqualTo(CHANNEL_ID);
+        } finally {
+            logger.detachAppender(logs);
+        }
+    }
+
+    @Test
+    @DisplayName("виджет: ранее импортированное эхо с нашим UID-маркером снимается при сверке")
+    void widgetUidMarker_existingEchoBlockRemoved() {
+        CalendarBlock stale = new CalendarBlock();
+        stale.setChannelId(CHANNEL_ID);
+        stale.setExternalUid(WIDGET_UID);
+        stale.setUnitTypeId(UNIT_TYPE_ID);
+        stale.setFromDate(ECHO_FROM);
+        stale.setToDate(ECHO_TO);
+
+        when(blockRepo.findWidgetOwnedByRequestId(UNIT_TYPE_ID, REQUEST_ID)).thenReturn(List.of());
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of(stale));
+
+        ChannelSyncResult result = adapter.reconcile(ctx(), List.of(
+                event(WIDGET_UID, ECHO_FROM, ECHO_TO, false)));
+
+        assertThat(result.removed()).isEqualTo(1);
+        verify(blockRepo).delete(stale);
+        verify(echoRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("виджет: чужой UID, даты совпали со свежей заявкой → блокировка-тень и связь")
+    void foreignUidSameDatesAsWidgetHold_importedAsShadow() {
+        widgetBlocksInDb(widgetAnchor(70L, CalendarBlock.BlockType.HOLD, 0));
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.empty());
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+        ChannelSyncResult result = adapter.reconcile(ctx(),
+                List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
+
+        assertThat(result.imported()).isEqualTo(1);
+        ArgumentCaptor<CalendarBlock> block = ArgumentCaptor.forClass(CalendarBlock.class);
+        verify(blockRepo).save(block.capture());
+        assertThat(block.getValue().getBlockType()).isEqualTo(CalendarBlock.BlockType.CHANNEL_SYNC);
+        assertThat(block.getValue().getShadowOfManualId()).isEqualTo(70L);
+
+        ArgumentCaptor<ManualBlockEcho> echo = ArgumentCaptor.forClass(ManualBlockEcho.class);
+        verify(echoRepo).save(echo.capture());
+        assertThat(echo.getValue().getManualBlockId()).isEqualTo(70L);
+        assertThat(echo.getValue().getExternalUid()).isEqualTo("199904867");
+    }
+
+    @Test
+    @DisplayName("виджет: подтверждённая бронь тоже получает тень — якорь WIDGET_BOOKING")
+    void foreignUidSameDatesAsConfirmedWidgetBooking_importedAsShadow() {
+        widgetBlocksInDb(widgetAnchor(70L, CalendarBlock.BlockType.WIDGET_BOOKING, 2));
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.empty());
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+        adapter.reconcile(ctx(), List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
+
+        ArgumentCaptor<CalendarBlock> block = ArgumentCaptor.forClass(CalendarBlock.class);
+        verify(blockRepo).save(block.capture());
+        assertThat(block.getValue().getShadowOfManualId()).isEqualTo(70L);
+    }
+
+    @Test
+    @DisplayName("виджет: отклонённая заявка с теми же датами тенью не обзаводится — обычная блокировка")
+    void foreignUidSameDatesAsCancelledWidgetRequest_plainBlock() {
+        CalendarBlock cancelled = widgetAnchor(70L, CalendarBlock.BlockType.HOLD, 0);
+        cancelled.setCancelledAt(LocalDateTime.now());
+        widgetBlocksInDb(cancelled);
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.empty());
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+        adapter.reconcile(ctx(), List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
+
+        ArgumentCaptor<CalendarBlock> block = ArgumentCaptor.forClass(CalendarBlock.class);
+        verify(blockRepo).save(block.capture());
+        assertThat(block.getValue().getShadowOfManualId()).isNull();
+        verify(echoRepo, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("виджет: заявке 10 дней → совпадение дат уже не эхо, обычная блокировка")
+    void foreignUidSameDatesAsOldWidgetBooking_created() {
+        widgetBlocksInDb(widgetAnchor(70L, CalendarBlock.BlockType.WIDGET_BOOKING, 10));
+        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "199904867"))
+                .thenReturn(Optional.empty());
+        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
+
+        adapter.reconcile(ctx(), List.of(event("199904867", ECHO_FROM, ECHO_TO, false)));
+
+        ArgumentCaptor<CalendarBlock> block = ArgumentCaptor.forClass(CalendarBlock.class);
+        verify(blockRepo).save(block.capture());
+        assertThat(block.getValue().getShadowOfManualId()).isNull();
+    }
 }

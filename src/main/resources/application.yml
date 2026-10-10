@@ -28,6 +28,23 @@ spring:
     prefix: classpath:/templates/
     suffix: .html
 
+  # SMTP для писем гостям о бронях с виджета. Пока SMTP_HOST и MAIL_FROM не заданы,
+  # письма молча пропускаются (EmailService).
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:465}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: ${SMTP_SSL:true}
+          connectiontimeout: 5000
+          timeout: 10000
+          writetimeout: 10000
+
   servlet:
     multipart:
       max-file-size: 20MB
@@ -50,10 +67,9 @@ app:
   ical:
     export-cancelled: ${APP_ICAL_EXPORT_CANCELLED:true}
 
-  # hCaptcha для заявок с виджета бронирования. Пусто — капча выключена.
-  hcaptcha:
-    site-key: ${HCAPTCHA_SITE_KEY:}
-    secret: ${HCAPTCHA_SECRET:}
+  # От кого уходят письма гостям о бронях. Пусто — письма не отправляются.
+  mail:
+    from: ${MAIL_FROM:}
 
 encryption:
   key: ${ENCRYPTION_KEY:}

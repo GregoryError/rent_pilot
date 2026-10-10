@@ -138,4 +138,56 @@ class AvailabilityServiceBuildDetailsTest {
         assertThat(days.get(d(13)).occupants().get(0).manual()).isFalse();
         assertThat(days.get(d(13)).occupants().get(0).channelId()).isEqualTo(8L);
     }
+
+    // --- Заявки и брони с виджета
+
+    private static CalendarBlock widgetAnchor(long id, CalendarBlock.BlockType type, int from, int to) {
+        CalendarBlock b = block(type, 50L, from, to);
+        b.setId(id);
+        b.setExternalUid("3f2b8c1e-9a4d-4c7e-8b1a-2d5f6e7a8b9c");
+        return b;
+    }
+
+    private static Booking widgetBooking(int from, int to) {
+        Booking b = new Booking();
+        b.setId(900L);
+        b.setUnitTypeId(UT);
+        b.setChannelId(50L);
+        b.setDataSource("WIDGET");
+        b.setExternalId("3f2b8c1e-9a4d-4c7e-8b1a-2d5f6e7a8b9c");
+        b.setCheckIn(d(from));
+        b.setCheckOut(d(to));
+        return b;
+    }
+
+    @Test
+    @DisplayName("подтверждённая бронь с виджета: якорь занятость не удваивает, тень скрыта, конфликта нет")
+    void confirmedWidgetBookingIsCountedOnce() {
+        Map<LocalDate, DayOccupancy> days = build(
+                List.of(widgetBooking(13, 14)),
+                List.of(widgetAnchor(70L, CalendarBlock.BlockType.WIDGET_BOOKING, 13, 14), shadowOf(70L, 13, 14)));
+
+        assertThat(days.get(d(13)).busy()).isEqualTo(1);
+        assertThat(days.get(d(13)).occupants().get(0).booking()).isTrue();
+        assertThat(days.get(d(13)).conflict(1)).isFalse();
+    }
+
+    @Test
+    @DisplayName("заявка с виджета: даты держит резерв, его тень скрыта")
+    void widgetHoldHidesItsShadow() {
+        Map<LocalDate, DayOccupancy> days = build(List.of(),
+                List.of(widgetAnchor(70L, CalendarBlock.BlockType.HOLD, 13, 14), shadowOf(70L, 13, 14)));
+
+        assertThat(days.get(d(13)).busy()).isEqualTo(1);
+        assertThat(days.get(d(13)).occupants().get(0).blockType()).isEqualTo(CalendarBlock.BlockType.HOLD);
+    }
+
+    @Test
+    @DisplayName("заявку с виджета отклонили — тень остаётся обычной блокировкой площадки")
+    void shadowStaysAfterWidgetRequestIsCancelled() {
+        Map<LocalDate, DayOccupancy> days = build(List.of(), List.of(shadowOf(70L, 13, 14)));
+
+        assertThat(days.get(d(13)).busy()).isEqualTo(1);
+        assertThat(days.get(d(13)).occupants().get(0).manual()).isFalse();
+    }
 }

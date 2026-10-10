@@ -78,6 +78,33 @@ public interface CalendarBlockRepository extends JpaRepository<CalendarBlock, Lo
     List<CalendarBlock> findByUnitTypeIdAndChannelIdIsNullAndCreatedAtAfter(
             Long unitTypeId, java.time.LocalDateTime since);
 
+    /**
+     * Блоки заявок и броней с виджета в категории, заведённые после указанного момента,
+     * включая удалённые. Для них импорт опознаёт эхо так же, как для ручных записей.
+     */
+    @Query("""
+        SELECT b FROM CalendarBlock b
+        WHERE b.unitTypeId = :unitTypeId
+          AND b.channelId IS NOT NULL
+          AND b.blockType IN (ru.rentoptima.entity.CalendarBlock.BlockType.HOLD,
+                              ru.rentoptima.entity.CalendarBlock.BlockType.WIDGET_BOOKING)
+          AND b.createdAt > :since
+    """)
+    List<CalendarBlock> findWidgetOwnedCreatedAfter(@Param("unitTypeId") Long unitTypeId,
+                                                    @Param("since") java.time.LocalDateTime since);
+
+    /** Блок заявки с виджета по UUID заявки — для эха, вернувшегося с нашим UID-маркером. */
+    @Query("""
+        SELECT b FROM CalendarBlock b
+        WHERE b.unitTypeId = :unitTypeId
+          AND b.externalUid = :requestId
+          AND b.channelId IS NOT NULL
+          AND b.blockType IN (ru.rentoptima.entity.CalendarBlock.BlockType.HOLD,
+                              ru.rentoptima.entity.CalendarBlock.BlockType.WIDGET_BOOKING)
+    """)
+    List<CalendarBlock> findWidgetOwnedByRequestId(@Param("unitTypeId") Long unitTypeId,
+                                                   @Param("requestId") String requestId);
+
     /** Последние импортированные с канала блокировки. Для диагностики каналов. */
     List<CalendarBlock> findTop10ByChannelIdOrderByCreatedAtDesc(Long channelId);
 
@@ -108,6 +135,9 @@ public interface CalendarBlockRepository extends JpaRepository<CalendarBlock, Lo
 
     /** Просроченные резервы, кросс-тенант. Для WidgetBookingService. */
     List<CalendarBlock> findByExpiresAtBefore(java.time.LocalDateTime moment);
+
+    /** Резервы, истекающие в интервале, кросс-тенант. Для напоминания хозяину о заявке. */
+    List<CalendarBlock> findByExpiresAtBetween(java.time.LocalDateTime from, java.time.LocalDateTime to);
 
     /**
      * Все блокировки дня, включая открытые вручную (ignored), — для модалки шахматки.

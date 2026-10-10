@@ -3,14 +3,17 @@ package ru.rentoptima.config;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.filter.ShallowEtagHeaderFilter;
 import org.springframework.web.servlet.HandlerInterceptor;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import ru.rentoptima.service.PublicRateLimiter;
 
 /**
- * Лимит запросов к публичным эндпоинтам виджета: 60 в минуту с одного IP.
+ * Публичные эндпоинты виджета: лимит запросов (60 в минуту с одного IP) и ETag.
  * Адрес клиента берётся из getRemoteAddr() — за nginx он корректен благодаря
  * SERVER_FORWARD_HEADERS_STRATEGY=native в docker-compose.
  */
@@ -21,6 +24,19 @@ public class WidgetWebConfig implements WebMvcConfigurer {
     private static final int PER_MINUTE = 60;
 
     private final PublicRateLimiter rateLimiter;
+
+    /**
+     * ETag для GET-ответов API виджета: при неизменившихся настройках и занятости
+     * повторный запрос получает 304 без тела. Вместе с Cache-Control: max-age=60,
+     * который ставит WidgetApiController.
+     */
+    @Bean
+    public FilterRegistrationBean<ShallowEtagHeaderFilter> widgetEtagFilter() {
+        FilterRegistrationBean<ShallowEtagHeaderFilter> bean =
+                new FilterRegistrationBean<>(new ShallowEtagHeaderFilter());
+        bean.addUrlPatterns("/api/widget/*");
+        return bean;
+    }
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -36,6 +52,6 @@ public class WidgetWebConfig implements WebMvcConfigurer {
                 response.setStatus(429);
                 return false;
             }
-        }).addPathPatterns("/book/**", "/widget/**");
+        }).addPathPatterns("/book/**", "/widget/**", "/api/widget/**");
     }
 }
