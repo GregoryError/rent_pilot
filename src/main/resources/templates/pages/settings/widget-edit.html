@@ -13,6 +13,7 @@
         </div>
         <div style="display: flex; gap: var(--sp-2); flex-wrap: wrap;">
             <a class="btn btn-primary" th:href="@{'/settings/widgets/' + ${w.id} + '/design'}">Конструктор виджета</a>
+            <a class="btn btn-ghost" th:href="@{'/settings/widgets/' + ${w.id} + '/stats'}">Статистика</a>
             <a class="btn btn-ghost" th:href="@{/settings/widgets}">← Все страницы</a>
         </div>
     </div>
@@ -176,6 +177,17 @@
                            class="form-input form-input--sm" style="flex: 1; min-width: 180px;">
                 </div>
                 <div class="form-hint">Латинские буквы, цифры и дефис. Страница по этому адресу появится с новым виджетом; пока работает ссылка выше.</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Счётчик Яндекс.Метрики</label>
+                <input type="text" name="metrikaId" maxlength="12" inputmode="numeric" pattern="[0-9]*" th:value="${w.metrikaId}"
+                       class="form-input form-input--sm" placeholder="12345678" style="max-width: 220px;">
+                <div class="form-hint">
+                    Необязательно. Номер вашего счётчика — виджет будет отправлять в него цели
+                    <code>optirent_view</code>, <code>optirent_dates</code>, <code>optirent_form</code>,
+                    <code>optirent_submit</code>, <code>optirent_success</code>. Создайте в Метрике цели типа «JavaScript-событие»
+                    с такими идентификаторами. Статистика воронки в OptiRent работает и без Метрики.
+                </div>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
                 <label class="form-label">Сайты, где можно разместить виджет</label>

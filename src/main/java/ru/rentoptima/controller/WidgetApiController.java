@@ -1,5 +1,7 @@
 package ru.rentoptima.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -30,6 +32,7 @@ import ru.rentoptima.service.WidgetBookingService.Submission;
 import ru.rentoptima.service.WidgetCalendar;
 import ru.rentoptima.service.WidgetError;
 import ru.rentoptima.service.WidgetFormToken;
+import ru.rentoptima.service.WidgetFunnelService;
 import ru.rentoptima.service.WidgetGuestCalendar;
 import ru.rentoptima.service.WidgetLayout;
 import ru.rentoptima.service.WidgetNotifier;
@@ -77,6 +80,7 @@ public class WidgetApiController {
     private final WidgetNotifier notifier;
     private final PaymentProvider payments;
     private final WidgetPhotoService photos;
+    private final WidgetFunnelService funnel;
 
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> config(@PathVariable String slug, HttpServletRequest http) {
@@ -115,6 +119,7 @@ public class WidgetApiController {
         body.put("photos", gallery);
         ObjectNode layout = WidgetLayout.normalize(w.getConfigJson());
         body.put("layout", layout);
+        body.put("metrikaId", w.getMetrikaId());
         body.put("amenities", WidgetLayout.amenities(w.getAmenities()));
         body.put("mapUrl", WidgetLayout.mapUrl(w.getMapUrl()));
         // Контакты до брони отдаём, только если хозяин оставил блок «Контакты» видимым
@@ -170,6 +175,28 @@ public class WidgetApiController {
             stays.add(Map.of("checkin", s.checkin().toString(), "checkout", s.checkout().toString()));
         }
         return ResponseEntity.ok().cacheControl(CACHE).body(Map.of("alternatives", stays));
+    }
+
+    /**
+     * Шаг воронки: виджет открыт, выбраны даты, начата форма, отправлена, заявка создана.
+     * Тело — JSON, но принимается любым Content-Type: виджет шлёт событие через
+     * sendBeacon как text/plain, чтобы браузер не делал предварительный запрос (preflight).
+     * Запрос с неразрешённого сайта до сюда не доходит — его отклоняет CORS-фильтр.
+     */
+    @PostMapping(value = "/event", consumes = MediaType.ALL_VALUE)
+    public ResponseEntity<Void> event(@PathVariable String slug, @RequestBody(required = false) String body,
+                                      HttpServletRequest http) {
+        BookingWidget w = require(slug);
+        try {
+            if (body != null && body.length() <= 4000) {
+                JsonNode e = new ObjectMapper().readTree(body);
+                funnel.record(w, e.path("step").asText(null), e.path("utm").asText(null),
+                        e.path("referrer").asText(null), e.path("host").asText(null));
+            }
+        } catch (Exception ignored) {
+            // Аналитика не должна ничего ломать: кривое событие просто не считается
+        }
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/quote")

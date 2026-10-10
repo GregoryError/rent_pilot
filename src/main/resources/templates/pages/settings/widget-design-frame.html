@@ -11,7 +11,8 @@
     </style>
 </head>
 <body>
-<optirent-booking th:data-widget="${w.slug}"></optirent-booking>
+<!-- data-no-stats: открытия виджета в конструкторе не должны попадать в статистику воронки -->
+<optirent-booking th:data-widget="${w.slug}" data-no-stats></optirent-booking>
 <script th:src="@{/w.js}"></script>
 </body>
 </html>

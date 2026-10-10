@@ -147,4 +147,18 @@ class WidgetHelpersTest {
         assertThat(ics.lines()).allSatisfy(line ->
                 assertThat(line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length).isLessThanOrEqualTo(75));
     }
+
+    @Test
+    @DisplayName("источник перехода: utm_source, иначе сайт-источник без www, иначе direct; мусор вычищается")
+    void funnelSource() {
+        assertThat(WidgetFunnelService.source("Telegram", "https://vk.com/feed", "optirent.ru")).isEqualTo("telegram");
+        assertThat(WidgetFunnelService.source(null, "https://www.vk.com/feed?x=1", "optirent.ru")).isEqualTo("vk.com");
+        assertThat(WidgetFunnelService.source("", "", "optirent.ru")).isEqualTo("direct");
+        assertThat(WidgetFunnelService.source(null, null, null)).isEqualTo("direct");
+        // Переход внутри того же сайта — не источник
+        assertThat(WidgetFunnelService.source(null, "https://mysite.ru/rooms", "mysite.ru")).isEqualTo("direct");
+        assertThat(WidgetFunnelService.source("<script>alert(1)</script>", null, null)).isEqualTo("scriptalert1script");
+        assertThat(WidgetFunnelService.source("  ", "не ссылка", "x")).isEqualTo("direct");
+        assertThat(WidgetFunnelService.source("a".repeat(300), null, null)).hasSize(100);
+    }
 }

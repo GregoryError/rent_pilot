@@ -15,6 +15,7 @@ import { Calendar } from './calendar.js';
 import { gallery } from './gallery.js';
 import { resolve, launcher, WIDE } from './layout.js';
 import { applyTheme } from './theme.js';
+import { track, goal } from './stats.js';
 import { addDays, diff, isIso } from './dates.js';
 import { validStay, groupNights } from './rules.js';
 import { detectLang, translator, money } from './i18n.js';
@@ -201,8 +202,18 @@ class OptirentBooking extends HTMLElement {
         }
     }
 
+    /**
+     * Шаг воронки: событие для страницы хозяина, счётчик в статистике OptiRent и цель в
+     * Яндекс.Метрике. Каждый шаг считается один раз за открытие виджета.
+     */
     emit(step) {
         this.dispatchEvent(new CustomEvent('optirent:step', { bubbles: true, composed: true, detail: { step } }));
+        this.sent = this.sent || {};
+        // В конструкторе (data-no-stats) и в превью несохранённых настроек не считаем
+        if (this.sent[step] || this.over || this.hasAttribute('data-no-stats')) return;
+        this.sent[step] = true;
+        track(this.api + '/event', step, this.utm && this.utm.source);
+        goal(this.cfg.metrikaId, step);
     }
 
     say(text) {

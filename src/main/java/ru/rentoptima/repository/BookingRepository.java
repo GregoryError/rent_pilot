@@ -108,6 +108,17 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findTop20ByTenantIdAndDataSourceAndStatusNotOrderByCreatedAtDesc(
             Long tenantId, String dataSource, String status);
 
+    /** Заявки и брони виджета, созданные начиная с указанного момента. Для статистики виджета. */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.tenant.id = :tenantId
+          AND b.channelId = :channelId
+          AND b.dataSource = 'WIDGET'
+          AND b.createdAt >= :since
+        ORDER BY b.createdAt DESC
+    """)
+    List<Booking> findWidgetBookingsSince(Long tenantId, Long channelId, java.time.LocalDateTime since);
+
     /** Заведённые в UI брони категории, пересекающие окно [from, to). Для отмены из шахматки. */
     @Query("""
         SELECT b FROM Booking b

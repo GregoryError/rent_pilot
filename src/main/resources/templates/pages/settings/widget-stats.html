@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Статистика виджета</title>
+    <style>
+        .st-bar { height: 8px; border-radius: 4px; background: var(--bg-raised); overflow: hidden; margin-top: 6px; }
+        .st-bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+        .st-days { display: flex; align-items: flex-end; gap: 2px; height: 96px; }
+        .st-days i { flex: 1; min-width: 2px; border-radius: 2px 2px 0 0; background: var(--accent); }
+        .st-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--sp-4); }
+        .st-kpi b { display: block; font-size: var(--text-xl); }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header flex justify-between items-center" style="gap: var(--sp-3); flex-wrap: wrap;">
+        <div>
+            <h1 class="page-title">Статистика виджета</h1>
+            <p class="page-subtitle"><span th:text="${w.title}">Квартира на Садовой</span> · <span th:text="${periodLabel}">01.10.2026 — 30.10.2026</span></p>
+        </div>
+        <div style="display: flex; gap: var(--sp-2); flex-wrap: wrap;">
+            <a th:href="@{'/settings/widgets/' + ${w.id} + '/stats'(days=7)}" th:class="${days == 7} ? 'btn btn-primary' : 'btn btn-ghost'">7 дней</a>
+            <a th:href="@{'/settings/widgets/' + ${w.id} + '/stats'(days=30)}" th:class="${days == 30} ? 'btn btn-primary' : 'btn btn-ghost'">30 дней</a>
+            <a th:href="@{'/settings/widgets/' + ${w.id} + '/stats'(days=90)}" th:class="${days == 90} ? 'btn btn-primary' : 'btn btn-ghost'">90 дней</a>
+            <a class="btn btn-ghost" th:href="@{'/settings/widgets/' + ${w.id}}">← К настройкам</a>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="st-kpis">
+            <div class="st-kpi"><span class="text-sm muted">Заявок и броней</span><b th:text="${requests}">12</b></div>
+            <div class="st-kpi"><span class="text-sm muted">Из них подтверждено</span><b th:text="${confirmed}">8</b></div>
+            <div class="st-kpi"><span class="text-sm muted">Выручка с подтверждённых</span><b th:text="${revenue}">96 000 ₽</b></div>
+        </div>
+        <div class="form-hint">По броням, созданным за период. Отклонённые, истёкшие и отменённые в выручку не входят.</div>
+    </div>
+
+    <div class="card">
+        <div class="card__title">Воронка</div>
+        <div class="text-sm muted" style="margin-bottom: var(--sp-4);">
+            Сколько раз гости дошли до каждого шага. Считаются открытия нового виджета, а не люди: один гость, зашедший трижды, — три открытия.
+        </div>
+        <p class="muted" th:unless="${hasEvents}" style="margin: 0;">
+            За этот период виджет ещё никто не открывал. Данные появятся, когда гости начнут переходить по ссылке на страницу бронирования.
+        </p>
+        <div class="table-wrap" th:if="${hasEvents}">
+            <table>
+                <thead><tr><th>Шаг</th><th>Раз</th><th>От предыдущего</th><th>От открытий</th></tr></thead>
+                <tbody>
+                <tr th:each="s : ${steps}">
+                    <td style="min-width: 240px;">
+                        <span th:text="${s.label}">Открыли виджет</span>
+                        <div class="st-bar"><i th:style="${s.barStyle}"></i></div>
+                    </td>
+                    <td th:text="${s.count}">120</td>
+                    <td th:text="${s.fromPrevious}">45 %</td>
+                    <td th:text="${s.fromFirst}">45 %</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card" th:if="${hasEvents}">
+        <div class="card__header">
+            <div class="card__title">Открытия по дням</div>
+            <div class="text-sm muted">максимум за день: <span th:text="${peak}">14</span></div>
+        </div>
+        <div class="st-days" role="img" th:attr="aria-label='Открытия виджета по дням, максимум ' + ${peak}">
+            <i th:each="b : ${bars}" th:style="${b.style}" th:title="${b.title}"></i>
+        </div>
+    </div>
+
+    <div class="card" th:if="${hasEvents}">
+        <div class="card__title">Откуда приходят</div>
+        <div class="text-sm muted" style="margin-bottom: var(--sp-4);">
+            Источник — метка <code>utm_source</code> в ссылке, а если её нет — сайт, с которого гость перешёл.
+            Чтобы различать каналы, добавляйте метку к ссылке: <code>?utm_source=telegram</code>.
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Источник</th><th>Открытий</th><th>Заявок</th><th>Конверсия</th></tr></thead>
+                <tbody>
+                <tr th:each="s : ${sources}">
+                    <td th:text="${s.source}">telegram</td>
+                    <td th:text="${s.views}">80</td>
+                    <td th:text="${s.success}">6</td>
+                    <td th:text="${s.conversion}">7,5 %</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card" th:unless="${#lists.isEmpty(revenueRows)}">
+        <div class="card__title" style="margin-bottom: var(--sp-4);">Выручка по источникам</div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Источник</th><th>Подтверждённые брони</th></tr></thead>
+                <tbody>
+                <tr th:each="r : ${revenueRows}">
+                    <td th:text="${r.source}">telegram</td>
+                    <td th:text="${r.amount}">48 000 ₽</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+</body>
+</html>

@@ -165,6 +165,10 @@ public class BookingWidget {
     @Column(name = "contact_whatsapp", length = 40)
     private String contactWhatsapp;
 
+    /** Номер счётчика Яндекс.Метрики хозяина: виджет шлёт в него цели шагов воронки. Только цифры. */
+    @Column(name = "metrika_id", length = 20)
+    private String metrikaId;
+
     /** Удобства, по одному в строке. */
     @Column(columnDefinition = "TEXT")
     private String amenities;

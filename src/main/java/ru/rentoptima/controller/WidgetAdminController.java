@@ -16,12 +16,14 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.Channel;
 import ru.rentoptima.entity.PromoCode;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.entity.WidgetPhoto;
 import ru.rentoptima.entity.UnitType;
+import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.BookingWidgetRepository;
 import ru.rentoptima.repository.ChannelRepository;
 import ru.rentoptima.repository.PromoCodeRepository;
@@ -30,7 +32,9 @@ import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.config.WidgetCorsConfig;
 import ru.rentoptima.service.PhotoProcessor;
+import ru.rentoptima.service.WidgetBookingService;
 import ru.rentoptima.service.WidgetCalendar;
+import ru.rentoptima.service.WidgetFunnelService;
 import ru.rentoptima.service.WidgetLayout;
 import ru.rentoptima.service.WidgetPhotoService;
 import ru.rentoptima.service.WidgetOrigins;
@@ -69,6 +73,8 @@ public class WidgetAdminController {
     private final PropertyRepository propertyRepo;
     private final PromoCodeRepository promoRepo;
     private final WidgetPhotoService photos;
+    private final WidgetFunnelService funnelService;
+    private final BookingRepository bookingRepo;
     private final PhotoProcessor photoProcessor;
     private final WidgetCorsConfig cors;
 
@@ -192,6 +198,111 @@ public class WidgetAdminController {
         return "pages/settings/widget-edit";
     }
 
+    /**
+     * Статистика виджета: воронка по шагам, источники, заявки и выручка с прямых броней.
+     * Проценты и ширины полос считаются здесь — шаблон только выводит.
+     */
+    @GetMapping("/{id}/stats")
+    public String stats(@PathVariable Long id, @RequestParam(required = false, defaultValue = "30") int days,
+                        Model model, RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
+        if (w == null) {
+            redirect.addFlashAttribute("error", "Страница бронирования не найдена");
+            return "redirect:/settings/widgets";
+        }
+        int period = days == 7 || days == 90 ? days : 30;
+        LocalDate to = LocalDate.now();
+        LocalDate from = to.minusDays(period - 1L);
+
+        Map<String, Long> funnel = funnelService.funnel(tenantId, id, from, to);
+        long views = funnel.get("view");
+        List<FunnelRow> steps = new ArrayList<>();
+        long previous = 0;
+        for (String step : WidgetFunnelService.STEPS) {
+            long count = funnel.get(step);
+            boolean first = steps.isEmpty();
+            steps.add(new FunnelRow(STEP_LABELS.get(step), count,
+                    first ? "" : percent(count, previous),
+                    first ? "" : percent(count, views),
+                    "width: " + (views == 0 ? 0 : Math.max(count > 0 ? 2 : 0, Math.round(100.0 * count / views))) + "%"));
+            previous = count;
+        }
+
+        List<SourceStat> sources = new ArrayList<>();
+        for (WidgetFunnelService.SourceRow row : funnelService.sources(tenantId, id, from, to)) {
+            sources.add(new SourceStat(sourceLabel(row.source()), row.views(), row.success(),
+                    percent(row.success(), row.views())));
+        }
+
+        // Заявки и брони — из самих броней, а не из событий: это точные числа
+        List<Booking> bookings = bookingRepo.findWidgetBookingsSince(tenantId, w.getChannelId(), from.atStartOfDay());
+        long requests = bookings.size();
+        long confirmed = 0;
+        BigDecimal revenue = BigDecimal.ZERO;
+        Map<String, BigDecimal> revenueBySource = new java.util.TreeMap<>();
+        for (Booking b : bookings) {
+            if (!WidgetBookingService.STATUS_BOOKED.equals(b.getStatus())) continue;
+            confirmed++;
+            BigDecimal amount = b.getAmount() == null ? BigDecimal.ZERO : b.getAmount();
+            revenue = revenue.add(amount);
+            revenueBySource.merge(b.getUtmSource() == null ? WidgetFunnelService.DIRECT : b.getUtmSource(),
+                    amount, BigDecimal::add);
+        }
+        List<RevenueRow> revenueRows = new ArrayList<>();
+        revenueBySource.forEach((source, amount) -> revenueRows.add(new RevenueRow(sourceLabel(source), rub(amount))));
+
+        Map<LocalDate, Long> byDay = funnelService.viewsByDay(tenantId, id, from, to);
+        long peak = byDay.values().stream().mapToLong(Long::longValue).max().orElse(0);
+        List<DayBar> bars = new ArrayList<>();
+        byDay.forEach((day, count) -> bars.add(new DayBar(day.format(DAY) + ": " + count,
+                "height: " + (peak == 0 ? 0 : Math.max(count > 0 ? 3 : 0, Math.round(100.0 * count / peak))) + "%")));
+
+        model.addAttribute("activePage", "widgets");
+        model.addAttribute("w", w);
+        model.addAttribute("days", period);
+        model.addAttribute("steps", steps);
+        model.addAttribute("hasEvents", views > 0);
+        model.addAttribute("sources", sources);
+        model.addAttribute("requests", requests);
+        model.addAttribute("confirmed", confirmed);
+        model.addAttribute("revenue", rub(revenue));
+        model.addAttribute("revenueRows", revenueRows);
+        model.addAttribute("bars", bars);
+        model.addAttribute("peak", peak);
+        model.addAttribute("periodLabel", from.format(DAY) + " — " + to.format(DAY));
+        return "pages/settings/widget-stats";
+    }
+
+    private static final Map<String, String> STEP_LABELS = Map.of(
+            "view", "Открыли виджет", "dates", "Выбрали даты", "form", "Начали заполнять форму",
+            "submit", "Отправили форму", "success", "Заявка или бронь создана");
+
+    private static String percent(long part, long whole) {
+        if (whole == 0) return "—";
+        double p = 100.0 * part / whole;
+        return (p >= 10 || p == 0 ? String.valueOf(Math.round(p)) : String.format(java.util.Locale.ROOT, "%.1f", p).replace('.', ',')) + " %";
+    }
+
+    private static String sourceLabel(String source) {
+        if (WidgetFunnelService.DIRECT.equals(source)) return "Прямые заходы и мессенджеры";
+        if (WidgetFunnelService.OTHER.equals(source)) return "Прочие";
+        return source;
+    }
+
+    private static String rub(BigDecimal amount) {
+        return String.format(new java.util.Locale("ru", "RU"), "%,d", amount.setScale(0, RoundingMode.HALF_UP).longValue())
+                .replace('\u00a0', ' ') + " ₽";
+    }
+
+    public record FunnelRow(String label, long count, String fromPrevious, String fromFirst, String barStyle) {}
+
+    public record SourceStat(String source, long views, long success, String conversion) {}
+
+    public record RevenueRow(String source, String amount) {}
+
+    public record DayBar(String title, String style) {}
+
     /** Прежний адрес предпросмотра — теперь это конструктор. */
     @GetMapping("/{id}/preview")
     public String preview(@PathVariable Long id) {
@@ -313,6 +424,7 @@ public class WidgetAdminController {
                          @RequestParam(required = false) String contactPhone,
                          @RequestParam(required = false) String contactTelegram,
                          @RequestParam(required = false) String contactWhatsapp,
+                         @RequestParam(required = false) String metrikaId,
                          @RequestParam(required = false) String amenities,
                          @RequestParam(required = false) String mapUrl,
                          RedirectAttributes redirect) {
@@ -356,6 +468,9 @@ public class WidgetAdminController {
         w.setContactPhone(clean(contactPhone, 40));
         w.setContactTelegram(clean(contactTelegram, 80));
         w.setContactWhatsapp(clean(contactWhatsapp, 40));
+        // Номер счётчика — только цифры; всё остальное в настройки не попадает
+        String metrika = metrikaId == null ? "" : metrikaId.replaceAll("\\D", "");
+        w.setMetrikaId(metrika.isEmpty() || metrika.length() > 12 ? null : metrika);
         w.setAmenities(clean(String.join("\n", WidgetLayout.amenities(amenities)), 2000));
         w.setMapUrl(WidgetLayout.mapUrl(mapUrl));
         String mapError = clean(mapUrl, 500) != null && w.getMapUrl() == null

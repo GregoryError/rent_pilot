@@ -393,10 +393,11 @@ class WidgetBookingIntegrationTest {
                         .contains("Промокоды", "Сайты, где можно разместить виджет", slug));
 
         // Предпросмотр нового виджета и его бандл (бандл — без входа)
+        // Фрейм превью: виджет помечен, чтобы открытия в конструкторе не шли в статистику
         mvc.perform(get(page + "/frame").with(user(host())))
                 .andExpect(status().isOk())
                 .andExpect(r -> assertThat(r.getResponse().getContentAsString())
-                        .contains("<optirent-booking data-widget=\"" + slug + "\">", "/w.js"));
+                        .contains("<optirent-booking data-widget=\"" + slug + "\" data-no-stats>", "/w.js"));
         mvc.perform(get("/w.js"))
                 .andExpect(status().isOk())
                 .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("optirent-booking"));
@@ -596,5 +597,63 @@ class WidgetBookingIntegrationTest {
         mvc.perform(get("/fonts/lora-cyrillic-wght-normal.woff2").header("Origin", "https://anywhere.example"))
                 .andExpect(status().isOk())
                 .andExpect(header().string("Access-Control-Allow-Origin", "*"));
+    }
+
+    @Test
+    @DisplayName("воронка: события считаются по шагам и источникам, чужой сайт и мусор не проходят, страница статистики открывается")
+    void funnelAndStats() throws Exception {
+        String url = "/api/widget/" + slug + "/event";
+        String tg = "{\"step\":\"%s\",\"utm\":\"telegram\",\"referrer\":null,\"host\":\"localhost\"}";
+        // Виджет шлёт событие как text/plain (sendBeacon без preflight)
+        for (String step : List.of("view", "view", "view", "dates", "form", "submit", "success")) {
+            mvc.perform(post(url).contentType(MediaType.TEXT_PLAIN).content(tg.formatted(step)))
+                    .andExpect(status().isNoContent());
+        }
+        mvc.perform(post(url).contentType(MediaType.TEXT_PLAIN)
+                .content("{\"step\":\"view\",\"referrer\":\"https://www.vk.com/feed\",\"host\":\"localhost\"}"))
+                .andExpect(status().isNoContent());
+        // С разрешённого сайта хозяина — проходит, с постороннего — нет
+        mvc.perform(post(url).header("Origin", ALLOWED_ORIGIN).contentType(MediaType.TEXT_PLAIN)
+                .content("{\"step\":\"view\",\"host\":\"mysite.ru\"}")).andExpect(status().isNoContent());
+        mvc.perform(post(url).header("Origin", "https://evil.example").contentType(MediaType.TEXT_PLAIN)
+                .content("{\"step\":\"view\"}")).andExpect(status().isForbidden());
+        // Неизвестный шаг и не-JSON молча не считаются
+        mvc.perform(post(url).contentType(MediaType.TEXT_PLAIN).content("{\"step\":\"hack\"}"))
+                .andExpect(status().isNoContent());
+        mvc.perform(post(url).contentType(MediaType.TEXT_PLAIN).content("мусор")).andExpect(status().isNoContent());
+
+        assertThat(jdbc.queryForObject("SELECT hits FROM widget_funnel_daily WHERE widget_id = ? AND step = 'view'"
+                + " AND source = 'telegram'", Integer.class, widget.getId())).isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT SUM(hits) FROM widget_funnel_daily WHERE widget_id = ? AND step = 'view'",
+                Integer.class, widget.getId())).isEqualTo(5);
+        assertThat(jdbc.queryForList("SELECT DISTINCT source FROM widget_funnel_daily WHERE widget_id = ?",
+                String.class, widget.getId())).containsExactlyInAnyOrder("telegram", "vk.com", "direct");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM widget_funnel_daily WHERE step = 'hack'", Integer.class))
+                .isZero();
+
+        // Подтверждённая бронь с меткой — в выручке по источникам
+        LocalDate from = LocalDate.now().plusDays(150);
+        Submission s = widgets.submit(widget, new StayRequest(from, from.plusDays(2), 2, 0, 0, "Гость",
+                "+79000000000", null, null, true, null, null, "ru", "telegram", null, null, null));
+        widgets.confirm(widget.getTenantId(), s.booking().getId());
+
+        String page = "/settings/widgets/" + widget.getId() + "/stats";
+        mvc.perform(get(page).with(user(host())))
+                .andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                        .contains("Открыли виджет", "Заявка или бронь создана", "telegram", "vk.com",
+                                "Прямые заходы и мессенджеры", "9 500 ₽", "20 %"));
+        mvc.perform(get(page).param("days", "7").with(user(host()))).andExpect(status().isOk());
+
+        // Номер счётчика Метрики — только цифры
+        String edit = "/settings/widgets/" + widget.getId();
+        mvc.perform(post(edit + "/update").with(user(host())).with(csrf())
+                        .param("title", "Лофт").param("minNights", "1").param("maxNights", "30")
+                        .param("maxGuests", "4").param("bookingWindowDays", "180").param("holdHours", "24")
+                        .param("checkinTime", "14:00").param("checkoutTime", "12:00")
+                        .param("metrikaId", " 1234-5678<script> "))
+                .andExpect(status().is3xxRedirection());
+        assertThat(json.readTree(mvc.perform(get("/api/widget/" + slug + "/config")).andReturn()
+                .getResponse().getContentAsString()).path("metrikaId").asText()).isEqualTo("12345678");
     }
 }
