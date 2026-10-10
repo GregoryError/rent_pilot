@@ -86,6 +86,20 @@ public class WidgetPublicController {
         return "pages/widget/book";
     }
 
+    /**
+     * Страница бронирования с новым виджетом — адрес, который хозяин даёт гостям.
+     * Пока минимальная: превью для мессенджеров и встраивание во фрейм — следующая фаза.
+     */
+    @GetMapping("/b/{slug}")
+    public String page(@PathVariable String slug, Model model) {
+        BookingWidget w = widgets.findBySlug(slug)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        model.addAttribute("widget", w);
+        model.addAttribute("ogDescription", ogDescription(w));
+        model.addAttribute("pageClass", "page page--" + themeOf(w));
+        return "pages/widget/page";
+    }
+
     @GetMapping("/widget/{secret}")
     public String frame(@PathVariable String secret, Model model, HttpServletRequest request,
                         HttpServletResponse response) {

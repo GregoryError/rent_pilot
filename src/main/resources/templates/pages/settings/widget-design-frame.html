@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Превью виджета</title>
+    <style>
+        html, body { margin: 0; }
+        body { padding: 12px; background: #f6f5f2; }
+    </style>
+</head>
+<body>
+<optirent-booking th:data-widget="${w.slug}"></optirent-booking>
+<script th:src="@{/w.js}"></script>
+</body>
+</html>

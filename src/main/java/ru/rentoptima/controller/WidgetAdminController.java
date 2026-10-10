@@ -179,17 +179,6 @@ public class WidgetAdminController {
             promos.add(promoRow(p));
         }
         model.addAttribute("promos", promos);
-        ObjectNode layout = WidgetLayout.normalize(w.getConfigJson());
-        model.addAttribute("preset", layout.path("preset").asText());
-        model.addAttribute("accent", layout.path("theme").path("accent").asText());
-        model.addAttribute("radius", layout.path("theme").path("radius").asInt());
-        model.addAttribute("font", layout.path("theme").path("font").asText());
-        List<BlockOption> blockOptions = new ArrayList<>();
-        for (String block : WidgetLayout.BLOCKS) {
-            blockOptions.add(new BlockOption(block, BLOCK_LABELS.get(block),
-                    !WidgetLayout.hidden(layout, block), WidgetLayout.REQUIRED.contains(block)));
-        }
-        model.addAttribute("blockOptions", blockOptions);
         List<PhotoRow> photoRows = new ArrayList<>();
         List<WidgetPhoto> uploaded = photos.list(w.getId());
         for (int i = 0; i < uploaded.size(); i++) {
@@ -203,17 +192,94 @@ public class WidgetAdminController {
         return "pages/settings/widget-edit";
     }
 
-    /** Новый виджет (v2) на странице хозяина — посмотреть до того, как он заменит прежний. */
+    /** Прежний адрес предпросмотра — теперь это конструктор. */
     @GetMapping("/{id}/preview")
-    public String preview(@PathVariable Long id, Model model, RedirectAttributes redirect) {
-        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, AuthContext.tenantId()).orElse(null);
+    public String preview(@PathVariable Long id) {
+        return "redirect:/settings/widgets/" + id + "/design";
+    }
+
+    /**
+     * Конструктор виджета: пресет, своя расстановка блоков, видимость, цвет, шрифт —
+     * с живым превью. Превью — тот же виджет во фрейме ({@link #designFrame}); несохранённые
+     * настройки страница передаёт ему напрямую (optirent-booking.preview).
+     */
+    @GetMapping("/{id}/design")
+    public String design(@PathVariable Long id, Model model, HttpServletRequest request,
+                         RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
         if (w == null) {
             redirect.addFlashAttribute("error", "Страница бронирования не найдена");
             return "redirect:/settings/widgets";
         }
+        String baseUrl = baseUrl(request);
+        // Какие блоки есть чем заполнить: пустые конструктор помечает, чтобы хозяин не искал их в превью
+        List<String> empty = new ArrayList<>();
+        if (photos.list(w.getId()).isEmpty() && WidgetPublicController.photosOf(w).isEmpty()) empty.add("gallery");
+        if (clean(w.getDescription(), 10) == null) empty.add("description");
+        if (WidgetLayout.amenities(w.getAmenities()).isEmpty()) empty.add("amenities");
+        if (clean(w.getRules(), 10) == null && clean(w.getCancellationPolicy(), 10) == null) empty.add("rules");
+        if (w.getContactPhone() == null && w.getContactTelegram() == null && w.getContactWhatsapp() == null) {
+            empty.add("contacts");
+        }
+        if (WidgetLayout.mapUrl(w.getMapUrl()) == null) empty.add("map");
+
+        ObjectNode data = JsonNodeFactory.instance.objectNode();
+        data.set("layout", WidgetLayout.normalize(w.getConfigJson()));
+        data.put("mode", w.getTheme());
+        ObjectNode labels = data.putObject("labels");
+        WidgetLayout.BLOCKS.forEach(b -> labels.put(b, BLOCK_LABELS.get(b)));
+        ArrayNode required = data.putArray("required");
+        WidgetLayout.REQUIRED.forEach(required::add);
+        ArrayNode emptyNode = data.putArray("empty");
+        empty.forEach(emptyNode::add);
+
         model.addAttribute("activePage", "widgets");
         model.addAttribute("w", w);
-        return "pages/settings/widget-preview";
+        model.addAttribute("designData", data.toString());
+        model.addAttribute("pageLink", baseUrl + "/b/" + w.getSlug());
+        model.addAttribute("embedCode", "<script async src=\"" + baseUrl + "/w.js\"></script>\n"
+                + "<optirent-booking data-widget=\"" + w.getSlug() + "\"></optirent-booking>");
+        model.addAttribute("hasOrigins", !WidgetOrigins.parse(w.getAllowedOrigins()).isEmpty());
+        return "pages/settings/widget-design";
+    }
+
+    /** Страница для фрейма превью: только виджет. Открывается лишь с нашего же домена. */
+    @GetMapping("/{id}/frame")
+    public String designFrame(@PathVariable Long id, Model model, jakarta.servlet.http.HttpServletResponse response) {
+        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, AuthContext.tenantId()).orElse(null);
+        if (w == null) return "redirect:/settings/widgets";
+        response.setHeader("X-Frame-Options", "SAMEORIGIN");
+        model.addAttribute("w", w);
+        return "pages/settings/widget-design-frame";
+    }
+
+    @PostMapping("/{id}/design")
+    public String saveDesign(@PathVariable Long id,
+                             @RequestParam String config,
+                             @RequestParam(required = false, defaultValue = "light") String theme,
+                             RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
+        if (w == null) return "redirect:/settings/widgets";
+        ObjectNode normalized;
+        try {
+            if (config.length() > 20_000) throw new IllegalArgumentException("слишком длинно");
+            // Что бы ни прислала страница, в базу попадает только то, что пропустит normalize
+            normalized = WidgetLayout.normalize(new com.fasterxml.jackson.databind.ObjectMapper().readTree(config));
+        } catch (Exception e) {
+            redirect.addFlashAttribute("error", "Не удалось сохранить оформление. Обновите страницу и попробуйте ещё раз");
+            return "redirect:/settings/widgets/" + id + "/design";
+        }
+        w.setConfigJson(normalized);
+        w.setTheme("dark".equals(theme) || "auto".equals(theme) ? theme : "light");
+        w.setUpdatedAt(LocalDateTime.now());
+        widgetRepo.save(w);
+
+        redirect.addFlashAttribute("success", "Оформление сохранено");
+        String warning = WidgetLayout.accentWarning(normalized.path("theme").path("accent").asText(), w.getTheme());
+        if (warning != null) redirect.addFlashAttribute("error", warning);
+        return "redirect:/settings/widgets/" + id + "/design";
     }
 
     @PostMapping("/{id}/update")
@@ -247,12 +313,6 @@ public class WidgetAdminController {
                          @RequestParam(required = false) String contactPhone,
                          @RequestParam(required = false) String contactTelegram,
                          @RequestParam(required = false) String contactWhatsapp,
-                         @RequestParam(required = false) String preset,
-                         @RequestParam(required = false) String accent,
-                         @RequestParam(required = false) Integer radius,
-                         @RequestParam(required = false) String font,
-                         @RequestParam(required = false) List<String> visibleBlocks,
-                         @RequestParam(required = false, defaultValue = "false") boolean layoutForm,
                          @RequestParam(required = false) String amenities,
                          @RequestParam(required = false) String mapUrl,
                          RedirectAttributes redirect) {
@@ -301,21 +361,6 @@ public class WidgetAdminController {
         String mapError = clean(mapUrl, 500) != null && w.getMapUrl() == null
                 ? "Ссылка на карту не сохранена: подойдёт https-ссылка на Яндекс Карты, 2ГИС или Google Maps" : null;
 
-        // Оформление и раскладка. Расстановку блоков для пресета «свой» (custom) форма не
-        // трогает — её хранит config_json, правит конструктор.
-        if (layoutForm) {
-            ObjectNode config = WidgetLayout.normalize(w.getConfigJson());
-            if (preset != null) config.put("preset", preset);
-            ObjectNode themeNode = (ObjectNode) config.get("theme");
-            if (accent != null) themeNode.put("accent", accent);
-            if (radius != null) themeNode.put("radius", radius);
-            if (font != null) themeNode.put("font", font);
-            ArrayNode hidden = config.putArray("hidden");
-            for (String block : WidgetLayout.BLOCKS) {
-                if (visibleBlocks == null || !visibleBlocks.contains(block)) hidden.add(block);
-            }
-            w.setConfigJson(WidgetLayout.normalize(config));
-        }
         w.setCheckinTime(in);
         w.setCheckoutTime(out);
         w.setTheme("dark".equals(theme) || "auto".equals(theme) ? theme : "light");
@@ -344,8 +389,8 @@ public class WidgetAdminController {
         widgetRepo.save(w);
         cors.evict();
 
-        // Цвет проверяется против темы, выбранной в этой же форме
-        String accentWarning = !layoutForm ? null : WidgetLayout.accentWarning(
+        // Тему меняют и здесь, а цвет — в конструкторе: проверяем их сочетание
+        String accentWarning = WidgetLayout.accentWarning(
                 WidgetLayout.normalize(w.getConfigJson()).path("theme").path("accent").asText(), w.getTheme());
         List<String> problems = new ArrayList<>();
         if (slugError != null) problems.add("Адрес страницы не изменён. " + slugError);
@@ -587,8 +632,6 @@ public class WidgetAdminController {
     public record UnitOption(Long id, String label) {}
 
     public record PhotoRow(Long id, String url, String label, boolean canUp, boolean canDown) {}
-
-    public record BlockOption(String id, String label, boolean visible, boolean required) {}
 
     public record DayOption(int value, String label, boolean checked) {}
 

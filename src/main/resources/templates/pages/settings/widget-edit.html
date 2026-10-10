@@ -12,7 +12,7 @@
             <p class="page-subtitle" th:text="${unitLabel}">Садовая / Основной</p>
         </div>
         <div style="display: flex; gap: var(--sp-2); flex-wrap: wrap;">
-            <a class="btn btn-ghost" th:href="@{'/settings/widgets/' + ${w.id} + '/preview'}">Новый виджет — предпросмотр</a>
+            <a class="btn btn-primary" th:href="@{'/settings/widgets/' + ${w.id} + '/design'}">Конструктор виджета</a>
             <a class="btn btn-ghost" th:href="@{/settings/widgets}">← Все страницы</a>
         </div>
     </div>
@@ -103,6 +103,7 @@
                         <option value="dark" th:selected="${w.theme == 'dark'}">Тёмное</option>
                         <option value="auto" th:selected="${w.theme == 'auto'}">Как у гостя в системе</option>
                     </select>
+                    <div class="form-hint">Раскладка, цвет и шрифт — в конструкторе виджета.</div>
                 </div>
             </div>
             <div class="form-hint" style="margin-bottom: var(--sp-4);">
@@ -181,58 +182,6 @@
                 <textarea name="allowedOrigins" rows="3" class="form-input form-input--sm" th:text="${w.allowedOrigins}"
                           placeholder="mysite.ru"></textarea>
                 <div class="form-hint">По одному адресу в строке, до 10. На других сайтах виджет не заработает. Для ссылки в мессенджере ничего указывать не нужно.</div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card__title">Вид нового виджета</div>
-            <div class="text-sm muted" style="margin-bottom: var(--sp-4);">
-                Действует на новый виджет — смотрите в предпросмотре. Старая ссылка выглядит по-прежнему.
-            </div>
-            <input type="hidden" name="layoutForm" value="true">
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: var(--sp-4);">
-                <div class="form-group">
-                    <label class="form-label">Компоновка</label>
-                    <select name="preset" class="form-input form-input--sm">
-                        <option value="split" th:selected="${preset == 'split'}">Две колонки: фото слева, бронь справа</option>
-                        <option value="vertical" th:selected="${preset == 'vertical'}">Одна колонка</option>
-                        <option value="horizontal" th:selected="${preset == 'horizontal'}">Полоса: даты, гости, кнопка</option>
-                        <option value="compact" th:selected="${preset == 'compact'}">Только цена и кнопка</option>
-                        <option value="custom" th:selected="${preset == 'custom'}" th:if="${preset == 'custom'}">Своя расстановка</option>
-                    </select>
-                    <div class="form-hint">«Полоса» и «кнопка» открывают бронирование в окне — для лендинга, где мало места.</div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Цвет кнопок</label>
-                    <input type="color" name="accent" th:value="${accent}" class="form-input form-input--sm" style="height: 38px; padding: 2px;">
-                    <div class="form-hint">Цвет текста на кнопке подберётся сам. О слишком бледном цвете предупредим.</div>
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Скругление углов, px</label>
-                    <input type="number" name="radius" min="0" max="24" th:value="${radius}" class="form-input form-input--sm">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Шрифт</label>
-                    <select name="font" class="form-input form-input--sm">
-                        <option value="system" th:selected="${font == 'system'}">Как на устройстве гостя — самый быстрый</option>
-                        <option value="inter" th:selected="${font == 'inter'}">Inter</option>
-                        <option value="manrope" th:selected="${font == 'manrope'}">Manrope</option>
-                        <option value="montserrat" th:selected="${font == 'montserrat'}">Montserrat</option>
-                        <option value="lora" th:selected="${font == 'lora'}">Lora — с засечками</option>
-                    </select>
-                </div>
-            </div>
-            <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label">Что показывать</label>
-                <div style="display: flex; gap: var(--sp-2) var(--sp-4); flex-wrap: wrap;">
-                    <label th:each="b : ${blockOptions}">
-                        <input type="checkbox" name="visibleBlocks" th:value="${b.id}" th:checked="${b.visible}"
-                               th:disabled="${b.required}">
-                        <input type="hidden" name="visibleBlocks" th:value="${b.id}" th:if="${b.required}">
-                        <span th:text="${b.label}">Календарь</span>
-                    </label>
-                </div>
-                <div class="form-hint">Блок без содержимого (нет фото, пустое описание) не показывается и так. Календарь, гости, стоимость и форму скрыть нельзя.</div>
             </div>
         </div>
 

@@ -393,7 +393,7 @@ class WidgetBookingIntegrationTest {
                         .contains("Промокоды", "Сайты, где можно разместить виджет", slug));
 
         // Предпросмотр нового виджета и его бандл (бандл — без входа)
-        mvc.perform(get(page + "/preview").with(user(host())))
+        mvc.perform(get(page + "/frame").with(user(host())))
                 .andExpect(status().isOk())
                 .andExpect(r -> assertThat(r.getResponse().getContentAsString())
                         .contains("<optirent-booking data-widget=\"" + slug + "\">", "/w.js"));
@@ -543,22 +543,42 @@ class WidgetBookingIntegrationTest {
     }
 
     @Test
-    @DisplayName("оформление: форма сохраняет пресет, цвет и скрытые блоки; API отдаёт раскладку, блоки и шрифты")
+    @DisplayName("конструктор: страница и фрейм, сохранение с чисткой, API отдаёт раскладку и блоки, страница /b/, шрифты")
     void layoutAndTheme() throws Exception {
         String page = "/settings/widgets/" + widget.getId();
-        mvc.perform(post(page + "/update").with(user(host())).with(csrf())
-                        .param("title", "Лофт").param("minNights", "1").param("maxNights", "30")
-                        .param("maxGuests", "4").param("bookingWindowDays", "180").param("holdHours", "24")
-                        .param("checkinTime", "14:00").param("checkoutTime", "12:00").param("theme", "auto")
-                        .param("layoutForm", "true").param("preset", "vertical").param("accent", "#101014")
-                        .param("radius", "40").param("font", "lora")
-                        .param("visibleBlocks", "gallery", "title", "calendar", "guests", "summary", "form", "amenities", "map")
-                        .param("amenities", "Wi-Fi\nКухня\nWi-Fi").param("mapUrl", "https://evil.example/map")
-                        .param("contactPhone", "+7 900 000-00-00"))
+        jdbc.update("UPDATE booking_widgets SET amenities = ?, contact_phone = '+7 900 000-00-00' WHERE id = ?",
+                "Wi-Fi\nКухня\nWi-Fi", widget.getId());
+
+        // Конструктор открывается, фрейм превью разрешён только нашему домену
+        mvc.perform(get(page + "/design").with(user(host())))
+                .andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                        .contains("data-design=", "Скопировать код встраивания", "/b/" + slug,
+                                "&lt;optirent-booking data-widget=&quot;" + slug + "&quot;"));
+        mvc.perform(get(page + "/frame").with(user(host())))
+                .andExpect(status().isOk())
+                .andExpect(header().string("X-Frame-Options", "SAMEORIGIN"));
+        mvc.perform(get(page + "/preview").with(user(host()))).andExpect(status().is3xxRedirection());
+
+        // Сохранение: что бы ни прислала страница, в базу попадает только допустимое
+        mvc.perform(post(page + "/design").with(user(host())).with(csrf())
+                        .param("theme", "auto")
+                        .param("config", "{\"preset\":\"vertical\",\"evil\":\"<script>\","
+                                + "\"hidden\":[\"description\",\"rules\",\"contacts\",\"form\"],"
+                                + "\"theme\":{\"accent\":\"#101014\",\"radius\":40,\"font\":\"lora\"}}"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(flash().attribute("error", org.hamcrest.Matchers.allOf(
-                        org.hamcrest.Matchers.containsString("Ссылка на карту не сохранена"),
-                        org.hamcrest.Matchers.containsString("тёмной теме"))));
+                .andExpect(flash().attribute("success", "Оформление сохранено"))
+                .andExpect(flash().attribute("error", org.hamcrest.Matchers.containsString("тёмной теме")));
+        assertThat(jdbc.queryForObject("SELECT config_json::text FROM booking_widgets WHERE id = ?", String.class,
+                widget.getId())).doesNotContain("evil", "<script>");
+        mvc.perform(post(page + "/design").with(user(host())).with(csrf()).param("config", "не json"))
+                .andExpect(flash().attribute("error", org.hamcrest.Matchers.containsString("Не удалось сохранить")));
+
+        // Страница бронирования по адресу виджета
+        mvc.perform(get("/b/" + slug)).andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString())
+                        .contains("<optirent-booking data-widget=\"" + slug + "\">", "/w.js"));
+        mvc.perform(get("/b/no-such-widget")).andExpect(status().isNotFound());
 
         JsonNode cfg = json.readTree(mvc.perform(get("/api/widget/" + slug + "/config"))
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
@@ -569,13 +589,8 @@ class WidgetBookingIntegrationTest {
         assertThat(cfg.path("layout").path("hidden")).extracting(JsonNode::asText)
                 .containsExactlyInAnyOrder("description", "rules", "contacts");
         assertThat(cfg.path("amenities")).extracting(JsonNode::asText).containsExactly("Wi-Fi", "Кухня");
-        assertThat(cfg.path("mapUrl").isNull()).isTrue();
         // Блок «Контакты» скрыт — телефон хозяина до брони не отдаётся
         assertThat(cfg.has("contacts")).isFalse();
-
-        mvc.perform(get(page).with(user(host())))
-                .andExpect(status().isOk())
-                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("Вид нового виджета", "#101014"));
 
         // Шрифт виджета доступен с любого сайта (браузер требует CORS для чужого шрифта)
         mvc.perform(get("/fonts/lora-cyrillic-wght-normal.woff2").header("Origin", "https://anywhere.example"))

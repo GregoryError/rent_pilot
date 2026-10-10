@@ -60,6 +60,25 @@ class OptirentBooking extends HTMLElement {
 
     }
 
+    /**
+     * Показать виджет с другой раскладкой и оформлением, не сохраняя их, — для живого
+     * превью в конструкторе. Выбранные даты и введённое в форму не сбрасываются.
+     *
+     * @param layout то же, что config.layout: { preset, hidden, custom, theme }
+     * @param mode   light | dark | auto
+     */
+    preview(layout, mode) {
+        this.over = { layout, mode };
+        if (!this.cfg || this.result) return;
+        Object.assign(this.cfg, { layout, theme: mode });
+        const month = this.cal.month;
+        if (this.dlg.open) this.dlg.close();
+        if (this.flow && this.flow.open) this.flow.close();
+        this.build();
+        this.cal.month = month;
+        this.cal.build();
+    }
+
     disconnectedCallback() {
         if (this.ro) this.ro.disconnect();
     }
@@ -97,6 +116,7 @@ class OptirentBooking extends HTMLElement {
             return this.fail(e.status === 404 ? 'notFound' : 'loadError', e.status !== 404);
         }
         const c = this.cfg;
+        if (this.over) Object.assign(c, { layout: this.over.layout, theme: this.over.mode });
         this.loadedTo = c.today;
         if (!this.dataset.lang && c.locale) this.t = translator(detectLang(c.locale));
         this.prefill();

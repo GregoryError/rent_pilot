@@ -52,6 +52,6 @@ public class WidgetWebConfig implements WebMvcConfigurer {
                 response.setStatus(429);
                 return false;
             }
-        }).addPathPatterns("/book/**", "/widget/**", "/api/widget/**");
+        }).addPathPatterns("/book/**", "/b/**", "/widget/**", "/api/widget/**");
     }
 }

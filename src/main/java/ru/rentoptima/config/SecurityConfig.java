@@ -13,6 +13,7 @@ import org.springframework.security.web.header.writers.DelegatingRequestMatcherH
 import org.springframework.security.web.header.writers.frameoptions.XFrameOptionsHeaderWriter;
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import ru.rentoptima.security.AppUserDetailsService;
 
 @EnableMethodSecurity(prePostEnabled = true)
@@ -46,7 +47,10 @@ public class SecurityConfig {
                 .headers(headers -> headers
                         .frameOptions(frame -> frame.disable())
                         .addHeaderWriter(new DelegatingRequestMatcherHeaderWriter(
-                                new NegatedRequestMatcher(new AntPathRequestMatcher("/widget/*")),
+                                new NegatedRequestMatcher(new OrRequestMatcher(
+                                        new AntPathRequestMatcher("/widget/*"),
+                                        // фрейм превью в конструкторе: сам отдаёт SAMEORIGIN
+                                        new AntPathRequestMatcher("/settings/widgets/*/frame"))),
                                 new XFrameOptionsHeaderWriter(XFrameOptionsHeaderWriter.XFrameOptionsMode.DENY))))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
@@ -55,6 +59,7 @@ public class SecurityConfig {
                                 "/legal/**",
                                 "/ical/**",
                                 "/book/**",
+                                "/b/**",
                                 "/widget/**",
                                 "/widget.js",
                                 "/w.js",

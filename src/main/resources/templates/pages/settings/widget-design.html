@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Конструктор виджета</title>
+    <style>
+        .dz { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: var(--sp-5); align-items: start; }
+        @media (max-width: 1100px) { .dz { grid-template-columns: minmax(0, 1fr); } }
+        .dz-panel { display: grid; gap: var(--sp-4); }
+        .dz-panel .card { margin: 0; }
+        .dz-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); }
+        .dz-preset { text-align: left; padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--radius);
+                     background: var(--bg-surface); color: var(--text-primary); cursor: pointer; font: inherit; }
+        .dz-preset small { display: block; color: var(--text-secondary); font-size: var(--text-xs); margin-top: 2px; }
+        .dz-preset[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+        .dz-zone { border: 1px dashed var(--border); border-radius: var(--radius); padding: var(--sp-2); min-height: 52px;
+                   display: grid; gap: 6px; align-content: start; }
+        .dz-zone.over { border-color: var(--accent); background: var(--accent-glow); }
+        .dz-zone-title { font-size: var(--text-xs); font-weight: 600; color: var(--text-secondary); margin: var(--sp-3) 0 6px; }
+        .dz-zone-title:first-child { margin-top: 0; }
+        .dz-zone-empty { color: var(--text-muted); font-size: var(--text-xs); padding: 6px; }
+        .dz-chip { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--border);
+                   border-radius: var(--radius-sm); background: var(--bg-raised); cursor: grab; }
+        .dz-chip.dragging { opacity: .4; }
+        .dz-chip.off .dz-chip-name { color: var(--text-muted); text-decoration: line-through; }
+        .dz-chip-name { flex: 1; min-width: 0; font-size: var(--text-sm); }
+        .dz-chip-name small { color: var(--text-muted); font-size: var(--text-xs); }
+        .dz-chip button { width: 30px; height: 30px; border: 1px solid var(--border); border-radius: var(--radius-sm);
+                          background: var(--bg-surface); color: var(--text-primary); cursor: pointer; font: inherit; line-height: 1; }
+        .dz-chip button:disabled { opacity: .3; cursor: default; }
+        .dz-tabs { display: flex; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+        .dz-stage { position: sticky; top: var(--sp-4); }
+        .dz-view { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-raised); overflow: hidden;
+                   height: calc(100vh - 220px); min-height: 480px; }
+        .dz-scale { transform-origin: 0 0; margin: 0 auto; }
+        .dz-view iframe { display: block; border: 0; background: #f6f5f2; }
+        .dz-warn { color: var(--amber); font-size: var(--text-sm); margin-top: var(--sp-2); }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header flex justify-between items-center" style="gap: var(--sp-3); flex-wrap: wrap;">
+        <div>
+            <h1 class="page-title">Конструктор виджета</h1>
+            <p class="page-subtitle" th:text="${w.title}">Квартира на Садовой</p>
+        </div>
+        <a class="btn btn-ghost" th:href="@{'/settings/widgets/' + ${w.id}}">← К настройкам</a>
+    </div>
+
+    <div class="dz" id="designer" th:attr="data-design=${designData}, data-frame=@{'/settings/widgets/' + ${w.id} + '/frame'}, data-config=@{'/api/widget/' + ${w.slug} + '/config'}">
+        <div class="dz-panel">
+
+            <div class="card">
+                <div class="card__title" style="margin-bottom: var(--sp-3);">Компоновка</div>
+                <div class="dz-presets" id="dz-presets"></div>
+            </div>
+
+            <div class="card" id="dz-custom" hidden>
+                <div class="card__title">Своя расстановка</div>
+                <div class="text-sm muted" style="margin-bottom: var(--sp-3);">
+                    Перетащите блок мышью или двигайте кнопками: ↑ ↓ — внутри колонки, ← → — в соседнюю.
+                </div>
+                <div class="dz-tabs">
+                    <button type="button" class="btn btn-primary" data-dz-tab="desktop">Широкий экран</button>
+                    <button type="button" class="btn btn-ghost" data-dz-tab="mobile">Телефон</button>
+                </div>
+                <div id="dz-zones"></div>
+            </div>
+
+            <div class="card">
+                <div class="card__title">Что показывать</div>
+                <div class="text-sm muted" style="margin-bottom: var(--sp-3);">
+                    Календарь, гостей, стоимость и форму скрыть нельзя. Пустой блок не виден и так —
+                    заполните его в <a th:href="@{'/settings/widgets/' + ${w.id}}">настройках</a>.
+                </div>
+                <div id="dz-blocks" style="display: grid; gap: 6px;"></div>
+            </div>
+
+            <div class="card">
+                <div class="card__title" style="margin-bottom: var(--sp-3);">Оформление</div>
+                <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3);">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label" for="dz-accent">Цвет кнопок</label>
+                        <input type="color" id="dz-accent" class="form-input form-input--sm" style="height: 38px; padding: 2px;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label" for="dz-radius">Скругление: <span id="dz-radius-value">14</span> px</label>
+                        <input type="range" id="dz-radius" min="0" max="24" step="1" style="width: 100%;">
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label" for="dz-font">Шрифт</label>
+                        <select id="dz-font" class="form-input form-input--sm">
+                            <option value="system">Как на устройстве гостя</option>
+                            <option value="inter">Inter</option>
+                            <option value="manrope">Manrope</option>
+                            <option value="montserrat">Montserrat</option>
+                            <option value="lora">Lora — с засечками</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label" for="dz-mode">Тема</label>
+                        <select id="dz-mode" class="form-input form-input--sm">
+                            <option value="light">Светлая</option>
+                            <option value="dark">Тёмная</option>
+                            <option value="auto">Как у гостя в системе</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="dz-warn" id="dz-warn" role="status" hidden></div>
+            </div>
+
+            <form method="post" th:action="@{'/settings/widgets/' + ${w.id} + '/design'}" id="dz-form" style="margin: 0;">
+                <input type="hidden" name="config" id="dz-config">
+                <input type="hidden" name="theme" id="dz-theme">
+                <button type="submit" class="btn btn-primary" style="width: 100%;">Сохранить оформление</button>
+                <div class="form-hint" id="dz-dirty" hidden>Есть несохранённые изменения — гости увидят их после сохранения.</div>
+            </form>
+
+            <div class="card">
+                <div class="card__title" style="margin-bottom: var(--sp-3);">Дать гостям</div>
+                <div class="form-group">
+                    <label class="form-label" for="dz-link">Ссылка на страницу бронирования</label>
+                    <div style="display: flex; gap: var(--sp-2);">
+                        <input type="text" readonly id="dz-link" th:value="${pageLink}" class="form-input form-input--sm" style="flex: 1; min-width: 0;">
+                        <button type="button" class="btn btn-ghost" data-copy="dz-link">Скопировать ссылку</button>
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="dz-embed">Код для своего сайта</label>
+                    <textarea readonly id="dz-embed" rows="3" class="form-input form-input--sm"
+                              style="font-family: var(--font-mono);" th:text="${embedCode}"></textarea>
+                    <button type="button" class="btn btn-ghost" data-copy="dz-embed" style="margin-top: var(--sp-2);">Скопировать код встраивания</button>
+                    <div class="form-hint" th:unless="${hasOrigins}" style="color: var(--amber);">
+                        Виджет заработает только на сайтах из списка разрешённых — сейчас он пуст. Добавьте свой сайт в
+                        <a th:href="@{'/settings/widgets/' + ${w.id}}">настройках</a>, раздел «Адрес и встраивание».
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="dz-stage">
+            <div class="dz-tabs" role="group" aria-label="Размер экрана в превью">
+                <button type="button" class="btn btn-primary" data-dz-device="1280">Компьютер</button>
+                <button type="button" class="btn btn-ghost" data-dz-device="768">Планшет</button>
+                <button type="button" class="btn btn-ghost" data-dz-device="375">Телефон</button>
+            </div>
+            <div class="dz-view" id="dz-view">
+                <div class="dz-scale" id="dz-scale">
+                    <iframe id="dz-frame" title="Превью виджета"></iframe>
+                </div>
+            </div>
+            <div class="form-hint">Превью живое: даты выбираются, окна открываются. Заявка отсюда будет настоящей.</div>
+        </div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="scripts">
+    <script th:src="@{/js/widget-designer.js}"></script>
+</th:block>
+</body>
+</html>

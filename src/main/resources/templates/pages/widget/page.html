@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${widget.title}">Бронирование</title>
+    <meta name="description" th:content="${ogDescription}">
+    <style>
+        html, body { margin: 0; }
+        body { background: #f6f5f2; }
+        .page--dark { background: #0e0f11; }
+        @media (prefers-color-scheme: dark) { .page--auto { background: #0e0f11; } }
+        .page-wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 48px; }
+        @media (max-width: 600px) { .page-wrap { padding: 12px 8px 32px; } }
+    </style>
+</head>
+<body th:class="${pageClass}">
+<div class="page-wrap">
+    <optirent-booking th:data-widget="${widget.slug}"></optirent-booking>
+</div>
+<script async th:src="@{/w.js}"></script>
+</body>
+</html>
