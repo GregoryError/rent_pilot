@@ -541,4 +541,45 @@ class WidgetBookingIntegrationTest {
                 .andExpect(status().is3xxRedirection());
         mvc.perform(get("/media/widget/" + key + "-960.jpg")).andExpect(status().isNotFound());
     }
+
+    @Test
+    @DisplayName("оформление: форма сохраняет пресет, цвет и скрытые блоки; API отдаёт раскладку, блоки и шрифты")
+    void layoutAndTheme() throws Exception {
+        String page = "/settings/widgets/" + widget.getId();
+        mvc.perform(post(page + "/update").with(user(host())).with(csrf())
+                        .param("title", "Лофт").param("minNights", "1").param("maxNights", "30")
+                        .param("maxGuests", "4").param("bookingWindowDays", "180").param("holdHours", "24")
+                        .param("checkinTime", "14:00").param("checkoutTime", "12:00").param("theme", "auto")
+                        .param("layoutForm", "true").param("preset", "vertical").param("accent", "#101014")
+                        .param("radius", "40").param("font", "lora")
+                        .param("visibleBlocks", "gallery", "title", "calendar", "guests", "summary", "form", "amenities", "map")
+                        .param("amenities", "Wi-Fi\nКухня\nWi-Fi").param("mapUrl", "https://evil.example/map")
+                        .param("contactPhone", "+7 900 000-00-00"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("error", org.hamcrest.Matchers.allOf(
+                        org.hamcrest.Matchers.containsString("Ссылка на карту не сохранена"),
+                        org.hamcrest.Matchers.containsString("тёмной теме"))));
+
+        JsonNode cfg = json.readTree(mvc.perform(get("/api/widget/" + slug + "/config"))
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+        assertThat(cfg.path("layout").path("preset").asText()).isEqualTo("vertical");
+        assertThat(cfg.path("layout").path("theme").path("accent").asText()).isEqualTo("#101014");
+        assertThat(cfg.path("layout").path("theme").path("radius").asInt()).isEqualTo(24);
+        assertThat(cfg.path("layout").path("theme").path("font").asText()).isEqualTo("lora");
+        assertThat(cfg.path("layout").path("hidden")).extracting(JsonNode::asText)
+                .containsExactlyInAnyOrder("description", "rules", "contacts");
+        assertThat(cfg.path("amenities")).extracting(JsonNode::asText).containsExactly("Wi-Fi", "Кухня");
+        assertThat(cfg.path("mapUrl").isNull()).isTrue();
+        // Блок «Контакты» скрыт — телефон хозяина до брони не отдаётся
+        assertThat(cfg.has("contacts")).isFalse();
+
+        mvc.perform(get(page).with(user(host())))
+                .andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("Вид нового виджета", "#101014"));
+
+        // Шрифт виджета доступен с любого сайта (браузер требует CORS для чужого шрифта)
+        mvc.perform(get("/fonts/lora-cyrillic-wght-normal.woff2").header("Origin", "https://anywhere.example"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "*"));
+    }
 }

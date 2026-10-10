@@ -165,7 +165,15 @@ public class BookingWidget {
     @Column(name = "contact_whatsapp", length = 40)
     private String contactWhatsapp;
 
-    /** Раскладка и оформление виджета. Заполняется конструктором (следующие фазы). */
+    /** Удобства, по одному в строке. */
+    @Column(columnDefinition = "TEXT")
+    private String amenities;
+
+    /** Ссылка на точку в картографическом сервисе — блок «На карте». */
+    @Column(name = "map_url", length = 500)
+    private String mapUrl;
+
+    /** Раскладка и оформление виджета: пресет, скрытые блоки, цвет, скругления, шрифт (WidgetLayout). */
     @Type(JsonBinaryType.class)
     @Column(name = "config_json", columnDefinition = "jsonb")
     private JsonNode configJson;

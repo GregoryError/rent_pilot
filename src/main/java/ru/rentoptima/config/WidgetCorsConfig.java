@@ -51,6 +51,15 @@ public class WidgetCorsConfig {
         // Без Origin запрос не кросс-доменный — в базу не ходим
         if (request.getHeader(HttpHeaders.ORIGIN) == null) return null;
         String path = request.getRequestURI().substring(request.getContextPath().length());
+        // Шрифты виджета — общедоступные файлы: браузер требует CORS для шрифта с чужого
+        // домена, а виджет на сайте хозяина именно так их и берёт.
+        if (path.startsWith("/fonts/")) {
+            CorsConfiguration fonts = new CorsConfiguration();
+            fonts.addAllowedOrigin("*");
+            fonts.setAllowedMethods(List.of("GET"));
+            fonts.setMaxAge(86400L);
+            return fonts;
+        }
         Matcher m = WIDGET_PATH.matcher(path);
         if (!m.matches()) return null;
 

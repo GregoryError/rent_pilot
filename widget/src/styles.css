@@ -22,13 +22,14 @@
     container-type: inline-size;
     container-name: w;
     box-sizing: border-box;
-    font: 400 16px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font: 400 16px/1.45 var(--font, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif);
     color: var(--text);
     -webkit-text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
 
     --accent: #0f766e;
     --accent-fg: #fff;
+    --accent-text: #0f766e;
     --accent-soft: #e3f3f1;
     --bg: #fff;
     --surface: #f5f5f3;
@@ -38,13 +39,12 @@
     --danger: #b42318;
     --danger-soft: #fdf0ee;
     --radius: 14px;
+    --r-day: min(10px, var(--radius));
     --ease: cubic-bezier(.2, .8, .2, 1);
 }
 
+/* Цвета кнопок (--accent*) задаёт theme.js по настройкам хозяина; здесь — нейтральные */
 .w[data-theme='dark'] {
-    --accent: #2dd4bf;
-    --accent-fg: #06201d;
-    --accent-soft: #123733;
     --bg: #17181b;
     --surface: #22242a;
     --text: #ededea;
@@ -52,21 +52,6 @@
     --border: #34363d;
     --danger: #ff9b8f;
     --danger-soft: #3a1f1c;
-}
-
-@media (prefers-color-scheme: dark) {
-    .w[data-theme='auto'] {
-        --accent: #2dd4bf;
-        --accent-fg: #06201d;
-        --accent-soft: #123733;
-        --bg: #17181b;
-        --surface: #22242a;
-        --text: #ededea;
-        --muted: #a3a49d;
-        --border: #34363d;
-        --danger: #ff9b8f;
-        --danger-soft: #3a1f1c;
-    }
 }
 
 .w *,
@@ -82,7 +67,7 @@
 .card {
     background: var(--bg);
     border: 1px solid var(--border);
-    border-radius: calc(var(--radius) + 6px);
+    border-radius: calc(var(--radius) * 1.4);
     padding: 20px;
 }
 
@@ -99,14 +84,28 @@
 
 .gal {
     position: relative;
-    margin: -20px -20px 20px;
-    border-radius: calc(var(--radius) + 5px) calc(var(--radius) + 5px) 0 0;
+    border-radius: var(--radius);
     overflow: hidden;
     background: var(--surface);
 }
 
-.w[data-narrow] .gal {
-    margin: -16px -16px 16px;
+/* Первая сверху — во всю ширину карточки, без полей */
+.gal.bleed {
+    margin: -20px -20px 0;
+    border-radius: calc(var(--radius) * 1.4 - 1px) calc(var(--radius) * 1.4 - 1px) 0 0;
+}
+
+.w[data-narrow] .gal.bleed {
+    margin: -16px -16px 0;
+}
+
+dialog.flow .gal.bleed {
+    border-radius: 0;
+}
+
+/* В окне галерея ниже: календарь должен быть виден без прокрутки */
+dialog.flow .gal-track {
+    max-height: 240px;
 }
 
 .gal-track {
@@ -125,7 +124,7 @@
 }
 
 .gal-track:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--accent-text);
     outline-offset: -2px;
 }
 
@@ -143,7 +142,7 @@
 }
 
 .gal-item:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--accent-text);
     outline-offset: -2px;
 }
 
@@ -298,7 +297,6 @@ dialog.lb[open] {
     gap: 12px;
     align-items: flex-start;
     justify-content: space-between;
-    margin-bottom: 20px;
 }
 
 .title {
@@ -356,47 +354,110 @@ dialog.lb[open] {
     color: var(--text);
 }
 
-/* --- Раскладка: колонка; на широком контейнере календарь слева, остальное справа */
+/* --- Раскладка. Сетку (grid-template-areas / -columns) выставляет компонент по
+   настройкам виджета: блоки во всю ширину — области t0, t1…, колонки — c0, c1…
+   Внутри колонки блоки идут по порядку. */
 
-.grid {
+.lay {
+    display: grid;
+    gap: 24px 32px;
+    align-items: start;
+    margin: 0 auto;
+}
+
+.col,
+.stack {
     display: grid;
     gap: 20px;
     grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: 'cal' 'side';
-}
-
-.a-cal {
-    grid-area: cal;
-}
-
-.a-side {
-    grid-area: side;
-    display: grid;
-    gap: 20px;
     align-content: start;
+    min-width: 0;
 }
 
-@container w (min-width: 980px) {
-    .grid {
-        grid-template-columns: minmax(0, 1fr) 360px;
-        grid-template-areas: 'cal side';
-        gap: 32px;
-    }
+/* Колонка с формой остаётся на экране, пока гость листает описание и фото */
+.col.sticky {
+    position: sticky;
+    top: 16px;
 }
 
-@supports not (container-type: inline-size) {
-    @media (min-width: 1020px) {
-        .grid {
-            grid-template-columns: minmax(0, 1fr) 360px;
-            grid-template-areas: 'cal side';
-            gap: 32px;
-        }
-    }
-}
-
-/* Пустые блоки (сумма до выбора дат, подсказка о занятых датах) места не занимают */
-.a-side > :empty {
+.col > :empty,
+.stack:not(:has(> :not(:empty))) {
     display: none;
+}
+
+.tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.tags li {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--surface);
+    font-size: .875rem;
+}
+
+/* --- Пусковая полоса (пресеты horizontal и compact): цена и кнопка, бронирование в окне */
+
+.launch {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 16px;
+}
+
+.launch-info {
+    flex: 1 1 160px;
+    min-width: 0;
+}
+
+.launch-title {
+    font-weight: 650;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.launch .field {
+    flex: 1 1 180px;
+    width: auto;
+}
+
+.launch .btn {
+    flex: 0 0 auto;
+    width: auto;
+}
+
+@container w (max-width: 520px) {
+    .launch .btn,
+    .launch .field {
+        flex: 1 1 100%;
+    }
+}
+
+dialog.flow {
+    max-height: 94dvh;
+}
+
+dialog.flow .dlg-body {
+    padding: 0;
+    container-type: inline-size;
+}
+
+dialog.flow .card {
+    border: 0;
+    border-radius: 0;
+}
+
+@media (min-width: 700px) {
+    dialog.flow {
+        width: min(94vw, 760px);
+        max-height: 90dvh;
+    }
 }
 
 /* На узком контейнере главная кнопка одна — в липкой панели */
@@ -461,7 +522,7 @@ dialog.lb[open] {
     min-height: 44px;
     display: inline-flex;
     align-items: center;
-    color: var(--accent);
+    color: var(--accent-text);
     font-size: .875rem;
     font-weight: 600;
     text-decoration: underline;
@@ -517,11 +578,6 @@ dialog.lb[open] {
     white-space: nowrap;
 }
 
-.fields {
-    display: grid;
-    gap: 10px;
-}
-
 .btn:focus-visible,
 .field:focus-visible,
 .icon-btn:focus-visible,
@@ -532,7 +588,7 @@ dialog.lb[open] {
 .check input:focus-visible,
 a:focus-visible,
 summary:focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--accent-text);
     outline-offset: 2px;
 }
 
@@ -622,7 +678,7 @@ summary:focus-visible {
     justify-content: center;
     width: 100%;
     min-height: 46px;
-    border-radius: 10px;
+    border-radius: var(--r-day);
     font-variant-numeric: tabular-nums;
     transition: transform .15s var(--ease);
 }
@@ -706,13 +762,13 @@ summary:focus-visible {
 }
 
 .day.start {
-    border-radius: 10px 0 0 10px;
+    border-radius: var(--r-day) 0 0 var(--r-day);
 }
 
 .day.end,
 .day.pre:hover,
 .day.pre:focus-visible {
-    border-radius: 0 10px 10px 0;
+    border-radius: 0 var(--r-day) var(--r-day) 0;
 }
 
 .day.start {
@@ -810,7 +866,7 @@ summary:focus-visible {
 }
 
 .line.minus span:last-child {
-    color: var(--accent);
+    color: var(--accent-text);
 }
 
 .line.total {
@@ -916,7 +972,7 @@ textarea.inp {
 }
 
 .w a {
-    color: var(--accent);
+    color: var(--accent-text);
     text-underline-offset: 3px;
 }
 
@@ -998,7 +1054,7 @@ summary {
     margin: 20px -20px -20px;
     padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
     border-top: 1px solid var(--border);
-    border-radius: 0 0 calc(var(--radius) + 6px) calc(var(--radius) + 6px);
+    border-radius: 0 0 calc(var(--radius) * 1.4) calc(var(--radius) * 1.4);
     background: var(--bg);
 }
 
@@ -1173,7 +1229,7 @@ dialog::backdrop {
     height: 52px;
     border-radius: 50%;
     background: var(--accent-soft);
-    color: var(--accent);
+    color: var(--accent-text);
 }
 
 .ok h2 {

@@ -13,6 +13,8 @@
 import css from './styles.css';
 import { Calendar } from './calendar.js';
 import { gallery } from './gallery.js';
+import { resolve, launcher, WIDE } from './layout.js';
+import { applyTheme } from './theme.js';
 import { addDays, diff, isIso } from './dates.js';
 import { validStay, groupNights } from './rules.js';
 import { detectLang, translator, money } from './i18n.js';
@@ -49,15 +51,13 @@ class OptirentBooking extends HTMLElement {
         this.form = { name: '', phone: '', email: '', note: '', consent: false };
         this.promo = '';
         this.quote = null;
-        this.narrow = this.clientWidth > 0 && this.clientWidth < NARROW;
+        this.narrow = false;
 
         this.box = h('div', { class: 'w', 'data-theme': 'light' });
         this.root.append(this.box);
         this.skeleton();
         this.load();
 
-        this.ro = new ResizeObserver(() => this.resize());
-        this.ro.observe(this);
     }
 
     disconnectedCallback() {
@@ -195,7 +195,7 @@ class OptirentBooking extends HTMLElement {
 
     build() {
         const { t, cfg: c } = this;
-        this.box.dataset.theme = c.theme === 'dark' || c.theme === 'auto' ? c.theme : 'light';
+        this.theme();
         this.box.lang = t.lang;
         this.live = h('div', { class: 'sr', 'aria-live': 'polite' });
 
@@ -212,7 +212,6 @@ class OptirentBooking extends HTMLElement {
         this.guestSlot = h('div', {}, h('span', { class: 'label', text: t('guests') }), this.guestHost);
         this.datesField = h('button', { type: 'button', class: 'field', onclick: () => this.open('cal') });
         this.guestsField = h('button', { type: 'button', class: 'field', onclick: () => this.open('guests') });
-        this.fields = h('div', { class: 'fields' }, this.datesField, this.guestsField);
 
         this.altEl = h('div', {});
         this.sumEl = h('div', {});
@@ -238,9 +237,14 @@ class OptirentBooking extends HTMLElement {
         this.dlg.addEventListener('click', e => { if (e.target === this.dlg) this.close(); });
 
         const sub = [c.addressHint, t('times', { a: c.checkinTime, b: c.checkoutTime })].filter(Boolean).join(' · ');
-        this.card = h('div', { class: 'card' },
-            c.photos && c.photos.length > 0 && gallery(t, c.photos, this.box),
-            h('div', { class: 'hd' },
+        const hidden = (c.layout && c.layout.hidden) || [];
+        const section = (key, ...kids) => h('div', {}, h('span', { class: 'label', text: t(key) }), kids);
+        const links = this.contactLinks(c.contacts);
+
+        // Блоки виджета. Блок без содержимого или скрытый хозяином — null.
+        this.blocks = {
+            gallery: c.photos && c.photos.length > 0 && gallery(t, c.photos, this.box),
+            title: h('div', { class: 'hd' },
                 h('div', {},
                     h('h2', { class: 'title', text: c.title }),
                     h('div', { class: 'sub', text: sub }),
@@ -250,19 +254,102 @@ class OptirentBooking extends HTMLElement {
                         type: 'button', text: l.toUpperCase(), 'aria-pressed': String(t.lang === l),
                         onclick: () => this.setLang(l)
                     })))),
-            h('div', { class: 'grid' },
-                h('div', { class: 'a-cal' }, this.calSlot, this.fields),
-                h('div', { class: 'a-side' },
-                    this.guestSlot, this.altEl, this.sumEl, this.formEl,
-                    this.details('rules', c.rules), this.details('cancellation', c.cancellationPolicy))),
-            this.bar);
+            calendar: h('div', {}, this.calSlot, this.datesField),
+            guests: h('div', {}, this.guestSlot, this.guestsField),
+            summary: h('div', { class: 'stack' }, this.altEl, this.sumEl),
+            form: this.formEl,
+            description: c.description && section('about', h('div', { class: 'text', text: c.description })),
+            amenities: c.amenities && c.amenities.length > 0 && section('amenities',
+                h('ul', { class: 'tags' }, c.amenities.map(a => h('li', { text: a })))),
+            rules: (c.rules || c.cancellationPolicy) && h('div', {},
+                this.details('rules', c.rules), this.details('cancellation', c.cancellationPolicy)),
+            contacts: links.length > 0 && section('contacts', h('div', { class: 'row' }, links)),
+            map: c.mapUrl && h('a', { class: 'btn ghost', href: c.mapUrl, target: '_blank', rel: 'noopener', text: t('showMap') })
+        };
+        for (const id in this.blocks) {
+            if (!this.blocks[id] || hidden.includes(id)) this.blocks[id] = null;
+        }
 
-        clear(this.box).append(this.live, this.card,
-            c.showPoweredBy && h('div', { class: 'foot' },
-                h('a', { href: 'https://optirent.ru', target: '_blank', rel: 'noopener', text: t('powered') })),
-            this.dlg);
+        this.lay = h('div', { class: 'lay' });
+        this.card = h('div', { class: 'card' }, this.lay, this.bar);
+        this.arranged = null;
+        const foot = c.showPoweredBy && h('div', { class: 'foot' },
+            h('a', { href: 'https://optirent.ru', target: '_blank', rel: 'noopener', text: t('powered') }));
+
+        clear(this.box).append(this.live);
+        if (launcher(c.layout && c.layout.preset)) {
+            // На странице — только полоса с ценой и кнопкой, само бронирование в окне
+            this.flow = h('dialog', { class: 'flow', 'aria-label': c.title },
+                h('div', { class: 'dlg-head' }, h('span', {}),
+                    h('button', { type: 'button', class: 'icon-btn', 'aria-label': t('close'), onclick: () => this.flow.close() },
+                        icon(ICONS.close))),
+                h('div', { class: 'dlg-body' }, this.card));
+            this.flow.addEventListener('click', e => { if (e.target === this.flow) this.flow.close(); });
+            this.flow.addEventListener('close', () => { this.paintLaunch(); if (this.launchBtn) this.launchBtn.focus(); });
+            this.box.append(this.buildLaunch(), foot, this.flow);
+        } else {
+            this.flow = null;
+            this.box.append(this.card, foot);
+        }
+        this.box.append(this.dlg);
+
+        if (this.ro) this.ro.disconnect();
+        this.ro = new ResizeObserver(() => this.resize());
+        this.ro.observe(this.card);
         this.layout();
         this.paintAll();
+    }
+
+    /** Оформление из настроек: тема, цвет, скругления, шрифт. «Авто» следит за темой устройства. */
+    theme() {
+        const c = this.cfg;
+        applyTheme(this.box, c.theme, c.layout && c.layout.theme, this.base);
+        if (c.theme === 'auto' && !this.mq) {
+            this.mq = matchMedia('(prefers-color-scheme: dark)');
+            this.mq.addEventListener('change', () => this.theme());
+        }
+    }
+
+    contactLinks(contacts) {
+        const { t } = this;
+        const c = contacts || {};
+        const link = (href, text) => h('a', { class: 'btn ghost', href, target: '_blank', rel: 'noopener', text });
+        const links = [];
+        if (c.phone) links.push(link('tel:' + c.phone.replace(/[^\d+]/g, ''), t('call')));
+        if (c.telegram) links.push(link('https://t.me/' + c.telegram.replace(/^@|^https?:\/\/t\.me\//, ''), 'Telegram'));
+        if (c.whatsapp) links.push(link('https://wa.me/' + c.whatsapp.replace(/\D/g, ''), 'WhatsApp'));
+        return links;
+    }
+
+    /** Пусковая полоса пресетов horizontal и compact. */
+    buildLaunch() {
+        const { t, cfg: c } = this;
+        const open = focusCal => () => {
+            this.flow.showModal();
+            this.resize();
+            if (focusCal && !this.narrow) this.cal.focusDay();
+        };
+        const row = c.layout.preset === 'horizontal';
+        this.launchPrice = h('div', { class: 'bar-price' });
+        this.launchBtn = h('button', { type: 'button', class: 'btn', onclick: open(!this.sel.checkout) });
+        this.launchDates = row && h('button', { type: 'button', class: 'field', onclick: open(true) });
+        this.launchGuests = row && h('button', { type: 'button', class: 'field', onclick: open(false) });
+        return h('div', { class: 'card launch' + (row ? ' row' : '') },
+            h('div', { class: 'launch-info' },
+                row && h('div', { class: 'launch-title', text: c.title }),
+                this.launchPrice),
+            this.launchDates, this.launchGuests, this.launchBtn);
+    }
+
+    paintLaunch() {
+        if (!this.flow) return;
+        const { t, cfg: c, sel } = this;
+        this.fillPrice(this.launchPrice);
+        this.launchBtn.textContent = sel.checkout ? t(c.mode === 'INSTANT' ? 'book' : 'request') : t('checkDates');
+        if (this.launchDates) {
+            this.fillField(this.launchDates, t('dates'), this.range());
+            this.fillField(this.launchGuests, t('guests'), this.guestsText());
+        }
     }
 
     details(key, text) {
@@ -282,7 +369,10 @@ class OptirentBooking extends HTMLElement {
 
     resize() {
         if (!this.cfg || this.result) return;
-        const narrow = this.clientWidth < NARROW;
+        const width = this.card.clientWidth;
+        // Карточка в закрытом окне (пресеты с пусковой полосой) размеров не имеет
+        if (!width) return;
+        const narrow = width < NARROW;
         if (narrow !== this.narrow) {
             this.narrow = narrow;
             if (this.dlg.open) this.dlg.close();
@@ -290,20 +380,58 @@ class OptirentBooking extends HTMLElement {
         this.layout();
     }
 
-    /** Узкий контейнер: календарь и гости прячутся за поля и открываются листом. */
+    /**
+     * Расставляет блоки по сетке и переключает узкий режим, где календарь и гости
+     * прячутся за поля и открываются листом.
+     */
     layout() {
         const n = this.narrow;
+        const width = this.card.clientWidth;
         this.box.toggleAttribute('data-narrow', n);
-        this.fields.hidden = !n;
+        this.datesField.hidden = this.guestsField.hidden = !n;
         this.calSlot.hidden = this.guestSlot.hidden = n;
+
+        const wide = width >= WIDE;
+        if (this.arranged !== wide) {
+            this.arranged = wide;
+            this.arrange(resolve(this.cfg.layout, wide, id => !!this.blocks[id]));
+        }
         if (!n) {
             // Переносим, только если узел не на месте: повторная вставка сбросила бы фокус
             if (this.cal.el.parentNode !== this.calSlot) this.calSlot.append(this.cal.el);
             if (this.guestsEl.parentNode !== this.guestHost) this.guestHost.append(this.guestsEl);
         }
-        // Два месяца — когда каждому хватает ~280 px
-        const width = n ? 0 : this.clientWidth >= 980 ? this.clientWidth - 360 - 32 - 42 : this.clientWidth - 42;
-        this.cal.setMonths(width >= 590 ? 2 : 1);
+        // Два месяца — когда блоку календаря хватает ширины на оба (~280 px каждому)
+        this.cal.setMonths(!n && this.blocks.calendar.clientWidth >= 590 ? 2 : 1);
+    }
+
+    /**
+     * Строит сетку: блоки во всю ширину (области t0, t1…) и колонки (c0, c1…), внутри
+     * колонки блоки идут по порядку. Порядок в DOM совпадает с тем, что видно на экране,
+     * — так же читает скринридер и ходит Tab.
+     */
+    arrange(l) {
+        const lay = this.lay;
+        clear(lay);
+        lay.style.gridTemplateAreas = l.areas;
+        lay.style.gridTemplateColumns = l.columns;
+        lay.style.maxWidth = l.max ? l.max + 'px' : '';
+        l.top.forEach((id, i) => {
+            const el = this.blocks[id];
+            el.style.gridArea = 't' + i;
+            el.classList.toggle('bleed', id === 'gallery' && i === 0);
+            lay.append(el);
+        });
+        l.cols.forEach((ids, i) => {
+            const col = h('div', { class: 'col' + (i === l.sticky ? ' sticky' : ''), style: 'grid-area:c' + i });
+            for (const id of ids) {
+                const el = this.blocks[id];
+                el.style.gridArea = '';
+                el.classList.remove('bleed');
+                col.append(el);
+            }
+            lay.append(col);
+        });
     }
 
     open(kind) {
@@ -478,13 +606,22 @@ class OptirentBooking extends HTMLElement {
         return t.day(sel.checkin) + ' — ' + t.day(sel.checkout) + ' · ' + t.n(diff(sel.checkin, sel.checkout), 'nights');
     }
 
-    paintFields() {
+    guestsText() {
         const { t, guests: g } = this;
-        const set = (el, label, value) => clear(el).append(h('small', { text: label }), h('span', { text: value }));
-        set(this.datesField, t('dates'), this.range());
         const parts = [t.n(g.adults + g.children, 'guestsN')];
         if (g.pets) parts.push(t('pets').toLowerCase() + ': ' + g.pets);
-        set(this.guestsField, t('guests'), parts.join(', '));
+        return parts.join(', ');
+    }
+
+    fillField(el, label, value) {
+        clear(el).append(h('small', { text: label }), h('span', { text: value }));
+    }
+
+    paintFields() {
+        const { t } = this;
+        this.fillField(this.datesField, t('dates'), this.range());
+        this.fillField(this.guestsField, t('guests'), this.guestsText());
+        this.paintLaunch();
     }
 
     paintSubmit() {
@@ -493,19 +630,26 @@ class OptirentBooking extends HTMLElement {
         this.submitBtn.textContent = this.sending ? t('sending') : t(c.mode === 'INSTANT' ? 'book' : 'request');
     }
 
-    paintBar() {
+    /** Цена в панели: итог за выбранные даты, иначе «от … за ночь». */
+    fillPrice(el) {
         const { t, cfg: c, sel, quote: q } = this;
-        clear(this.barPrice);
+        clear(el);
         if (sel.checkout && q && q.total != null) {
-            this.barPrice.append(h('b', { text: money(q.total) }), t.n(q.nights, 'nights'));
+            el.append(h('b', { text: money(q.total) }), t.n(q.nights, 'nights'));
         } else if (sel.checkout) {
-            this.barPrice.append(h('b', { text: t.n(diff(sel.checkin, sel.checkout), 'nights') }));
+            el.append(h('b', { text: t.n(diff(sel.checkin, sel.checkout), 'nights') }));
         } else {
             const min = c.showPrice ? this.minPrice() : null;
-            if (min != null) this.barPrice.append(h('b', { text: t('from') + ' ' + money(min) }), t('perNight'));
+            if (min != null) el.append(h('b', { text: t('from') + ' ' + money(min) }), t('perNight'));
         }
+    }
+
+    paintBar() {
+        const { t, cfg: c, sel } = this;
+        this.fillPrice(this.barPrice);
         this.barBtn.textContent = sel.checkout ? t(c.mode === 'INSTANT' ? 'book' : 'request') : t('chooseDates');
         this.barBtn.disabled = !!this.sending;
+        this.paintLaunch();
     }
 
     barAction() {
@@ -743,15 +887,12 @@ class OptirentBooking extends HTMLElement {
         const { t, cfg: c, result: r } = this;
         const pending = r.status === 'PENDING';
         const q = r.quote || {};
-        const contacts = r.contacts || {};
-        const links = [];
-        if (contacts.phone) links.push(['tel:' + contacts.phone.replace(/[^\d+]/g, ''), t('call')]);
-        if (contacts.telegram) links.push(['https://t.me/' + contacts.telegram.replace(/^@|^https?:\/\/t\.me\//, ''), 'Telegram']);
-        if (contacts.whatsapp) links.push(['https://wa.me/' + contacts.whatsapp.replace(/\D/g, ''), 'WhatsApp']);
+        const links = this.contactLinks(r.contacts);
         const hold = r.holdExpiresAt && new Date(r.holdExpiresAt);
 
         const title = h('h2', { tabindex: '-1', text: t(pending ? 'sentTitle' : 'bookedTitle') });
-        clear(this.box).append(h('div', { class: 'card' }, h('div', { class: 'ok', role: 'status' },
+        this.box.removeAttribute('data-narrow');
+        clear(this.card).append(h('div', { class: 'ok', role: 'status' },
             h('div', { class: 'ok-mark' }, icon(ICONS.check)),
             title,
             h('div', { text: t(pending ? 'sentText' : 'bookedText') }),
@@ -770,11 +911,9 @@ class OptirentBooking extends HTMLElement {
                 h('a', { class: 'btn', href: r.icsUrl, download: 'booking-' + r.number + '.ics', text: t('addToCalendar') })),
             links.length > 0 && h('div', { style: 'width:100%' },
                 h('span', { class: 'label', text: t('contacts') }),
-                h('div', { class: 'row' }, links.map(([href, text]) =>
-                    h('a', { class: 'btn ghost', href, target: '_blank', rel: 'noopener', text })))),
-            r.rules && h('div', { style: 'width:100%' }, this.details('rules', r.rules)))),
-            c.showPoweredBy && h('div', { class: 'foot' },
-                h('a', { href: 'https://optirent.ru', target: '_blank', rel: 'noopener', text: t('powered') })));
+                h('div', { class: 'row' }, links)),
+            r.rules && h('div', { style: 'width:100%' }, this.details('rules', r.rules))));
+        if (this.dlg.open) this.dlg.close();
         title.focus();
         this.scrollIntoView({ block: 'start', behavior: 'smooth' });
     }

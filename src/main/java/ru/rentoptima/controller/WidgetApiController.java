@@ -1,5 +1,6 @@
 package ru.rentoptima.controller;
 
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,7 @@ import ru.rentoptima.service.WidgetCalendar;
 import ru.rentoptima.service.WidgetError;
 import ru.rentoptima.service.WidgetFormToken;
 import ru.rentoptima.service.WidgetGuestCalendar;
+import ru.rentoptima.service.WidgetLayout;
 import ru.rentoptima.service.WidgetNotifier;
 import ru.rentoptima.service.WidgetPhotoService;
 import ru.rentoptima.service.WidgetPricing;
@@ -111,7 +113,18 @@ public class WidgetApiController {
         for (WidgetPhoto p : photos.list(w.getId())) gallery.add(photos.view(p, baseUrl));
         for (String url : WidgetPublicController.photosOf(w)) gallery.add(Map.of("src", url));
         body.put("photos", gallery);
-        body.put("layout", w.getConfigJson());
+        ObjectNode layout = WidgetLayout.normalize(w.getConfigJson());
+        body.put("layout", layout);
+        body.put("amenities", WidgetLayout.amenities(w.getAmenities()));
+        body.put("mapUrl", WidgetLayout.mapUrl(w.getMapUrl()));
+        // Контакты до брони отдаём, только если хозяин оставил блок «Контакты» видимым
+        if (!WidgetLayout.hidden(layout, "contacts")) {
+            Map<String, Object> contacts = new LinkedHashMap<>();
+            contacts.put("phone", w.getContactPhone());
+            contacts.put("telegram", w.getContactTelegram());
+            contacts.put("whatsapp", w.getContactWhatsapp());
+            body.put("contacts", contacts);
+        }
         return ResponseEntity.ok().cacheControl(CACHE).body(body);
     }
 

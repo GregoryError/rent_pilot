@@ -2,6 +2,7 @@ package ru.rentoptima.controller;
 
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Controller;
@@ -30,6 +31,7 @@ import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.config.WidgetCorsConfig;
 import ru.rentoptima.service.PhotoProcessor;
 import ru.rentoptima.service.WidgetCalendar;
+import ru.rentoptima.service.WidgetLayout;
 import ru.rentoptima.service.WidgetPhotoService;
 import ru.rentoptima.service.WidgetOrigins;
 import ru.rentoptima.service.WidgetSlug;
@@ -69,6 +71,14 @@ public class WidgetAdminController {
     private final WidgetPhotoService photos;
     private final PhotoProcessor photoProcessor;
     private final WidgetCorsConfig cors;
+
+    private static final Map<String, String> BLOCK_LABELS = Map.ofEntries(
+            Map.entry("gallery", "Фотографии"), Map.entry("title", "Название и цена «от»"),
+            Map.entry("calendar", "Календарь"), Map.entry("guests", "Гости"),
+            Map.entry("summary", "Стоимость"), Map.entry("form", "Форма брони"),
+            Map.entry("description", "Описание"), Map.entry("amenities", "Удобства"),
+            Map.entry("rules", "Правила и отмена"), Map.entry("contacts", "Контакты"),
+            Map.entry("map", "На карте"));
 
     private static final String[] WEEKDAYS = {"Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"};
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd.MM.yyyy");
@@ -169,6 +179,17 @@ public class WidgetAdminController {
             promos.add(promoRow(p));
         }
         model.addAttribute("promos", promos);
+        ObjectNode layout = WidgetLayout.normalize(w.getConfigJson());
+        model.addAttribute("preset", layout.path("preset").asText());
+        model.addAttribute("accent", layout.path("theme").path("accent").asText());
+        model.addAttribute("radius", layout.path("theme").path("radius").asInt());
+        model.addAttribute("font", layout.path("theme").path("font").asText());
+        List<BlockOption> blockOptions = new ArrayList<>();
+        for (String block : WidgetLayout.BLOCKS) {
+            blockOptions.add(new BlockOption(block, BLOCK_LABELS.get(block),
+                    !WidgetLayout.hidden(layout, block), WidgetLayout.REQUIRED.contains(block)));
+        }
+        model.addAttribute("blockOptions", blockOptions);
         List<PhotoRow> photoRows = new ArrayList<>();
         List<WidgetPhoto> uploaded = photos.list(w.getId());
         for (int i = 0; i < uploaded.size(); i++) {
@@ -226,6 +247,14 @@ public class WidgetAdminController {
                          @RequestParam(required = false) String contactPhone,
                          @RequestParam(required = false) String contactTelegram,
                          @RequestParam(required = false) String contactWhatsapp,
+                         @RequestParam(required = false) String preset,
+                         @RequestParam(required = false) String accent,
+                         @RequestParam(required = false) Integer radius,
+                         @RequestParam(required = false) String font,
+                         @RequestParam(required = false) List<String> visibleBlocks,
+                         @RequestParam(required = false, defaultValue = "false") boolean layoutForm,
+                         @RequestParam(required = false) String amenities,
+                         @RequestParam(required = false) String mapUrl,
                          RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
         BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
@@ -267,6 +296,26 @@ public class WidgetAdminController {
         w.setContactPhone(clean(contactPhone, 40));
         w.setContactTelegram(clean(contactTelegram, 80));
         w.setContactWhatsapp(clean(contactWhatsapp, 40));
+        w.setAmenities(clean(String.join("\n", WidgetLayout.amenities(amenities)), 2000));
+        w.setMapUrl(WidgetLayout.mapUrl(mapUrl));
+        String mapError = clean(mapUrl, 500) != null && w.getMapUrl() == null
+                ? "Ссылка на карту не сохранена: подойдёт https-ссылка на Яндекс Карты, 2ГИС или Google Maps" : null;
+
+        // Оформление и раскладка. Расстановку блоков для пресета «свой» (custom) форма не
+        // трогает — её хранит config_json, правит конструктор.
+        if (layoutForm) {
+            ObjectNode config = WidgetLayout.normalize(w.getConfigJson());
+            if (preset != null) config.put("preset", preset);
+            ObjectNode themeNode = (ObjectNode) config.get("theme");
+            if (accent != null) themeNode.put("accent", accent);
+            if (radius != null) themeNode.put("radius", radius);
+            if (font != null) themeNode.put("font", font);
+            ArrayNode hidden = config.putArray("hidden");
+            for (String block : WidgetLayout.BLOCKS) {
+                if (visibleBlocks == null || !visibleBlocks.contains(block)) hidden.add(block);
+            }
+            w.setConfigJson(WidgetLayout.normalize(config));
+        }
         w.setCheckinTime(in);
         w.setCheckoutTime(out);
         w.setTheme("dark".equals(theme) || "auto".equals(theme) ? theme : "light");
@@ -295,10 +344,18 @@ public class WidgetAdminController {
         widgetRepo.save(w);
         cors.evict();
 
-        if (slugError != null) {
-            redirect.addFlashAttribute("error", "Сохранено всё, кроме адреса страницы. " + slugError);
+        // Цвет проверяется против темы, выбранной в этой же форме
+        String accentWarning = !layoutForm ? null : WidgetLayout.accentWarning(
+                WidgetLayout.normalize(w.getConfigJson()).path("theme").path("accent").asText(), w.getTheme());
+        List<String> problems = new ArrayList<>();
+        if (slugError != null) problems.add("Адрес страницы не изменён. " + slugError);
+        if (mapError != null) problems.add(mapError);
+        if (accentWarning != null) problems.add(accentWarning);
+        if (problems.isEmpty()) {
+            redirect.addFlashAttribute("success", "Сохранено");
         } else {
             redirect.addFlashAttribute("success", "Сохранено");
+            redirect.addFlashAttribute("error", String.join(". ", problems));
         }
         return "redirect:/settings/widgets/" + id;
     }
@@ -530,6 +587,8 @@ public class WidgetAdminController {
     public record UnitOption(Long id, String label) {}
 
     public record PhotoRow(Long id, String url, String label, boolean canUp, boolean canDown) {}
+
+    public record BlockOption(String id, String label, boolean visible, boolean required) {}
 
     public record DayOption(int value, String label, boolean checked) {}
 
