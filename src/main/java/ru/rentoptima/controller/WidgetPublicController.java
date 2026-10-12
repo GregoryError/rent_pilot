@@ -14,7 +14,12 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.BookingWidget;
+import ru.rentoptima.entity.Property;
+import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.entity.WidgetQrLink;
+import ru.rentoptima.repository.PropertyRepository;
+import ru.rentoptima.repository.UnitTypeRepository;
+import ru.rentoptima.seo.StructuredData;
 import ru.rentoptima.seo.SeoFilter;
 import ru.rentoptima.seo.SiteSettings;
 import ru.rentoptima.service.WidgetBookingService;
@@ -52,6 +57,8 @@ public class WidgetPublicController {
     private final WidgetConfigService configs;
     private final WidgetCardService cards;
     private final SiteSettings site;
+    private final UnitTypeRepository unitTypeRepo;
+    private final PropertyRepository propertyRepo;
 
     @GetMapping("/b/{slug}")
     public String page(@PathVariable String slug, Model model, HttpServletRequest request,
@@ -101,6 +108,8 @@ public class WidgetPublicController {
                 hidden.contains("rules") ? null : blankToNull(w.getRules()),
                 hidden.contains("rules") ? null : blankToNull(w.getCancellationPolicy()),
                 blankToNull(w.getAddressHint())));
+        model.addAttribute("jsonLd", embed ? null : StructuredData.lodging(lodging(w, hidden, baseUrl,
+                site.canonical(request, "/b/" + w.getSlug()))));
         model.addAttribute("pageClass", (embed ? "embed " : "") + "page page--" + themeOf(w));
         model.addAttribute("themeColor", accent);
     }
@@ -160,6 +169,30 @@ public class WidgetPublicController {
     private BookingWidget bySlug(String slug) {
         return widgets.findBySlug(slug).orElseThrow(() -> new ResponseStatusException(
                 widgets.wasDeleted(slug) ? HttpStatus.GONE : HttpStatus.NOT_FOUND));
+    }
+
+    /**
+     * Жильё для микроразметки — то же, что гость видит на странице: скрытые хозяином блоки
+     * и цена при выключенном «показывать цену» в разметку не попадают. Из адреса — только
+     * город объекта.
+     */
+    private StructuredData.Lodging lodging(BookingWidget w, java.util.Set<String> hidden, String baseUrl, String url) {
+        UnitType unit = unitTypeRepo.findById(w.getUnitTypeId()).orElse(null);
+        String city = unit == null ? null
+                : propertyRepo.findById(unit.getPropertyId()).map(Property::getCity).orElse(null);
+        java.math.BigDecimal priceFrom = null;
+        if (unit != null && Boolean.TRUE.equals(w.getShowPrice())) {
+            priceFrom = unit.getBasePrice();
+            if (unit.getWeekendPrice() != null && (priceFrom == null || unit.getWeekendPrice().compareTo(priceFrom) < 0)) {
+                priceFrom = unit.getWeekendPrice();
+            }
+        }
+        return new StructuredData.Lodging(w.getTitle().trim(), url,
+                hidden.contains("description") ? null : blankToNull(w.getDescription()),
+                hidden.contains("gallery") ? java.util.List.of() : configs.imageUrls(w, baseUrl), city,
+                hidden.contains("amenities") ? java.util.List.of() : WidgetLayout.amenities(w.getAmenities()),
+                priceFrom, w.getCheckinTime().toString(), w.getCheckoutTime().toString(),
+                Boolean.TRUE.equals(w.getPetsAllowed()));
     }
 
     /** Серверный текст страницы; пустые части не выводятся. */

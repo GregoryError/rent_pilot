@@ -971,6 +971,19 @@ class WidgetBookingIntegrationTest {
                 "<li>Wi-Fi</li>", "<li>Стиральная машина</li>", "<p>Без вечеринок</p>");
         assertThat(html).doesNotContain("name=\"robots\"");
 
+        // Микроразметка жилья: без рейтингов; во фрейме её нет
+        String ld = html.substring(html.indexOf("<script type=\"application/ld+json\">") + 35);
+        JsonNode lodging = json.readTree(ld.substring(0, ld.indexOf("</script>")));
+        assertThat(lodging.path("@type").asText()).isEqualTo("LodgingBusiness");
+        assertThat(lodging.path("name").asText()).isEqualTo("Лофт у парка");
+        assertThat(lodging.path("url").asText()).isEqualTo("http://localhost/b/" + slug);
+        assertThat(lodging.path("description").asText()).isEqualTo("Светлый лофт у парка");
+        assertThat(lodging.path("amenityFeature")).hasSize(2);
+        assertThat(lodging.path("priceRange").asText()).isEqualTo("от 4 000 ₽ за ночь");
+        assertThat(lodging.has("aggregateRating") || lodging.has("review")).isFalse();
+        assertThat(mvc.perform(get("/b/" + slug + "/embed")).andReturn().getResponse().getContentAsString())
+                .doesNotContain("application/ld+json");
+
         // Хозяин скрыл блок в конструкторе — в серверном тексте его тоже нет
         jdbc.update("UPDATE booking_widgets SET config_json = ?::jsonb WHERE id = ?",
                 "{\"hidden\":[\"amenities\"]}", widget.getId());

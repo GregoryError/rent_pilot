@@ -97,6 +97,14 @@ public class WidgetConfigService {
         return links.isEmpty() ? null : links.get(0);
     }
 
+    /** Все фото страницы полными адресами — для микроразметки. */
+    public List<String> imageUrls(BookingWidget w, String baseUrl) {
+        List<String> urls = new ArrayList<>();
+        for (WidgetPhoto p : photos.list(w.getId())) urls.add(photos.previewUrl(p, baseUrl));
+        urls.addAll(photoLinks(w));
+        return urls;
+    }
+
     /** Фото, заданные ссылками (старый способ, {@code photos_json}): только https. */
     public static List<String> photoLinks(BookingWidget w) {
         List<String> links = new ArrayList<>();

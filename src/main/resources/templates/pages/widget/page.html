@@ -25,6 +25,8 @@
     <meta name="twitter:title" th:content="${widget.title}">
     <meta name="twitter:description" th:content="${shareDescription}">
     <meta name="twitter:image" th:if="${shareImage != null}" th:content="${shareImage}">
+    <!-- Микроразметка жилья: только то, что видно на странице; рейтингов и отзывов нет -->
+    <script type="application/ld+json" th:if="${jsonLd != null}" th:utext="${jsonLd}"></script>
     <link rel="preload" as="font" type="font/woff2" crossorigin th:each="f : ${fontFiles}" th:href="${f}">
     <style>
         html, body { margin: 0; }
