@@ -1029,4 +1029,49 @@ class WidgetBookingIntegrationTest {
                         .contains("<link rel=\"canonical\" href=\"http://localhost/legal/privacy\">", "— OptiRent</title>"));
         mvc.perform(get("/legal/no-such")).andExpect(status().isNotFound());
     }
+
+    @Test
+    @DisplayName("сайт: главная для анонима и редирект для вошедшего, посадочные, черновики инструкций")
+    void publicSite() throws Exception {
+        java.nio.charset.Charset utf8 = java.nio.charset.StandardCharsets.UTF_8;
+        String home = mvc.perform(get("/")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(utf8);
+        assertThat(home).contains("<title>OptiRent (ОптиРент) — календарь бронирования и синхронизация</title>",
+                "<link rel=\"canonical\" href=\"http://localhost/\">",
+                "<meta property=\"og:image\" content=\"http://localhost/img/og-default.png\">",
+                "\"@type\":\"Organization\"", "\"@type\":\"WebSite\"", "\"@type\":\"SoftwareApplication\"",
+                "\"@type\":\"FAQPage\"", "\"alternateName\":[\"ОптиРент\",\"Оптирент\",\"Opti Rent\"]",
+                "Яндекс Путешествия", "href=\"/register\"", "Это правда бесплатно?");
+        assertThat(home.split("<h1[ >]", -1).length - 1).isEqualTo(1);
+        // правки содержания: убраны площадки, цены конкурентов, лимит объектов и обещание «исключены»
+        assertThat(home).doesNotContain("Booking", "Airbnb", "Tvil", "Twil", "тыс/мес", "до 10 объектов",
+                "исключены", "небольшая команда", "fonts.googleapis");
+        // вопросы видны на странице, а не только в разметке
+        assertThat(home.split("Какие площадки поддерживаются\\?", -1).length - 1).isEqualTo(2);
+        mvc.perform(get("/img/og-default.png")).andExpect(status().isOk());
+        mvc.perform(get("/css/site.css")).andExpect(status().isOk());
+
+        // Вошедший хозяин на / попадает в шахматку, как и раньше
+        mvc.perform(get("/").with(user(host()))).andExpect(status().is3xxRedirection())
+                .andExpect(header().string("Location", "/calendar/grid"));
+
+        for (String path : List.of("/kalendar-bronirovaniya", "/modul-bronirovaniya", "/modul-bronirovaniya/tilda",
+                "/sinhronizaciya", "/instrukcii")) {
+            String html = mvc.perform(get(path)).andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString(utf8);
+            assertThat(html).as(path).contains("<link rel=\"canonical\" href=\"http://localhost" + path + "\">",
+                    "\"@type\":\"BreadcrumbList\"", "aria-label=\"Хлебные крошки\"", "href=\"/register\"");
+            assertThat(html).as(path).doesNotContain("name=\"robots\"");
+            assertThat(html.split("<h1[ >]", -1).length - 1).as(path).isEqualTo(1);
+        }
+        assertThat(mvc.perform(get("/sinhronizaciya")).andReturn().getResponse().getContentAsString(utf8))
+                .contains("\"@type\":\"FAQPage\"", "href=\"/instrukcii/cian\"");
+
+        // Черновик инструкции открывается, но в поиск не идёт
+        mvc.perform(get("/instrukcii/cian")).andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString(utf8))
+                        .contains("<meta name=\"robots\" content=\"noindex, follow\">", "Особенности Циан"));
+        mvc.perform(get("/instrukcii/no-such")).andExpect(status().isNotFound());
+        mvc.perform(get("/instrukcii/")).andExpect(status().isMovedPermanently());
+    }
 }

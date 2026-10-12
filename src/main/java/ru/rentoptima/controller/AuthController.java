@@ -10,9 +10,4 @@ public class AuthController {
     public String login() {
         return "pages/auth/login";
     }
-
-    @GetMapping("/")
-    public String root() {
-        return "redirect:/calendar/grid";
-    }
 }

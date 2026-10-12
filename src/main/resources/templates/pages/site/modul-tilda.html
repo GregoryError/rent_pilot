@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head th:replace="~{fragments/public :: head}"></head>
+<body>
+<th:block th:replace="~{fragments/public :: header}"></th:block>
+<nav th:replace="~{fragments/public :: crumbs}"></nav>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Модуль бронирования для&nbsp;Tilda и&nbsp;Wix</h1>
+    <p class="hero-sub">Как встроить модуль бронирования OptiRent на сайт, собранный в конструкторе. Понадобятся страница бронирования в OptiRent и возможность вставить на сайт блок с HTML-кодом.</p>
+    <a th:href="@{/register}" class="btn btn-lg">Создать страницу бронирования</a>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Перед началом</div>
+    <h2>Что нужно знать</h2>
+    <p class="section-text">Конструкторы сайтов часто вырезают чужие скрипты, поэтому для них у модуля есть отдельный вариант встраивания — во фрейме. Он выглядит так же и сам подстраивает свою высоту под содержимое.</p>
+    <p class="note">Вставка HTML-кода в Tilda и Wix обычно доступна на платных тарифах самих конструкторов. Проверьте это в своём кабинете до начала.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Шаги</div>
+    <h2>Встраивание в Tilda</h2>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num" aria-hidden="true">1</div>
+        <div class="step-body">
+          <div class="step-title">Разрешите свой сайт в OptiRent</div>
+          <div class="step-text">В настройках страницы бронирования, раздел «Адрес и встраивание», впишите адрес сайта в поле «Сайты, где можно разместить виджет» — например, <code>mysite.ru</code>. На сайтах не из списка модуль не откроется.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num" aria-hidden="true">2</div>
+        <div class="step-body">
+          <div class="step-title">Скопируйте код для конструкторов</div>
+          <div class="step-text">Там же, в настройках или в конструкторе модуля, — вкладка «Для Tilda / Wix». Это фрейм и короткий скрипт, который подгоняет его высоту.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num" aria-hidden="true">3</div>
+        <div class="step-body">
+          <div class="step-title">Добавьте в Tilda блок с HTML-кодом</div>
+          <div class="step-text">В редакторе страницы добавьте блок «HTML-код» (T123, категория «Другое»), откройте «Контент» и вставьте скопированный код.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num" aria-hidden="true">4</div>
+        <div class="step-body">
+          <div class="step-title">Опубликуйте страницу и проверьте</div>
+          <div class="step-text">В предпросмотре редактора модуль может не показаться — смотрите на опубликованной странице, по адресу вашего сайта.</div>
+        </div>
+      </li>
+    </ol>
+    <div class="shot-placeholder">Место под скриншот: блок T123 в редакторе Tilda с вставленным кодом</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Wix</div>
+    <h2>Встраивание в Wix</h2>
+    <p class="section-text">Порядок тот же: разрешите адрес сайта в OptiRent, скопируйте код со вкладки «Для Tilda / Wix» и вставьте его в элемент для встраивания HTML-кода в редакторе Wix. Задайте элементу ширину на всю колонку.</p>
+    <div class="shot-placeholder">Место под скриншот: элемент с HTML-кодом в редакторе Wix</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Если не получилось</div>
+    <h2>Частые причины</h2>
+    <ul class="list">
+      <li><strong>Пустое место вместо модуля.</strong> Адрес сайта не добавлен в список разрешённых или добавлен с опечаткой. Нужен адрес, по которому сайт открывается у гостей, — свой домен, а не служебный адрес конструктора.</li>
+      <li><strong>Модуль есть, но с прокруткой внутри.</strong> Конструктор вырезал скрипт подгонки высоты. Фрейм останется высотой 760 px — бронировать можно, но выглядит хуже.</li>
+      <li><strong>Сайт без https.</strong> Подключите сертификат в конструкторе: без него браузер может не показать модуль.</li>
+    </ul>
+    <p class="section-text section-text--gap">Самый простой вариант, если встроить не удаётся, — кнопка «Забронировать» со ссылкой на вашу <a th:href="@{/modul-bronirovaniya}">страницу бронирования</a>.</p>
+  </div>
+</section>
+
+<section th:replace="~{fragments/public :: cta('Нужна страница бронирования?', 'Создайте её бесплатно — код для сайта появится сразу.')}"></section>
+
+</main>
+
+<footer th:replace="~{fragments/public :: footer}"></footer>
+</body>
+</html>

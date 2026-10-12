@@ -28,6 +28,8 @@ import java.util.concurrent.CompletableFuture;
 public class IndexNowService {
 
     static final String ENDPOINT = "https://yandex.com/indexnow";
+    /** Сколько дней после правки текста страница считается «только что изменённой». */
+    static final int FRESH_DAYS = 2;
 
     private final SiteSettings site;
     private final RestClient.Builder restClientBuilder;
@@ -64,5 +66,23 @@ public class IndexNowService {
 
     public void submit(String... paths) {
         submit(List.of(paths));
+    }
+
+    /**
+     * Страницы сайта меняются только с выкладкой, поэтому о них сообщаем при старте — и
+     * лишь о тех, чей текст правили в последние дни ({@code lastmod} в {@link SitePages}).
+     * Перезапуск без правок текста ничего не отправляет: IndexNow просит не слать адреса,
+     * которые не менялись.
+     */
+    @org.springframework.context.event.EventListener(org.springframework.boot.context.event.ApplicationReadyEvent.class)
+    public void announceChangedPages() {
+        if (!enabled()) return;
+        submit(recentlyChanged(java.time.LocalDate.now()));
+    }
+
+    static List<String> recentlyChanged(java.time.LocalDate today) {
+        return SitePages.indexed().stream()
+                .filter(p -> !p.lastmod().isBefore(today.minusDays(FRESH_DAYS)) && !p.lastmod().isAfter(today))
+                .map(SitePages.Page::path).toList();
     }
 }

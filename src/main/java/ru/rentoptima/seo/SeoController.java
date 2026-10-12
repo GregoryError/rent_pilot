@@ -63,7 +63,7 @@ public class SeoController {
                 .append("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
         // Вне prod карта пустая: индексировать там нечего
         if (site.isProduction()) {
-            for (SitePages.Page p : SitePages.PAGES) {
+            for (SitePages.Page p : SitePages.indexed()) {
                 url(sb, p.path(), p.lastmod().toString());
             }
             for (BookingWidgetRepository.SitemapEntry w : widgetRepo.findForSitemap()) {

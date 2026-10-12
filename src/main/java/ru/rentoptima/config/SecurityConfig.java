@@ -53,6 +53,14 @@ public class SecurityConfig {
                                 new XFrameOptionsHeaderWriter(XFrameOptionsHeaderWriter.XFrameOptionsMode.DENY))))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
+                                // публичный сайт: главная, посадочные, инструкции (SiteController)
+                                "/",
+                                "/kalendar-bronirovaniya",
+                                "/modul-bronirovaniya",
+                                "/modul-bronirovaniya/**",
+                                "/sinhronizaciya",
+                                "/instrukcii",
+                                "/instrukcii/**",
                                 "/login",
                                 "/register",
                                 "/legal/**",

@@ -36,6 +36,9 @@ const ADMIN = [
   // /learning не проверяется: страница падает с 500 и ждёт отдельного решения
 ];
 const PUBLIC = [
+  '/', '/kalendar-bronirovaniya', '/modul-bronirovaniya', '/modul-bronirovaniya/tilda',
+  '/sinhronizaciya', '/instrukcii', '/instrukcii/avito', '/instrukcii/cian',
+  '/instrukcii/sutochno', '/instrukcii/ostrovok', '/instrukcii/domclick',
   '/login', '/register',
   '/legal/terms', '/legal/privacy', '/legal/consent', '/legal/feedback-consent',
   '/no-such-page', '/b/no-such-page',

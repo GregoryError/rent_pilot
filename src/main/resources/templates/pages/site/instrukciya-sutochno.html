@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head th:replace="~{fragments/public :: head}"></head>
+<body>
+<th:block th:replace="~{fragments/public :: header}"></th:block>
+<nav th:replace="~{fragments/public :: crumbs}"></nav>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Суточно: синхронизация календаря с&nbsp;OptiRent по&nbsp;iCal</h1>
+    <p class="hero-sub">Как подключить объявление на Суточно к календарю OptiRent: где взять ссылку экспорта, куда вставить ссылку импорта и чего ждать от синхронизации.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Шаг 1</div>
+    <h2>Где взять ссылку экспорта</h2>
+    <p class="section-text">В кабинете Суточно откройте настройки объявления или его календаря и найдите экспорт (синхронизацию) календаря в формате iCal. Скопируйте ссылку.</p>
+    <p class="section-text">В OptiRent: «Каналы» → «Подключить канал» → вставьте ссылку в поле «URL импорта».</p>
+    <div class="shot-placeholder">Место под скриншот: ссылка на календарь в кабинете Суточно</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Шаг 2</div>
+    <h2>Куда вставить ссылку импорта</h2>
+    <p class="section-text">После создания канала в OptiRent у него появится «URL экспорта». Скопируйте его и вставьте в кабинете Суточно в поле импорта календаря — там же, где брали ссылку экспорта.</p>
+    <div class="shot-placeholder">Место под скриншот: поле импорта календаря в кабинете Суточно</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Шаг 3</div>
+    <h2>Частота обновления</h2>
+    <p class="section-text">OptiRent забирает календарь площадки раз в 30 минут; интервал можно уменьшить до 15 минут в настройках канала.</p>
+    <p class="section-text">Как часто площадка забирает календарь OptiRent, видно на странице «Диагностика» в разделе «Каналы»: там показан настоящий интервал её обращений.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Важно</div>
+    <h2>Особенности Суточно</h2>
+    <p class="section-text"><strong>Импорт может быть скрыт.</strong> Если объект на Суточно уже синхронизируется через менеджер каналов, поле ручного импорта iCal в кабинете не показывается. Чтобы вставить ссылку OptiRent, сначала нужно отключить объект от менеджера каналов на стороне Суточно.</p>
+    <p class="section-text">Экспорт календаря Суточно при этом работает как обычно: занятость с Суточно в шахматку OptiRent попадает.</p>
+    <a class="more" th:href="@{/instrukcii}">← Все инструкции</a>
+  </div>
+</section>
+
+<section th:replace="~{fragments/public :: cta('Подключите Суточно к календарю', 'Бесплатно, за несколько минут.')}"></section>
+
+</main>
+
+<footer th:replace="~{fragments/public :: footer}"></footer>
+</body>
+</html>

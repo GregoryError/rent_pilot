@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head th:replace="~{fragments/public :: head}"></head>
+<body>
+<th:block th:replace="~{fragments/public :: header}"></th:block>
+<nav th:replace="~{fragments/public :: crumbs}"></nav>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Циан: синхронизация календаря с&nbsp;OptiRent по&nbsp;iCal</h1>
+    <p class="hero-sub">Как подключить объявление на Циан к календарю OptiRent: где взять ссылку экспорта, куда вставить ссылку импорта и чего ждать от синхронизации.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Шаг 1</div>
+    <h2>Где взять ссылку экспорта</h2>
+    <p class="section-text">В кабинете Циан откройте настройки объявления или его календаря и найдите экспорт (синхронизацию) календаря в формате iCal. Скопируйте ссылку.</p>
+    <p class="section-text">В OptiRent: «Каналы» → «Подключить канал» → вставьте ссылку в поле «URL импорта».</p>
+    <div class="shot-placeholder">Место под скриншот: ссылка на календарь в кабинете Циан</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Шаг 2</div>
+    <h2>Куда вставить ссылку импорта</h2>
+    <p class="section-text">После создания канала в OptiRent у него появится «URL экспорта». Скопируйте его и вставьте в кабинете Циан в поле импорта календаря — там же, где брали ссылку экспорта.</p>
+    <div class="shot-placeholder">Место под скриншот: поле импорта календаря в кабинете Циан</div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Шаг 3</div>
+    <h2>Частота обновления</h2>
+    <p class="section-text">OptiRent забирает календарь площадки раз в 30 минут; интервал можно уменьшить до 15 минут в настройках канала.</p>
+    <p class="section-text">Как часто площадка забирает календарь OptiRent, видно на странице «Диагностика» в разделе «Каналы»: там показан настоящий интервал её обращений.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Важно</div>
+    <h2>Особенности Циан</h2>
+    <p class="section-text"><strong>Удалённая запись не открывает дату сама.</strong> Если вы закрыли дни в OptiRent вручную, а потом удалили запись, Циан может оставить эти дни закрытыми у себя. Проверьте календарь в кабинете площадки и откройте даты там.</p>
+    <p class="section-text"><strong>Площадка может вернуть вашу же запись.</strong> Ручная запись из OptiRent, импортированная площадкой, иногда приходит обратно в её календаре как обычная блокировка. OptiRent распознаёт такие возвраты и не считает их второй бронью; если запись вы уже удалили, а дни всё ещё закрыты площадкой, — откройте их в шахматке через «Устранить блокировку».</p>
+    <a class="more" th:href="@{/instrukcii}">← Все инструкции</a>
+  </div>
+</section>
+
+<section th:replace="~{fragments/public :: cta('Подключите Циан к календарю', 'Бесплатно, за несколько минут.')}"></section>
+
+</main>
+
+<footer th:replace="~{fragments/public :: footer}"></footer>
+</body>
+</html>

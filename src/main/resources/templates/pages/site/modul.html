@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head th:replace="~{fragments/public :: head}"></head>
+<body>
+<th:block th:replace="~{fragments/public :: header}"></th:block>
+<nav th:replace="~{fragments/public :: crumbs}"></nav>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Модуль бронирования для&nbsp;сайта и&nbsp;страница бронирования по&nbsp;ссылке</h1>
+    <p class="hero-sub">Бесплатный модуль онлайн-бронирования для квартир: гость выбирает даты, видит цену и бронирует напрямую у вас — без комиссии площадок. Работает как отдельная страница по ссылке и как виджет бронирования на вашем сайте.</p>
+    <a th:href="@{/register}" class="btn btn-lg">Создать страницу бронирования</a>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Зачем</div>
+    <h2>Бронирование без комиссии — для тех, кто вас уже знает</h2>
+    <p class="section-text">Площадки приводят новых гостей и берут за это комиссию. Но часть гостей приходит к вам сама: возвращаются, советуют друзьям, пишут в мессенджер. Вести их обратно на площадку незачем.</p>
+    <p class="section-text">Страница бронирования OptiRent — это место, куда можно отправить такого гостя: календарь со свободными датами, цена, форма заявки.</p>
+
+    <figure class="shot">
+      <img th:src="@{/img/widget-page-1280.webp}"
+           th:srcset="@{/img/widget-page-640.webp} + ' 640w, ' + @{/img/widget-page-1280.webp} + ' 1280w'"
+           sizes="(max-width: 760px) calc(100vw - 34px), 710px"
+           width="1280" height="800"
+           alt="Страница бронирования квартиры на компьютере и на телефоне: фотографии, календарь с ценами по дням и форма заявки">
+      <figcaption>Страница бронирования на компьютере и на телефоне. Квартира на снимке — вымышленная.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Что умеет</div>
+    <h2>Что получает гость и что — вы</h2>
+    <div class="features">
+      <div class="f-card">
+        <h3>Страница по ссылке</h3>
+        <p>Адрес вида optirent.ru/b/ваше-название. Отправляйте в мессенджере — в превью будут название и фото квартиры. Свой сайт не нужен.</p>
+      </div>
+      <div class="f-card">
+        <h3>Виджет для сайта</h3>
+        <p>Тот же календарь и форма встраиваются в ваш сайт двумя строками кода. Для Tilda и Wix — отдельный код, см. <a th:href="@{/modul-bronirovaniya/tilda}">инструкцию</a>.</p>
+      </div>
+      <div class="f-card">
+        <h3>Календарь с ценами</h3>
+        <p>Свободные и занятые дни, цена каждой ночи, минимальный срок. Сумму со скидками и уборкой считает сервер — гость видит итог до отправки.</p>
+      </div>
+      <div class="f-card">
+        <h3>Заявка или сразу бронь</h3>
+        <p>В режиме заявки даты держатся за гостем, пока вы не ответите. В режиме «сразу бронь» подтверждать не нужно.</p>
+      </div>
+      <div class="f-card">
+        <h3>Пять компоновок и своё оформление</h3>
+        <p>Две колонки, одна колонка, полоса, кнопка или своя расстановка блоков. Цвет, скругление, шрифт, светлая и тёмная тема.</p>
+      </div>
+      <div class="f-card">
+        <h3>Даты закрываются сами</h3>
+        <p>Бронь и заявка сразу попадают в календарь, который забирают площадки. Двойную бронь на эти даты они не примут, как только обновят его.</p>
+      </div>
+      <div class="f-card">
+        <h3>Скидки и промокоды</h3>
+        <p>Скидка за неделю и за месяц, сбор за уборку, предоплата в процентах, промокоды со сроком и лимитом.</p>
+      </div>
+      <div class="f-card">
+        <h3>Карточка с QR-кодом</h3>
+        <p>Печатная карточка для квартиры: гость сканирует код и в следующий раз бронирует напрямую, с промокодом на повторный визит.</p>
+      </div>
+    </div>
+
+    <figure class="shot">
+      <img th:src="@{/img/widget-designer-1280.webp}"
+           th:srcset="@{/img/widget-designer-640.webp} + ' 640w, ' + @{/img/widget-designer-1280.webp} + ' 1280w'"
+           sizes="(max-width: 760px) calc(100vw - 34px), 710px"
+           width="1280" height="800" loading="lazy" decoding="async"
+           alt="Конструктор модуля бронирования: слева выбор компоновки, цвета и шрифта, справа живое превью страницы">
+      <figcaption>Конструктор: меняете компоновку и оформление — превью обновляется сразу.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Как начать</div>
+    <h2>Три шага до первой ссылки</h2>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num" aria-hidden="true">1</div>
+        <div class="step-body">
+          <div class="step-title">Добавьте квартиру</div>
+          <div class="step-text">Название и цена ночи. Если квартира уже выставлена на площадках — подключите их календари, чтобы занятые даты подтянулись.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num" aria-hidden="true">2</div>
+        <div class="step-body">
+          <div class="step-title">Создайте страницу бронирования</div>
+          <div class="step-text">Загрузите фото, напишите описание и правила, выберите компоновку и цвет в конструкторе.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num" aria-hidden="true">3</div>
+        <div class="step-body">
+          <div class="step-title">Отправьте ссылку или вставьте код</div>
+          <div class="step-text">Ссылка — в мессенджер и в профиль. Код — на сайт. Заявки приходят в раздел «Заявки» и, если подключён, в Telegram.</div>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Честно</div>
+    <h2>Чего в модуле нет</h2>
+    <ul class="list">
+      <li><strong>Онлайн-оплаты.</strong> Гость видит сумму и предоплату, а переводит её так, как вы договоритесь.</li>
+      <li><strong>Новых гостей «из ниоткуда».</strong> Модуль не заменяет площадки — он для тех, кто уже знает о вас или пришёл с вашего сайта.</li>
+      <li><strong>Мгновенной синхронизации.</strong> Площадки забирают календарь раз в 10–60 минут, некоторые реже.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Вопросы</div>
+    <h2>Частые вопросы</h2>
+    <div class="faq">
+      <div class="faq-item" th:each="q : ${page.faq}">
+        <h3 th:text="${q.question}">Вопрос</h3>
+        <p th:text="${q.answer}">Ответ</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section th:replace="~{fragments/public :: cta('Заведите свою страницу бронирования', 'Бесплатно и без комиссии с броней.')}"></section>
+
+</main>
+
+<footer th:replace="~{fragments/public :: footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head th:replace="~{fragments/public :: head}"></head>
+<body>
+<th:block th:replace="~{fragments/public :: header}"></th:block>
+
+<main id="main">
+
+<!-- Первый экран -->
+<section class="hero">
+  <div class="wrap">
+    <h1>Синхронизируем календари между&nbsp;площадками. Бесплатно.</h1>
+    <p class="hero-sub">OptiRent (ОптиРент) — календарь бронирования для&nbsp;посуточной аренды. Все брони с&nbsp;Авито, Циан, Суточно и&nbsp;других площадок в&nbsp;одной шахматке, синхронизация по&nbsp;iCal, своя страница бронирования без&nbsp;комиссии и&nbsp;подсказки по&nbsp;ценам. Для&nbsp;хозяев одной-двух квартир.</p>
+    <a th:href="@{/register}" class="btn btn-lg">Начать бесплатно</a>
+  </div>
+</section>
+
+<!-- Проблема -->
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Проблема</div>
+    <h2>Двойные брони — это вопрос времени</h2>
+    <p class="section-text">У вас квартира на Авито и Суточно. Гость бронирует на одной площадке — а на другой дата ещё открыта. Вы узнаёте об этом, когда уже поздно: две брони на одни даты, отмена, испорченные отзывы.</p>
+    <p class="section-text">Платные менеджеры каналов решают это, но предлагают сотню функций, которые хозяину одной квартиры не нужны. Вы просто хотите, чтобы календари совпадали.</p>
+  </div>
+</section>
+
+<!-- Как работает синхронизация -->
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Как работает</div>
+    <h2>OptiRent — iCal-хаб между вашими площадками</h2>
+    <p class="section-text">Каждая площадка отдаёт календарь броней в формате iCal. OptiRent собирает их, объединяет в один и отдаёт обратно. Бронь на одной площадке закрывает даты на остальных.</p>
+
+    <div class="sync-diagram">
+      <ul class="sync-row">
+        <li class="sync-platform">Авито</li>
+        <li class="sync-platform">Циан</li>
+        <li class="sync-platform">Суточно</li>
+        <li class="sync-platform">Островок</li>
+        <li class="sync-platform">DomClick</li>
+        <li class="sync-platform">Яндекс Путешествия</li>
+      </ul>
+      <div class="sync-arrows" aria-hidden="true">
+        <svg width="200" height="32" viewBox="0 0 200 32"><path d="M20,4 L100,28 M60,4 L100,28 M100,4 L100,28 M140,4 L100,28 M180,4 L100,28" stroke="#ccc" stroke-width="1" fill="none"/><path d="M100,28 L20,4 M100,28 L60,4 M100,28 L140,4 M100,28 L180,4" stroke="#ccc" stroke-width="1" fill="none" stroke-dasharray="3,3"/></svg>
+      </div>
+      <div class="sync-hub">OptiRent iCal-хаб</div>
+      <div class="sync-label">iCal — открытый формат календаря, его понимают все крупные площадки</div>
+    </div>
+
+    <p class="section-text section-text--gap">Синхронизация резко снижает риск двойной брони, но не делает его нулевым: iCal обновляется не мгновенно — площадки забирают календарь раз в 10–60 минут, некоторые реже.</p>
+    <a class="more" th:href="@{/sinhronizaciya}">Как устроена синхронизация →</a>
+  </div>
+</section>
+
+<!-- Шахматка -->
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Шахматка</div>
+    <h2>Все брони со всех площадок — в одной таблице</h2>
+    <p class="section-text">Видно, что занято, с какой площадки бронь, где окна и свободные дни. Не нужно открывать пять вкладок.</p>
+
+    <div class="chess-demo">
+      <div class="chess-header">
+        <span class="chess-month">Октябрь 2026</span>
+        <span>Пример шахматки</span>
+      </div>
+      <div class="chess-scroll" tabindex="0" role="group" aria-label="Пример шахматки: две квартиры, две недели. Прокручивается по горизонтали">
+      <div class="chess-grid" aria-hidden="true">
+        <div class="chess-cell chess-day-header chess-corner"></div>
+        <div class="chess-cell chess-day-header">1<br>чт</div>
+        <div class="chess-cell chess-day-header">2<br>пт</div>
+        <div class="chess-cell chess-day-header chess-weekend">3<br>сб</div>
+        <div class="chess-cell chess-day-header chess-weekend">4<br>вс</div>
+        <div class="chess-cell chess-day-header">5<br>пн</div>
+        <div class="chess-cell chess-day-header">6<br>вт</div>
+        <div class="chess-cell chess-day-header">7<br>ср</div>
+        <div class="chess-cell chess-day-header">8<br>чт</div>
+        <div class="chess-cell chess-day-header">9<br>пт</div>
+        <div class="chess-cell chess-day-header chess-weekend">10<br>сб</div>
+        <div class="chess-cell chess-day-header chess-weekend">11<br>вс</div>
+        <div class="chess-cell chess-day-header">12<br>пн</div>
+        <div class="chess-cell chess-day-header">13<br>вт</div>
+        <div class="chess-cell chess-day-header">14<br>ср</div>
+
+        <div class="chess-row-label">Студия у парка</div>
+        <div class="chess-cell chess-b chess-b--sutochno">С</div>
+        <div class="chess-cell chess-b chess-b--sutochno">С</div>
+        <div class="chess-cell chess-b chess-b--sutochno">С</div>
+        <div class="chess-cell"></div>
+        <div class="chess-cell"></div>
+        <div class="chess-cell chess-b chess-b--avito">А</div>
+        <div class="chess-cell chess-b chess-b--avito">А</div>
+        <div class="chess-cell chess-b chess-b--avito">А</div>
+        <div class="chess-cell chess-b chess-b--avito">А</div>
+        <div class="chess-cell chess-b chess-b--avito">А</div>
+        <div class="chess-cell"></div>
+        <div class="chess-cell"></div>
+        <div class="chess-cell chess-b chess-b--manual">Р</div>
+        <div class="chess-cell chess-b chess-b--manual">Р</div>
+
+        <div class="chess-row-label">Квартира на набережной</div>
+        <div class="chess-cell"></div>
+        <div class="chess-cell"></div>
+        <div class="chess-cell chess-b chess-b--cian">Ц</div>
+        <div class="chess-cell chess-b chess-b--cian">Ц</div>
+        <div class="chess-cell chess-b chess-b--cian">Ц</div>
+        <div class="chess-cell chess-b chess-b--cian">Ц</div>
+        <div class="chess-cell"></div>
+        <div class="chess-cell"></div>
+        <div class="chess-cell"></div>
+        <div class="chess-cell chess-b chess-b--direct">П</div>
+        <div class="chess-cell chess-b chess-b--direct">П</div>
+        <div class="chess-cell chess-b chess-b--direct">П</div>
+        <div class="chess-cell chess-b chess-b--direct">П</div>
+        <div class="chess-cell chess-b chess-b--direct">П</div>
+      </div>
+      </div>
+      <div class="chess-legend">
+        <span><span class="chess-legend-dot dot--avito"></span>Авито</span>
+        <span><span class="chess-legend-dot dot--cian"></span>Циан</span>
+        <span><span class="chess-legend-dot dot--sutochno"></span>Суточно</span>
+        <span><span class="chess-legend-dot dot--direct"></span>Прямая бронь</span>
+        <span><span class="chess-legend-dot dot--manual"></span>Ручная запись</span>
+        <span>Пустые — свободные дни</span>
+      </div>
+    </div>
+    <a class="more" th:href="@{/kalendar-bronirovaniya}">Подробнее о календаре бронирования →</a>
+  </div>
+</section>
+
+<!-- Модуль бронирования -->
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Модуль бронирования</div>
+    <h2>Своя страница бронирования — без комиссии</h2>
+    <p class="section-text">Гость, который уже жил у вас или пришёл по рекомендации, может забронировать напрямую — без площадки и её комиссии. OptiRent даёт для этого готовую страницу.</p>
+    <ul class="list">
+      <li><strong>Страница по ссылке</strong> — отправляйте её в мессенджере, свой сайт не нужен.</li>
+      <li><strong>Виджет для сайта и Tilda</strong> — тот же календарь и форма, встроенные в вашу страницу.</li>
+      <li><strong>Пять компоновок и своё оформление</strong> — цвет, скругление, шрифт, светлая или тёмная тема.</li>
+      <li><strong>Бронь сразу попадает в календарь</strong>, который забирают площадки, — даты на них закрываются без вашего участия.</li>
+      <li><strong>Карточка с QR-кодом</strong> для квартиры: гость сканирует и в следующий раз бронирует напрямую, с промокодом.</li>
+    </ul>
+
+    <figure class="shot">
+      <img th:src="@{/img/widget-page-1280.webp}"
+           th:srcset="@{/img/widget-page-640.webp} + ' 640w, ' + @{/img/widget-page-1280.webp} + ' 1280w'"
+           sizes="(max-width: 760px) calc(100vw - 34px), 710px"
+           width="1280" height="800" loading="lazy" decoding="async"
+           alt="Страница бронирования квартиры на компьютере и на телефоне: фотографии, календарь с ценами по дням и форма заявки">
+      <figcaption>Страница бронирования на компьютере и на телефоне. Квартира на снимке — вымышленная.</figcaption>
+    </figure>
+
+    <figure class="shot">
+      <img th:src="@{/img/widget-designer-1280.webp}"
+           th:srcset="@{/img/widget-designer-640.webp} + ' 640w, ' + @{/img/widget-designer-1280.webp} + ' 1280w'"
+           sizes="(max-width: 760px) calc(100vw - 34px), 710px"
+           width="1280" height="800" loading="lazy" decoding="async"
+           alt="Конструктор модуля бронирования: слева выбор компоновки, цвета и шрифта, справа живое превью страницы">
+      <figcaption>Конструктор: меняете компоновку и оформление — превью обновляется сразу.</figcaption>
+    </figure>
+
+    <a class="more" th:href="@{/modul-bronirovaniya}">Подробнее о модуле бронирования →</a>
+  </div>
+</section>
+
+<!-- Рекомендации по ценам -->
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">AI-рекомендации</div>
+    <h2>Подсказываем цену — вы решаете сами</h2>
+    <p class="section-text">AI смотрит на вашу занятость, сезон, день недели и цены конкурентов и предлагает скорректировать ставку — с объяснением почему. Цену на площадке вы меняете сами: OptiRent ничего не отправляет туда за вас.</p>
+
+    <div class="ai-demo">
+      <div class="ai-demo-header">Пример рекомендаций на ближайшие дни</div>
+      <div class="ai-rec">
+        <div class="ai-rec-row">
+          <div class="ai-rec-date">Сб, 10 окт</div>
+          <div class="ai-rec-body">
+            <div class="ai-rec-prices">
+              <span class="ai-rec-old">3 200 ₽</span>
+              <span class="ai-rec-arrow" aria-hidden="true">→</span>
+              <span class="ai-rec-new">3 800 ₽</span>
+              <span class="ai-rec-tag up">↑ +19%</span>
+            </div>
+            <div class="ai-rec-reason">Выходные, у конкурентов мало свободных дат.</div>
+          </div>
+        </div>
+        <div class="ai-rec-row">
+          <div class="ai-rec-date">Вт, 13 окт</div>
+          <div class="ai-rec-body">
+            <div class="ai-rec-prices">
+              <span class="ai-rec-old">3 200 ₽</span>
+              <span class="ai-rec-arrow" aria-hidden="true">→</span>
+              <span class="ai-rec-new down">2 600 ₽</span>
+              <span class="ai-rec-tag down">↓ −19%</span>
+            </div>
+            <div class="ai-rec-reason">Будний день, слабый спрос. До даты десять дней — без снижения возможен простой.</div>
+          </div>
+        </div>
+        <div class="ai-rec-row">
+          <div class="ai-rec-date">Пт, 16 окт</div>
+          <div class="ai-rec-body">
+            <div class="ai-rec-prices">
+              <span class="ai-rec-old">3 200 ₽</span>
+              <span class="ai-rec-arrow" aria-hidden="true">→</span>
+              <span class="ai-rec-new">3 500 ₽</span>
+              <span class="ai-rec-tag up">↑ +9%</span>
+            </div>
+            <div class="ai-rec-reason">Пятница, начало выходных. Конкуренты уже подняли цены.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="demo-note">Цифры в примере условные — они показывают, как выглядит рекомендация.</p>
+  </div>
+</section>
+
+<!-- Что ещё внутри -->
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Что ещё внутри</div>
+    <h2>Не только синхронизация</h2>
+    <div class="extras">
+      <div class="extra-card">
+        <h3>Ручные брони</h3>
+        <p>Бронь по телефону или от знакомых заносится в шахматку и уходит в календари всех площадок — даты на них закрываются.</p>
+      </div>
+      <div class="extra-card">
+        <h3>Учёт расходов</h3>
+        <p>Записывайте расходы по каждому объекту — уборка, расходники, ремонт. Видно, сколько реально зарабатываете.</p>
+      </div>
+      <div class="extra-card">
+        <h3>Отзывы гостей</h3>
+        <p>Отправьте гостю ссылку после выезда — он ставит оценки: чистота, инструкции, впечатление. Без регистрации.</p>
+      </div>
+      <div class="extra-card">
+        <h3>Страница горничной</h3>
+        <p>Отдельная ссылка с PIN-кодом: расписание уборок и выбранные вами отзывы. Без доступа к ценам и финансам.</p>
+      </div>
+      <div class="extra-card">
+        <h3>Сводка за месяц</h3>
+        <p>Загрузка, доход и прогноз по месяцам на одной странице — не надо считать в Excel.</p>
+      </div>
+      <div class="extra-card">
+        <h3>Мониторинг конкурентов</h3>
+        <p>Добавьте ссылки на похожие объекты рядом — их цены учитываются в рекомендациях.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Как подключиться -->
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Подключение</div>
+    <h2>Четыре шага</h2>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num" aria-hidden="true">1</div>
+        <div class="step-body">
+          <div class="step-title">Регистрация</div>
+          <div class="step-text">Email и пароль. Никаких анкет, паспортов и верификаций.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num" aria-hidden="true">2</div>
+        <div class="step-body">
+          <div class="step-title">Добавляете объект</div>
+          <div class="step-text">Название, адрес, базовая цена. Объектов может быть несколько.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num" aria-hidden="true">3</div>
+        <div class="step-body">
+          <div class="step-title">Вставляете iCal-ссылки</div>
+          <div class="step-text">Копируете ссылку на календарь из кабинета площадки. OptiRent даёт обратную ссылку — её вставляете на площадке. Где это находится — в <a th:href="@{/instrukcii}">инструкциях</a>.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num" aria-hidden="true">4</div>
+        <div class="step-body">
+          <div class="step-title">Готово</div>
+          <div class="step-text">Шахматка заполняется, календари сверяются по расписанию, появляются рекомендации по ценам.</div>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- Почему бесплатно -->
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Почему бесплатно</div>
+    <h2>Сделал для себя — делюсь с вами</h2>
+    <p class="section-text">Я сам сдаю квартиру посуточно и делаю OptiRent. Сначала это был инструмент для себя — потом стало понятно, что другим хозяевам он тоже пригодится.</p>
+    <p class="section-text">Денег не беру. Если проект вырастет и вы захотите поддержать — когда-нибудь появится такая возможность. Но это не обязательно и не скоро.</p>
+    <p class="section-text">Я не продаю ваши данные, не показываю рекламу и не прячу функции, чтобы продать «премиум». Всё, что есть, доступно всем.</p>
+  </div>
+</section>
+
+<!-- Планы -->
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Что в планах</div>
+    <h2>Живой проект — развиваем вместе</h2>
+    <ul class="roadmap">
+      <li>Подключение Авито через официальный API</li>
+      <li>Форум для хозяев — обмен опытом, советы, обсуждения</li>
+      <li>Инструменты для роста — помощь с объявлениями и описаниями</li>
+    </ul>
+    <p class="section-text section-text--gap">Если у вас есть идеи — пишите. Я делаю то, что нужно тем, кто сдаёт жильё, а не то, что хорошо звучит в презентации.</p>
+  </div>
+</section>
+
+<!-- Вопросы и ответы: те же тексты уходят в микроразметку FAQPage (SitePages) -->
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Вопросы</div>
+    <h2>Частые вопросы</h2>
+    <div class="faq">
+      <div class="faq-item" th:each="q : ${page.faq}">
+        <h3 th:text="${q.question}">Это правда бесплатно?</h3>
+        <p th:text="${q.answer}">Да.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section th:replace="~{fragments/public :: cta('Готовы попробовать?', 'Регистрация — минута. Логин — ваш email. Бесплатно, без подвоха.')}"></section>
+
+</main>
+
+<footer th:replace="~{fragments/public :: footer}"></footer>
+</body>
+</html>

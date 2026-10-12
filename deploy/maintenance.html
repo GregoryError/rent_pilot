@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>OptiRent обновляется</title>
+<!--
+    Страница-заглушка: nginx отдаёт её сам, когда приложение не отвечает (деплой, падение).
+    Один файл без скриптов, форм и внешних ресурсов — он должен открыться, даже если не
+    работает больше ничего. Как подключить — patches/INTEGRATION_SEO_MOBILE.md, фаза 4.
+-->
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: #fff; color: #111; line-height: 1.65; font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column;
+  }
+  .wrap { max-width: 760px; width: 100%; margin: 0 auto; padding: 0 24px; }
+  .nav { padding: 14px 0; border-bottom: 1px solid #e8e8e8; }
+  .logo { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 700; font-size: 17px; letter-spacing: -0.02em; }
+  main { flex: 1; display: flex; align-items: center; padding: 56px 0; }
+  h1 { font-size: clamp(26px, 5vw, 36px); font-weight: 700; line-height: 1.2; letter-spacing: -0.025em; margin-bottom: 14px; }
+  p { font-size: 16px; color: #555; max-width: 520px; }
+  p + p { margin-top: 10px; }
+  @media (max-width: 600px) { .wrap { padding: 0 16px; } }
+</style>
+</head>
+<body>
+<header class="nav">
+  <div class="wrap">
+    <span class="logo">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true">
+        <rect width="24" height="24" rx="6" fill="#2563eb"/>
+        <path d="M5 11.5 12 5.5l7 6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M8.5 18v-2.5M12 18v-4.5M15.5 18v-6.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      OptiRent
+    </span>
+  </div>
+</header>
+<main>
+  <div class="wrap">
+    <h1>OptiRent обновляется</h1>
+    <p>Зайдите через минуту — страница откроется как обычно.</p>
+    <p>Брони и календари в сохранности: площадки продолжат забирать их, как только обновление закончится.</p>
+  </div>
+</main>
+</body>
+</html>
