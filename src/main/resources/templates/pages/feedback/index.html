@@ -115,6 +115,10 @@
         </div>
     </div>
 
+    <!-- Поле-ловушка для ботов: людям не видно, с клавиатуры недоступно -->
+    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"
+           style="position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip-path: inset(50%); pointer-events: none;">
+
     <script th:inline="javascript">
         const propertyCode = /*[[${property.feedbackCode}]]*/ '';
         const sessionId = /*[[${sessionId}]]*/ '';
@@ -214,6 +218,7 @@
                     sessionId,
                     guestName: document.getElementById('guestName')?.value || null,
                     agreedToConsent: document.getElementById('consentCheck')?.checked || false,
+                    website: document.getElementById('website').value,
                     ...data
                 })
             }).catch(() => {});

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title th:text="'Карточка — ' + ${w.title}">Карточка</title>
+    <link rel="preload" as="font" type="font/woff2" crossorigin th:each="f : ${fontFiles}" th:href="${f}">
+    <link rel="stylesheet" th:href="@{/css/widget-card.css}">
+    <style th:utext="${fontCss}"></style>
+    <!-- Размер бумаги: правило @page подставляет скрипт под выбранный формат -->
+    <style id="page-rule"></style>
+    <style>
+        body { margin: 0; background: #e9e8e4; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; color: #1b1b19; }
+        .bar { position: sticky; top: 0; z-index: 1; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+               padding: 12px 16px; background: #fff; border-bottom: 1px solid #dddcd7; }
+        .bar button, .bar a { font: inherit; padding: 10px 18px; border-radius: 10px; border: 1px solid #c9c8c2; background: #fff; color: #1b1b19; text-decoration: none; cursor: pointer; }
+        .bar button { background: #1b1b19; color: #fff; border-color: #1b1b19; }
+        .bar button[disabled] { opacity: .5; cursor: default; }
+        .bar p { margin: 0; font-size: 14px; flex: 1 1 320px; }
+        .pc-sheet { margin: 24px auto; box-shadow: 0 2px 12px rgba(0,0,0,.2); }
+    </style>
+</head>
+<body>
+<div class="bar no-print">
+    <a th:href="@{'/settings/widgets/' + ${w.id} + '/card'}">← Назад</a>
+    <button type="button" id="print" disabled>Печать</button>
+    <p id="hint">В окне печати: <strong>масштаб 100 %</strong>, <strong>поля — «Нет»</strong>, колонтитулы выключены.</p>
+</div>
+<script type="application/json" id="card-data" th:utext="${cardData}"></script>
+<div id="sheet"></div>
+<script th:src="@{/js/widget-card.js}"></script>
+<script>
+    (function () {
+        var Card = window.OptiRentCard;
+        var d = JSON.parse(document.getElementById('card-data').textContent);
+        document.getElementById('page-rule').textContent = Card.pageCss(d);
+        document.getElementById('sheet').append(Card.sheet(d));
+        var s = Card.describe(d);
+        document.getElementById('hint').innerHTML += ' Бумага: <strong>' + s.paper + (s.landscape ? ', альбомная' : ', книжная') + '</strong>.';
+
+        // Печать — только когда шрифт и фото загружены: иначе на бумагу уйдёт запасной шрифт или пустое место
+        var photos = [].map.call(document.querySelectorAll('.pc-photo'), function (node) {
+            var url = (node.style.backgroundImage.match(/url\("?(.*?)"?\)/) || [])[1];
+            return !url ? null : new Promise(function (resolve) {
+                var img = new Image();
+                img.onload = img.onerror = resolve;
+                img.src = url;
+            });
+        });
+        var fonts = document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve();
+        Promise.all([fonts].concat(photos)).then(function () {
+            // Подгонка содержимого — по первой карточке, остальным те же множители
+            var cards = document.querySelectorAll('.pc-sheet .pc');
+            var k = Card.fit(cards[0]);
+            [].forEach.call(cards, function (card) { Card.apply(card, k); });
+            var button = document.getElementById('print');
+            button.disabled = false;
+            button.addEventListener('click', function () { window.print(); });
+            document.documentElement.dataset.ready = '1';
+            if (/[?&]auto=1/.test(location.search)) window.print();
+        });
+    })();
+</script>
+</body>
+</html>

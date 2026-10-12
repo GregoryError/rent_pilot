@@ -76,6 +76,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); flex-wrap: wrap; margin-bottom: var(--sp-2);">
                     <div>
                         <strong th:text="${it.response.guestName ?: 'Гость'}"></strong>
+                        <span class="tag tag--muted" th:if="${it.cardLabel != null}" th:text="${it.cardLabel}">с карточки в квартире</span>
                         <span class="muted text-sm" style="margin-left: var(--sp-2);"
                               th:text="${#temporals.format(it.response.createdAt, 'dd.MM.yyyy')}"></span>
                     </div>

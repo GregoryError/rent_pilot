@@ -59,7 +59,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock}.
  */
 @Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(properties = "app.uploads.dir=target/test-uploads")
+@SpringBootTest(properties = {"app.uploads.dir=target/test-uploads", "app.widget.requests-per-minute=100000"})
 @AutoConfigureMockMvc
 @DisplayName("Виджет бронирования на PostgreSQL: гонка, API, CORS, экспорт, админка")
 class WidgetBookingIntegrationTest {
@@ -696,5 +696,261 @@ class WidgetBookingIntegrationTest {
                 .andExpect(status().is3xxRedirection());
         assertThat(json.readTree(mvc.perform(get("/api/widget/" + slug + "/config")).andReturn()
                 .getResponse().getContentAsString()).path("metrikaId").asText()).isEqualTo("12345678");
+    }
+
+    // --- Печатная карточка (фаза 8)
+
+    private Long promo(String code, String until) {
+        return jdbc.queryForObject("INSERT INTO promo_codes(tenant_id, widget_id, code, discount_type, discount_value, valid_until)"
+                + " VALUES (?, ?, ?, 'PERCENT', 10, ?::date) RETURNING id", Long.class,
+                widget.getTenantId(), widget.getId(), code, until);
+    }
+
+    private String linkCode(String kind) {
+        return jdbc.queryForObject("SELECT code FROM widget_qr_links WHERE widget_id = ? AND kind = ? AND revoked_at IS NULL",
+                String.class, widget.getId(), kind);
+    }
+
+    @Test
+    @DisplayName("карточка: короткая ссылка ведёт на страницу с промокодом и меткой; истёкший промокод и перевыпуск — без промокода, но не 404")
+    void cardShortLinks() throws Exception {
+        String page = "/settings/widgets/" + widget.getId() + "/card";
+        Long promoId = promo("SNOVA10", LocalDate.now().plusMonths(12).toString());
+
+        // Первое открытие страницы заводит ссылки; сохранение привязывает к ним промокод
+        mvc.perform(get(page).with(user(host()))).andExpect(status().isOk());
+        mvc.perform(post(page).with(user(host())).with(csrf())
+                        .param("format", "A6").param("paper", "A6").param("lang", "both").param("promoCodeId", promoId.toString())
+                        .param("texts", "{\"ru\":{\"title\":\"Приезжайте ещё\"},\"en\":{}}"))
+                .andExpect(status().is3xxRedirection());
+        String card = linkCode("CARD");
+        String message = linkCode("MESSAGE");
+        assertThat(card).hasSize(7).isNotEqualTo(message);
+
+        mvc.perform(get("/q/" + card))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "/b/" + slug + "?promo=SNOVA10&utm_source=qr_card&utm_medium=print"))
+                .andExpect(header().string("Cache-Control", "no-store"));
+        mvc.perform(get("/q/" + message))
+                .andExpect(header().string("Location", "/b/" + slug + "?promo=SNOVA10&utm_source=guest_message&utm_medium=messenger"));
+        mvc.perform(get("/q/nosuch1")).andExpect(status().isNotFound());
+        // Ссылка обратной связи по адресу бронирования не открывается, и наоборот
+        mvc.perform(get("/q/" + linkCode("FEEDBACK"))).andExpect(status().isNotFound());
+        mvc.perform(get("/f/" + card)).andExpect(status().isNotFound());
+
+        // Промокод истёк — страница открывается без него, без ошибки
+        jdbc.update("UPDATE promo_codes SET valid_until = CURRENT_DATE - 1 WHERE id = ?", promoId);
+        mvc.perform(get("/q/" + card))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "/b/" + slug + "?utm_source=qr_card&utm_medium=print"));
+        jdbc.update("UPDATE promo_codes SET valid_until = NULL, active = FALSE WHERE id = ?", promoId);
+        mvc.perform(get("/q/" + card))
+                .andExpect(header().string("Location", "/b/" + slug + "?utm_source=qr_card&utm_medium=print"));
+        jdbc.update("UPDATE promo_codes SET active = TRUE WHERE id = ?", promoId);
+
+        // Перевыпуск: новый код, старый жив, но уже без промокода
+        mvc.perform(post(page + "/regenerate").with(user(host())).with(csrf())).andExpect(status().is3xxRedirection());
+        String fresh = linkCode("CARD");
+        assertThat(fresh).isNotEqualTo(card);
+        mvc.perform(get("/q/" + card))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "/b/" + slug + "?utm_source=qr_card&utm_medium=print"));
+        mvc.perform(get("/q/" + fresh))
+                .andExpect(header().string("Location", "/b/" + slug + "?promo=SNOVA10&utm_source=qr_card&utm_medium=print"));
+
+        // Промокод создаётся прямо со страницы карточки и сразу выбирается
+        mvc.perform(post(page + "/promo").with(user(host())).with(csrf())
+                        .param("discountType", "PERCENT").param("discountValue", "15")
+                        .param("validUntil", LocalDate.now().plusMonths(12).toString()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(flash().attribute("success", org.hamcrest.Matchers.containsString("SNOVA15")));
+        mvc.perform(get("/q/" + fresh))
+                .andExpect(header().string("Location", "/b/" + slug + "?promo=SNOVA15&utm_source=qr_card&utm_medium=print"));
+    }
+
+    @Test
+    @DisplayName("карточка: страницы открываются, QR скачивается, пароль Wi-Fi зашифрован и не попадает в публичный API, чужой tenant не проходит")
+    void cardPagesAndWifiSecret() throws Exception {
+        String page = "/settings/widgets/" + widget.getId() + "/card";
+        String password = "p;a,s:s-Секрет42";
+        mvc.perform(post(page).with(user(host())).with(csrf())
+                        .param("format", "A5").param("paper", "A4").param("lang", "ru").param("mono", "true")
+                        .param("showFeedback", "true").param("wifiSsid", "Loft-Guest").param("wifiPassword", password)
+                        .param("print", "true"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(header().string("Location", page + "/print?auto=1"));
+
+        // В базе пароль не лежит открытым текстом (в тестах ключа нет — шифрование отключено,
+        // поэтому проверяем только то, что значение прошло через колонку для шифротекста)
+        assertThat(jdbc.queryForObject("SELECT wifi_ssid FROM widget_cards WHERE widget_id = ?", String.class, widget.getId()))
+                .isEqualTo("Loft-Guest");
+
+        String html = mvc.perform(get(page).with(user(host()))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(html).contains("Не публикуйте эту ссылку в объявлениях на площадках", "card-data", "Loft-Guest");
+        String marker = "id=\"card-data\">";
+        int start = html.indexOf(marker) + marker.length();
+        JsonNode data = json.readTree(html.substring(start, html.indexOf("</script>", start)));
+        assertThat(data.path("format").asText()).isEqualTo("A5");
+        assertThat(data.path("mono").asBoolean()).isTrue();
+        assertThat(data.path("wifi").path("password").asText()).isEqualTo(password);
+        assertThat(data.path("wifi").path("qr").asText()).startsWith("<svg");
+        assertThat(data.path("links").path("card").asText()).isEqualTo("http://localhost/q/" + linkCode("CARD"));
+        assertThat(data.path("qr").path("card").asText()).startsWith("<svg");
+
+        mvc.perform(get(page + "/print").with(user(host()))).andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("id=\"sheet\"", "window.print"));
+        mvc.perform(get(page + "/qr.svg").param("kind", "card").with(user(host())))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", "image/svg+xml"))
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("<svg", "<path"));
+        mvc.perform(post(page + "/wifi-qr").with(user(host())).with(csrf()).param("ssid", "Net").param("password", "x;y"))
+                .andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).startsWith("<svg"));
+
+        // Пароль Wi-Fi — только на страницах хозяина
+        for (String url : List.of("/api/widget/" + slug + "/config", "/b/" + slug, "/b/" + slug + "/embed",
+                "/q/" + linkCode("CARD"), "/f/" + linkCode("FEEDBACK"))) {
+            String body = mvc.perform(get(url)).andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+            assertThat(body).as(url).doesNotContain(password, "Loft-Guest", "wifi");
+        }
+
+        // Чужой tenant: ни страницы, ни сохранения, ни ссылки, ни QR
+        Tenant stranger = new Tenant();
+        stranger.setId(widget.getTenantId() + 1000);
+        User other = new User();
+        other.setId(4L);
+        other.setTenant(stranger);
+        other.setUsername("other");
+        other.setPasswordHash("x");
+        other.setDisplayName("Чужой");
+        other.setRole(User.Role.OWNER);
+        TenantUserDetails alien = new TenantUserDetails(other);
+        String before = linkCode("CARD");
+        mvc.perform(get(page).with(user(alien))).andExpect(status().is3xxRedirection());
+        mvc.perform(get(page + "/print").with(user(alien))).andExpect(status().is3xxRedirection());
+        mvc.perform(get(page + "/qr.svg").with(user(alien))).andExpect(status().isNotFound());
+        mvc.perform(post(page + "/wifi-qr").with(user(alien)).with(csrf()).param("ssid", "Net")).andExpect(status().isNotFound());
+        mvc.perform(post(page).with(user(alien)).with(csrf()).param("format", "CARD").param("wifiSsid", "Hacked"));
+        mvc.perform(post(page + "/regenerate").with(user(alien)).with(csrf()));
+        mvc.perform(post(page + "/promo").with(user(alien)).with(csrf()).param("discountValue", "99"));
+        assertThat(linkCode("CARD")).isEqualTo(before);
+        assertThat(jdbc.queryForObject("SELECT format || ':' || wifi_ssid FROM widget_cards WHERE widget_id = ?",
+                String.class, widget.getId())).isEqualTo("A5:Loft-Guest");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM promo_codes WHERE widget_id = ? AND discount_value = 99",
+                Integer.class, widget.getId())).isZero();
+        mvc.perform(get(page)).andExpect(status().is3xxRedirection());
+    }
+
+    private Long stay(int fromOffset, int toOffset) {
+        return jdbc.queryForObject("INSERT INTO bookings(tenant_id, property_id, unit_type_id, status, check_in, check_out,"
+                        + " nights, amount, commission, amount_paid, amount_refunded, data_source, updated_at)"
+                        + " SELECT tenant_id, property_id, id, 'BOOKED', CURRENT_DATE + ?, CURRENT_DATE + ?, ?, 0, 0, 0, 0, 'MANUAL', NOW()"
+                        + " FROM unit_types WHERE id = ? RETURNING id",
+                Long.class, fromOffset, toOffset, toOffset - fromOffset, unitTypeId);
+    }
+
+    private void sendCardFeedback(String code, String session, String text) throws Exception {
+        mvc.perform(post("/api/feedback/submit").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cardCode\":\"" + code + "\",\"sessionId\":\"" + session + "\",\"message\":\"" + text
+                                + "\",\"completed\":true,\"website\":\"\"}"))
+                .andExpect(status().isOk());
+    }
+
+    private Long bookingOf(String session) {
+        return jdbc.queryForObject("SELECT booking_id FROM feedback_responses WHERE session_id = ?", Long.class, session);
+    }
+
+    @Test
+    @DisplayName("обратная связь с карточки: во время проживания привязывается к брони (день выезда включительно), в пересменку и вне проживания — без брони")
+    void cardFeedback() throws Exception {
+        jdbc.update("INSERT INTO feedback_questions(tenant_id, question_text, question_type, sort_order, active) VALUES"
+                + " (?, 'Общая оценка проживания', 'SCALE', 1, TRUE), (?, 'Что стоит улучшить', 'TEXT', 2, TRUE)",
+                widget.getTenantId(), widget.getTenantId());
+        mvc.perform(get("/settings/widgets/" + widget.getId() + "/card").with(user(host()))).andExpect(status().isOk());
+        String code = linkCode("FEEDBACK");
+
+        // Короткая форма: одно поле, без развилок и ссылок на площадки
+        String form = mvc.perform(get("/f/" + code)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(form).contains("Ваше сообщение", "Это не публичный отзыв", "Оценить проживание — по желанию")
+                .doesNotContainIgnoringCase("авито").doesNotContainIgnoringCase("booking.com").doesNotContain("отзыв на");
+        mvc.perform(get("/f/nosuch1")).andExpect(status().isNotFound());
+        mvc.perform(get("/feedback/no-such-code")).andExpect(status().isNotFound());
+
+        // 1. Никто не живёт — без брони, с пометкой источника
+        sendCardFeedback(code, "s-empty", "Не работает чайник");
+        assertThat(bookingOf("s-empty")).isNull();
+        assertThat(jdbc.queryForObject("SELECT source FROM feedback_responses WHERE session_id = 's-empty'", String.class))
+                .isEqualTo("CARD");
+        assertThat(jdbc.queryForObject("SELECT a.text_value FROM feedback_answers a JOIN feedback_responses r ON r.id = a.response_id"
+                + " WHERE r.session_id = 's-empty'", String.class)).isEqualTo("Не работает чайник");
+
+        // 2. Идёт проживание — привязка к этой брони
+        Long current = stay(-2, 3);
+        sendCardFeedback(code, "s-mid", "Нужна подушка");
+        assertThat(bookingOf("s-mid")).isEqualTo(current);
+
+        // 3. Утро выезда: check_out = сегодня — всё ещё эта бронь
+        jdbc.update("UPDATE bookings SET check_out = CURRENT_DATE WHERE id = ?", current);
+        sendCardFeedback(code, "s-checkout", "Спасибо");
+        assertThat(bookingOf("s-checkout")).isEqualTo(current);
+
+        // 4. Пересменка: сегодня один выезжает, другой заезжает — не угадываем
+        stay(0, 4);
+        sendCardFeedback(code, "s-turnover", "Шумно");
+        assertThat(bookingOf("s-turnover")).isNull();
+
+        // 5. Отменённая и будущая брони не считаются
+        jdbc.update("UPDATE bookings SET status = 'CANCELLED' WHERE id = ?", current);
+        sendCardFeedback(code, "s-next", "Всё хорошо");
+        assertThat(bookingOf("s-next")).isNotNull().isNotEqualTo(current);
+
+        // Honeypot: бот получает «сохранено», ответ не создаётся
+        mvc.perform(post("/api/feedback/submit").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cardCode\":\"" + code + "\",\"sessionId\":\"s-bot\",\"message\":\"spam\",\"completed\":true,\"website\":\"http://spam\"}"))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM feedback_responses WHERE session_id = 's-bot'", Integer.class)).isZero();
+
+        // Хозяин видит ответы с пометкой; чужой tenant — нет
+        String admin = mvc.perform(get("/feedback-admin").with(user(host()))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(admin).contains("с карточки в квартире", "Не работает чайник", "бронь не определена");
+        Tenant stranger = new Tenant();
+        stranger.setId(widget.getTenantId() + 1000);
+        User other = new User();
+        other.setId(5L);
+        other.setTenant(stranger);
+        other.setUsername("other");
+        other.setPasswordHash("x");
+        other.setDisplayName("Чужой");
+        other.setRole(User.Role.OWNER);
+        String foreign = mvc.perform(get("/feedback-admin").with(user(new TenantUserDetails(other))))
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(foreign).doesNotContain("Не работает чайник", "Нужна подушка");
+    }
+
+    @Test
+    @DisplayName("обычная анкета /feedback/{code}: работает как раньше, с honeypot; сессию нельзя дописать к чужому объекту")
+    void regularFeedbackProtected() throws Exception {
+        String fb = jdbc.queryForObject("SELECT p.feedback_code FROM properties p JOIN unit_types u ON u.property_id = p.id WHERE u.id = ?",
+                String.class, unitTypeId);
+        jdbc.update("INSERT INTO feedback_questions(tenant_id, question_text, question_type, sort_order, active) VALUES"
+                + " (?, 'Общая оценка проживания', 'SCALE', 1, TRUE)", widget.getTenantId());
+        mvc.perform(get("/feedback/" + fb)).andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("id=\"website\"", "step1"));
+
+        String body = "{\"propertyCode\":\"" + fb + "\",\"sessionId\":\"r-1\",\"overall\":9,\"cleanliness\":0,\"completed\":true%s}";
+        mvc.perform(post("/api/feedback/submit").contentType(MediaType.APPLICATION_JSON).content(body.formatted("")))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT source IS NULL AND booking_id IS NULL FROM feedback_responses WHERE session_id = 'r-1'",
+                Boolean.class)).isTrue();
+        assertThat(jdbc.queryForObject("SELECT a.numeric_value FROM feedback_answers a JOIN feedback_responses r ON r.id = a.response_id"
+                + " WHERE r.session_id = 'r-1'", Integer.class)).isEqualTo(9);
+
+        mvc.perform(post("/api/feedback/submit").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"propertyCode\":\"" + fb + "\",\"sessionId\":\"r-bot\",\"overall\":1,\"completed\":true,\"website\":\"x\"}"))
+                .andExpect(status().isOk());
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM feedback_responses WHERE session_id = 'r-bot'", Integer.class)).isZero();
     }
 }

@@ -108,6 +108,19 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findTop20ByTenantIdAndDataSourceAndStatusNotOrderByCreatedAtDesc(
             Long tenantId, String dataSource, String status);
 
+    /**
+     * Брони категории, по которым гость сейчас проживает: день заезда и день выезда
+     * включительно. Для привязки обратной связи с карточки в квартире.
+     */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.unitTypeId = :unitTypeId
+          AND b.status = 'BOOKED'
+          AND b.checkIn <= :day
+          AND b.checkOut >= :day
+    """)
+    List<Booking> findStaying(Long unitTypeId, LocalDate day);
+
     /** Заявки и брони виджета, созданные начиная с указанного момента. Для статистики виджета. */
     @Query("""
         SELECT b FROM Booking b

@@ -25,7 +25,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FeedbackAdminController {
 
+    private static final java.time.format.DateTimeFormatter DAY = java.time.format.DateTimeFormatter.ofPattern("dd.MM");
+
     private final PropertyRepository propertyRepo;
+    private final ru.rentoptima.repository.BookingRepository bookingRepo;
     private final FeedbackResponseRepository feedbackRepo;
     private final FeedbackAnswerRepository answerRepo;
     private final FeedbackQuestionRepository questionRepo;
@@ -76,6 +79,21 @@ public class FeedbackAdminController {
 
             Map<String, Object> item = new HashMap<>();
             item.put("response", r);
+            // С карточки в квартире: подпись и, если удалось определить, даты брони
+            boolean card = FeedbackResponse.SOURCE_CARD.equals(r.getSource());
+            String cardLabel = null;
+            if (card) {
+                cardLabel = "с карточки в квартире";
+                if (r.getBookingId() != null) {
+                    cardLabel += bookingRepo.findById(r.getBookingId())
+                            .filter(b -> tenantId.equals(b.getTenant().getId()))
+                            .map(b -> " · бронь " + b.getCheckIn().format(DAY) + " — " + b.getCheckOut().format(DAY))
+                            .orElse("");
+                } else {
+                    cardLabel += " · бронь не определена";
+                }
+            }
+            item.put("cardLabel", cardLabel);
             item.put("answers", allAnswers);
             item.put("avgRating", Math.round(avg * 10) / 10.0);
             return item;

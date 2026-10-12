@@ -34,6 +34,7 @@ import ru.rentoptima.config.WidgetCorsConfig;
 import ru.rentoptima.service.PhotoProcessor;
 import ru.rentoptima.service.WidgetBookingService;
 import ru.rentoptima.service.WidgetCalendar;
+import ru.rentoptima.service.WidgetCardService;
 import ru.rentoptima.service.WidgetConfigService;
 import ru.rentoptima.service.WidgetFunnelService;
 import ru.rentoptima.service.WidgetLayout;
@@ -285,6 +286,8 @@ public class WidgetAdminController {
     private static String sourceLabel(String source) {
         if (WidgetFunnelService.DIRECT.equals(source)) return "Прямые заходы и мессенджеры";
         if (WidgetFunnelService.OTHER.equals(source)) return "Прочие";
+        if (WidgetCardService.SOURCE_CARD.equals(source)) return "Карточка в квартире";
+        if (WidgetCardService.SOURCE_MESSAGE.equals(source)) return "Сообщение гостю";
         return source;
     }
 

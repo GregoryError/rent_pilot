@@ -46,7 +46,10 @@
             <h1 class="page-title">Конструктор виджета</h1>
             <p class="page-subtitle" th:text="${w.title}">Квартира на Садовой</p>
         </div>
-        <a class="btn btn-ghost" th:href="@{'/settings/widgets/' + ${w.id}}">← К настройкам</a>
+        <div style="display: flex; gap: var(--sp-2); flex-wrap: wrap;">
+            <a class="btn btn-ghost" th:href="@{'/settings/widgets/' + ${w.id} + '/card'}">Карточка для гостей</a>
+            <a class="btn btn-ghost" th:href="@{'/settings/widgets/' + ${w.id}}">← К настройкам</a>
+        </div>
     </div>
 
     <div class="dz" id="designer" th:attr="data-design=${designData}, data-frame=@{'/settings/widgets/' + ${w.id} + '/frame'}, data-config=@{'/api/widget/' + ${w.slug} + '/config'}">

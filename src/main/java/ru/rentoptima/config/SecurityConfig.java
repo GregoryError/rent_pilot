@@ -59,6 +59,8 @@ public class SecurityConfig {
                                 "/ical/**",
                                 "/book/**",
                                 "/b/**",
+                                "/q/**",
+                                "/f/**",
                                 "/widget/**",
                                 "/widget.js",
                                 "/w.js",

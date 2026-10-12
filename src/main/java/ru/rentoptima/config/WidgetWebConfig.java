@@ -3,6 +3,7 @@ package ru.rentoptima.config;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -21,7 +22,9 @@ import ru.rentoptima.service.PublicRateLimiter;
 @RequiredArgsConstructor
 public class WidgetWebConfig implements WebMvcConfigurer {
 
-    private static final int PER_MINUTE = 60;
+    /** Запросов в минуту с одного IP. Настраивается, чтобы тесты, идущие с одного адреса, в него не упирались. */
+    @Value("${app.widget.requests-per-minute:60}")
+    private int perMinute = 60;
 
     private final PublicRateLimiter rateLimiter;
 
@@ -46,12 +49,13 @@ public class WidgetWebConfig implements WebMvcConfigurer {
                                      Object handler) {
                 // Preflight не считаем: браузер шлёт его перед каждой заявкой с чужого сайта
                 if ("OPTIONS".equalsIgnoreCase(request.getMethod())) return true;
-                if (rateLimiter.allow("widget:" + request.getRemoteAddr(), PER_MINUTE, 60_000L)) {
+                if (rateLimiter.allow("widget:" + request.getRemoteAddr(), perMinute, 60_000L)) {
                     return true;
                 }
                 response.setStatus(429);
                 return false;
             }
-        }).addPathPatterns("/book/**", "/b/**", "/widget/**", "/api/widget/**");
+        }).addPathPatterns("/book/**", "/b/**", "/q/**", "/f/**", "/widget/**", "/api/widget/**",
+                "/feedback/**", "/api/feedback/**");
     }
 }

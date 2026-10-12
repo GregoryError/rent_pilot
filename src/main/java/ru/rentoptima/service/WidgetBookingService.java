@@ -98,6 +98,11 @@ public class WidgetBookingService {
         return widgetRepo.findBySlugAndActiveTrue(slug);
     }
 
+    /** Действующий виджет по id — для коротких ссылок карточки. */
+    public Optional<BookingWidget> findById(Long id) {
+        return widgetRepo.findById(id).filter(w -> Boolean.TRUE.equals(w.getActive()));
+    }
+
     /** Последний день, на который можно назначить выезд. */
     public static LocalDate maxDate(BookingWidget w, LocalDate today) {
         return today.plusDays(w.getBookingWindowDays());

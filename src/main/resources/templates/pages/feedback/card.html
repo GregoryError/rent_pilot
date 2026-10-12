@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Обратная связь</title>
+    <style>
+        :root { --accent: #2563eb; --bg: #fafaf9; --surface: #fff; --border: #e5e5e3; --text: #1c1c1a; --muted: #66655e; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); max-width: 480px; margin: 0 auto; padding: 24px 16px; line-height: 1.45; }
+        h1 { font-size: 1.4rem; font-weight: 600; margin-bottom: 6px; }
+        .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
+        label, summary { display: block; font-size: 0.95rem; font-weight: 600; margin-bottom: 8px; }
+        textarea, input[type=text] { width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 10px; font-size: 1rem; font-family: inherit; background: var(--surface); color: var(--text); }
+        textarea { min-height: 140px; resize: vertical; margin-bottom: 20px; }
+        textarea:focus-visible, input:focus-visible, .scale-btn:focus-visible, .btn:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+        details { margin-bottom: 20px; border-top: 1px solid var(--border); padding-top: 14px; }
+        summary { cursor: pointer; min-height: 32px; font-weight: 500; color: var(--muted); }
+        .q { font-size: 0.9rem; margin: 14px 0 8px; }
+        .scale { display: flex; gap: 4px; }
+        .scale-btn { flex: 1; min-width: 0; height: 44px; background: var(--surface); border: 2px solid var(--border); border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; color: var(--text); font-family: inherit; }
+        .scale-btn[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
+        .consent { display: none; gap: 10px; align-items: flex-start; font-size: 0.82rem; color: var(--muted); margin: 10px 0 0; font-weight: 400; }
+        .consent input { width: 20px; height: 20px; flex: none; margin-top: 1px; }
+        .btn { display: block; width: 100%; min-height: 52px; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: 10px; font-size: 1rem; font-weight: 600; cursor: pointer; font-family: inherit; }
+        .btn[disabled] { opacity: .55; cursor: default; }
+        .error { color: #b42318; font-size: 0.9rem; margin-bottom: 12px; }
+        .done { text-align: center; padding: 60px 0; }
+        .done-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 8px; }
+        .done-text { color: var(--muted); font-size: 0.95rem; }
+        .trap { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip-path: inset(50%); pointer-events: none; }
+        [hidden] { display: none !important; }
+    </style>
+</head>
+<body>
+<main id="form">
+    <h1>Что-то не так или есть пожелания?</h1>
+    <div class="subtitle">Сообщение увидит только хозяин <span th:text="${property.name}">квартиры</span>. Это не публичный отзыв.</div>
+
+    <label for="message">Ваше сообщение</label>
+    <textarea id="message" maxlength="2000" placeholder="Например: не работает чайник, нужна ещё одна подушка"></textarea>
+
+    <details>
+        <summary>Оценить проживание — по желанию</summary>
+        <div class="q" id="q-clean">Чистота квартиры</div>
+        <div class="scale" role="group" aria-labelledby="q-clean" data-field="cleanliness"></div>
+        <div class="q" id="q-instr">Понятность инструкций по заселению</div>
+        <div class="scale" role="group" aria-labelledby="q-instr" data-field="instructions"></div>
+        <div class="q" id="q-overall">Общее впечатление</div>
+        <div class="scale" role="group" aria-labelledby="q-overall" data-field="overall"></div>
+    </details>
+
+    <details>
+        <summary>Представиться — по желанию</summary>
+        <label for="guestName" style="font-weight: 500;">Как вас зовут</label>
+        <input type="text" id="guestName" maxlength="100" autocomplete="given-name">
+        <label class="consent" id="consent-block">
+            <input type="checkbox" id="consentCheck">
+            <span>Согласен на обработку имени для ответа на это сообщение.
+                <a href="/legal/feedback-consent" target="_blank" rel="noopener">Подробнее</a></span>
+        </label>
+    </details>
+
+    <input type="text" class="trap" id="website" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <div class="error" id="error" role="alert" hidden></div>
+    <button type="button" class="btn" id="send">Отправить хозяину</button>
+</main>
+
+<div class="done" id="done" role="status" hidden>
+    <div class="done-title" tabindex="-1" id="done-title">Спасибо, сообщение отправлено</div>
+    <div class="done-text">Хозяин получит его и постарается помочь.</div>
+</div>
+
+<script th:inline="javascript">
+    (function () {
+        const cardCode = /*[[${cardCode}]]*/ '';
+        const sessionId = /*[[${sessionId}]]*/ '';
+        const scores = {};
+        document.querySelectorAll('.scale').forEach(box => {
+            for (let i = 1; i <= 10; i++) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'scale-btn';
+                btn.textContent = i;
+                btn.setAttribute('aria-pressed', 'false');
+                btn.addEventListener('click', () => {
+                    box.querySelectorAll('.scale-btn').forEach(b => b.setAttribute('aria-pressed', 'false'));
+                    btn.setAttribute('aria-pressed', 'true');
+                    scores[box.dataset.field] = i;
+                });
+                box.append(btn);
+            }
+        });
+
+        const name = document.getElementById('guestName');
+        const consent = document.getElementById('consentCheck');
+        name.addEventListener('input', () => {
+            document.getElementById('consent-block').style.display = name.value.trim() ? 'flex' : 'none';
+        });
+
+        const error = document.getElementById('error');
+        const send = document.getElementById('send');
+        function fail(text) {
+            error.textContent = text;
+            error.hidden = false;
+            send.disabled = false;
+        }
+
+        send.addEventListener('click', () => {
+            const message = document.getElementById('message').value.trim();
+            if (!message && !Object.keys(scores).length) return fail('Напишите пару слов или поставьте оценку');
+            if (name.value.trim() && !consent.checked) return fail('Чтобы указать имя, поставьте отметку о согласии');
+            error.hidden = true;
+            send.disabled = true;
+            fetch('/api/feedback/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(Object.assign({
+                    cardCode, sessionId, message,
+                    guestName: name.value.trim() || null,
+                    agreedToConsent: consent.checked,
+                    website: document.getElementById('website').value,
+                    completed: true
+                }, scores))
+            }).then(r => r.json().then(body => ({ ok: r.ok, body }))).then(res => {
+                if (!res.ok) return fail(res.body.error || 'Не удалось отправить. Попробуйте ещё раз');
+                document.getElementById('form').hidden = true;
+                document.getElementById('done').hidden = false;
+                document.getElementById('done-title').focus();
+            }).catch(() => fail('Не удалось отправить. Проверьте интернет и попробуйте ещё раз'));
+        });
+    })();
+</script>
+</body>
+</html>

@@ -14,12 +14,15 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.BookingWidget;
+import ru.rentoptima.entity.WidgetQrLink;
 import ru.rentoptima.service.WidgetBookingService;
+import ru.rentoptima.service.WidgetCardService;
 import ru.rentoptima.service.WidgetConfigService;
 import ru.rentoptima.service.WidgetLayout;
 import ru.rentoptima.service.WidgetOrigins;
 
 import java.net.URI;
+import java.time.LocalDate;
 import java.util.Map;
 
 /**
@@ -29,6 +32,8 @@ import java.util.Map;
  *       превью (OpenGraph) и настройками виджета, встроенными в страницу;</li>
  *   <li>{@code GET /b/{slug}/embed} — она же для вставки во фрейм на сайт хозяина
  *       (конструкторы сайтов, которые режут скрипты): сообщает родителю свою высоту;</li>
+ *   <li>{@code GET /q/{code}} — короткий адрес с печатной карточки: редирект на страницу
+ *       бронирования с промокодом и меткой источника;</li>
  *   <li>прежние адреса {@code /book/{secret}} и {@code /widget/{secret}} — постоянные
  *       редиректы на новые. Срока у них нет: ссылки, которые хозяева уже разослали
  *       гостям и вставили на сайты, должны работать всегда. Не удалять.</li>
@@ -43,6 +48,7 @@ public class WidgetPublicController {
 
     private final WidgetBookingService widgets;
     private final WidgetConfigService configs;
+    private final WidgetCardService cards;
 
     @GetMapping("/b/{slug}")
     public String page(@PathVariable String slug, Model model, HttpServletRequest request) {
@@ -77,6 +83,26 @@ public class WidgetPublicController {
         model.addAttribute("shareDescription", shareDescription(w));
         model.addAttribute("pageClass", (embed ? "embed " : "") + "page page--" + themeOf(w));
         model.addAttribute("themeColor", accent);
+    }
+
+    // --- Короткие адреса печатной карточки
+
+    /**
+     * QR с карточки и ссылка из сообщения гостю. Редирект временный (302) и не кэшируется:
+     * куда он ведёт, хозяин может поменять уже после печати — сменить или отключить
+     * промокод. Отозванная ссылка всё равно открывает страницу бронирования.
+     */
+    @GetMapping("/q/{code}")
+    public ResponseEntity<Void> shortLink(@PathVariable String code, HttpServletRequest request) {
+        WidgetQrLink link = cards.findLink(code)
+                .filter(l -> !WidgetQrLink.KIND_FEEDBACK.equals(l.getKind()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        BookingWidget w = widgets.findById(link.getWidgetId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return ResponseEntity.status(HttpStatus.FOUND)
+                .header(HttpHeaders.LOCATION, request.getContextPath() + cards.target(link, w, LocalDate.now()))
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .build();
     }
 
     // --- Прежние адреса
