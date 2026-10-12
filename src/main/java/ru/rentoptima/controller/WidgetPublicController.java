@@ -15,6 +15,8 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.WidgetQrLink;
+import ru.rentoptima.seo.SeoFilter;
+import ru.rentoptima.seo.SiteSettings;
 import ru.rentoptima.service.WidgetBookingService;
 import ru.rentoptima.service.WidgetCardService;
 import ru.rentoptima.service.WidgetConfigService;
@@ -49,10 +51,15 @@ public class WidgetPublicController {
     private final WidgetBookingService widgets;
     private final WidgetConfigService configs;
     private final WidgetCardService cards;
+    private final SiteSettings site;
 
     @GetMapping("/b/{slug}")
-    public String page(@PathVariable String slug, Model model, HttpServletRequest request) {
-        fill(model, bySlug(slug), request, false);
+    public String page(@PathVariable String slug, Model model, HttpServletRequest request,
+                       HttpServletResponse response) {
+        BookingWidget w = bySlug(slug);
+        // В поиске страница — только с согласия хозяина
+        if (!Boolean.TRUE.equals(w.getSearchIndexed())) response.setHeader(SeoFilter.HEADER, SeoFilter.NOINDEX);
+        fill(model, w, request, false);
         return "pages/widget/page";
     }
 
@@ -62,6 +69,7 @@ public class WidgetPublicController {
                         HttpServletResponse response) {
         BookingWidget w = bySlug(slug);
         response.setHeader("Content-Security-Policy", WidgetOrigins.frameAncestors(w.getAllowedOrigins()));
+        response.setHeader(SeoFilter.HEADER, SeoFilter.NOINDEX);
         fill(model, w, request, true);
         return "pages/widget/page";
     }
@@ -78,9 +86,21 @@ public class WidgetPublicController {
         model.addAttribute("widget", w);
         model.addAttribute("embed", embed);
         model.addAttribute("configJson", configs.inlineJson(w, baseUrl));
-        model.addAttribute("pageUrl", baseUrl + "/b/" + w.getSlug());
+        model.addAttribute("pageUrl", site.canonical(request, "/b/" + w.getSlug()));
+        model.addAttribute("indexed", !embed && Boolean.TRUE.equals(w.getSearchIndexed()));
+        model.addAttribute("pageTitle", pageTitle(w));
         model.addAttribute("shareImage", configs.shareImage(w, baseUrl));
         model.addAttribute("shareDescription", shareDescription(w));
+        // Текст для поисковика и для тех, у кого не загрузился скрипт: то же, что показывает
+        // виджет, но в самом HTML. Блоки, скрытые хозяином в конструкторе, не выводятся.
+        java.util.Set<String> hidden = new java.util.HashSet<>();
+        WidgetLayout.normalize(w.getConfigJson()).path("hidden").forEach(n -> hidden.add(n.asText()));
+        model.addAttribute("about", embed ? null : new About(
+                hidden.contains("description") ? null : blankToNull(w.getDescription()),
+                hidden.contains("amenities") ? java.util.List.of() : WidgetLayout.amenities(w.getAmenities()),
+                hidden.contains("rules") ? null : blankToNull(w.getRules()),
+                hidden.contains("rules") ? null : blankToNull(w.getCancellationPolicy()),
+                blankToNull(w.getAddressHint())));
         model.addAttribute("pageClass", (embed ? "embed " : "") + "page page--" + themeOf(w));
         model.addAttribute("themeColor", accent);
     }
@@ -136,8 +156,29 @@ public class WidgetPublicController {
                 .build();
     }
 
+    /** Нет такой страницы — 404; была, но хозяин удалил — 410: поисковик уберёт её быстрее. */
     private BookingWidget bySlug(String slug) {
-        return widgets.findBySlug(slug).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return widgets.findBySlug(slug).orElseThrow(() -> new ResponseStatusException(
+                widgets.wasDeleted(slug) ? HttpStatus.GONE : HttpStatus.NOT_FOUND));
+    }
+
+    /** Серверный текст страницы; пустые части не выводятся. */
+    public record About(String description, java.util.List<String> amenities, String rules,
+                        String cancellation, String address) {
+        public boolean isEmpty() {
+            return description == null && amenities.isEmpty() && rules == null && cancellation == null;
+        }
+    }
+
+    private static String blankToNull(String s) {
+        return s == null || s.isBlank() ? null : s.trim();
+    }
+
+    /** Заголовок вкладки и сниппета: название жилья и что тут делают; длинное название — как есть. */
+    static String pageTitle(BookingWidget w) {
+        String title = w.getTitle().trim();
+        String suffix = " — бронирование напрямую";
+        return title.length() + suffix.length() <= 60 ? title + suffix : title;
     }
 
     private BookingWidget bySecret(String secret) {
@@ -152,7 +193,10 @@ public class WidgetPublicController {
     /** Описание для превью ссылки: начало описания жилья, иначе общая фраза. */
     static String shareDescription(BookingWidget w) {
         String d = w.getDescription();
-        if (d == null || d.isBlank()) return "Бронирование напрямую у хозяина, без комиссии площадок.";
+        // Без описания фраза общая — название жилья делает её своей у каждой страницы
+        if (d == null || d.isBlank()) {
+            return w.getTitle().trim() + " — бронирование напрямую у хозяина, без комиссии площадок.";
+        }
         String flat = d.replaceAll("\\s+", " ").trim();
         return flat.length() > 200 ? flat.substring(0, 197) + "…" : flat;
     }

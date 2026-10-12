@@ -182,6 +182,17 @@
                 <div class="form-hint">Латинские буквы, цифры и дефис. Если поменять адрес, прежняя ссылка /b/… перестанет открываться.</div>
             </div>
             <div class="form-group">
+                <label style="display: flex; align-items: center; gap: var(--sp-2); cursor: pointer;">
+                    <input type="checkbox" name="searchIndexed" value="true" th:checked="${w.searchIndexed}">
+                    Показывать страницу в поиске
+                </label>
+                <div class="form-hint">
+                    Включено — страницу смогут найти в Яндексе и Google по названию и описанию жилья.
+                    Выключено — она открывается только по ссылке, а поисковикам запрещено её показывать;
+                    из выдачи она пропадёт не сразу, обычно за несколько дней.
+                </div>
+            </div>
+            <div class="form-group">
                 <label class="form-label">Счётчик Яндекс.Метрики</label>
                 <input type="text" name="metrikaId" maxlength="12" inputmode="numeric" pattern="[0-9]*" th:value="${w.metrikaId}"
                        class="form-input form-input--sm" placeholder="12345678" style="max-width: 220px;">

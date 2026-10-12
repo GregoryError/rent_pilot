@@ -169,6 +169,10 @@ public class BookingWidget {
     @Column(name = "metrika_id", length = 20)
     private String metrikaId;
 
+    /** Показывать ли страницу /b/<slug> в поиске. Выключено — noindex и нет в sitemap.xml. */
+    @Column(name = "search_indexed", nullable = false)
+    private Boolean searchIndexed = true;
+
     /** Удобства, по одному в строке. */
     @Column(columnDefinition = "TEXT")
     private String amenities;

@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Регистрация — RentOptima</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Регистрация — OptiRent</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
     <link rel="stylesheet" th:href="@{/css/core.css}">
     <script th:src="@{/js/theme.js}"></script>
     <meta name="_csrf" th:content="${_csrf.token}">
@@ -111,11 +112,11 @@
 <body class="no-floating-chat">
 
 <div class="register-box">
-    <div class="register-title">
+    <a th:href="@{/}" class="register-title" style="color: inherit; text-decoration: none;">
         <svg th:replace="~{fragments/logo :: mark(30)}"></svg>
-        <span>RentOptima</span>
-    </div>
-    <div class="register-subtitle">Регистрация нового аккаунта</div>
+        <span>OptiRent</span>
+    </a>
+    <h1 class="register-subtitle" style="font-weight: 400;">Регистрация нового аккаунта</h1>
 
     <div th:if="${error}" class="alert-error" th:text="${error}"></div>
 

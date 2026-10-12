@@ -98,6 +98,12 @@ public class WidgetBookingService {
         return widgetRepo.findBySlugAndActiveTrue(slug);
     }
 
+    /** Была ли по этому адресу страница, которую хозяин удалил. */
+    public boolean wasDeleted(String slug) {
+        return WidgetSlug.valid(slug)
+                && widgetRepo.findBySlug(slug).filter(w -> !Boolean.TRUE.equals(w.getActive())).isPresent();
+    }
+
     /** Действующий виджет по id — для коротких ссылок карточки. */
     public Optional<BookingWidget> findById(Long id) {
         return widgetRepo.findById(id).filter(w -> Boolean.TRUE.equals(w.getActive()));

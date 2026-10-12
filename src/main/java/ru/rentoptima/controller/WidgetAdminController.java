@@ -30,6 +30,7 @@ import ru.rentoptima.repository.PromoCodeRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.seo.IndexNowService;
 import ru.rentoptima.config.WidgetCorsConfig;
 import ru.rentoptima.service.PhotoProcessor;
 import ru.rentoptima.service.WidgetBookingService;
@@ -79,6 +80,7 @@ public class WidgetAdminController {
     private final BookingRepository bookingRepo;
     private final PhotoProcessor photoProcessor;
     private final WidgetCorsConfig cors;
+    private final IndexNowService indexNow;
 
     private static final Map<String, String> BLOCK_LABELS = Map.ofEntries(
             Map.entry("gallery", "Фотографии"), Map.entry("title", "Название и цена «от»"),
@@ -149,6 +151,7 @@ public class WidgetAdminController {
         w.setSlug(WidgetSlug.unique(WidgetSlug.fromTitle(cleanTitle), widgetRepo::existsBySlug));
         w.setTitle(cleanTitle);
         widgetRepo.save(w);
+        indexNow.submit("/b/" + w.getSlug());
 
         redirect.addFlashAttribute("success", "Страница бронирования создана");
         return "redirect:/settings/widgets/" + w.getId();
@@ -447,6 +450,7 @@ public class WidgetAdminController {
                          @RequestParam(required = false) String metrikaId,
                          @RequestParam(required = false) String amenities,
                          @RequestParam(required = false) String mapUrl,
+                         @RequestParam(required = false, defaultValue = "false") boolean searchIndexed,
                          RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
         BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
@@ -506,7 +510,9 @@ public class WidgetAdminController {
         w.setCancellationPolicy(clean(cancellationPolicy, 5000));
         w.setAddressHint(clean(addressHint, 255));
         w.setPhotosJson(parsePhotos(photos));
+        w.setSearchIndexed(searchIndexed);
         w.setUpdatedAt(LocalDateTime.now());
+        String oldSlug = w.getSlug();
 
         // Адрес меняем последним: если он занят или с ошибкой, остальное всё равно сохраняется
         String slugError = null;
@@ -523,6 +529,10 @@ public class WidgetAdminController {
         }
         widgetRepo.save(w);
         cors.evict();
+        // Поисковикам: страница изменилась (или снята с индексации — тогда они увидят noindex);
+        // по старому адресу после переименования теперь 404
+        if (oldSlug.equals(w.getSlug())) indexNow.submit("/b/" + w.getSlug());
+        else indexNow.submit("/b/" + oldSlug, "/b/" + w.getSlug());
 
         // Тему меняют и здесь, а цвет — в конструкторе: проверяем их сочетание
         String accentWarning = WidgetLayout.accentWarning(
@@ -708,6 +718,7 @@ public class WidgetAdminController {
         w.setActive(false);
         w.setUpdatedAt(LocalDateTime.now());
         widgetRepo.save(w);
+        indexNow.submit("/b/" + w.getSlug());
         redirect.addFlashAttribute("success", "Страница бронирования удалена");
         return "redirect:/settings/widgets";
     }

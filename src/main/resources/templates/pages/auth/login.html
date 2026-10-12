@@ -1,22 +1,23 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход — RentOptima</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Вход — OptiRent</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
     <link rel="stylesheet" th:href="@{/css/core.css}">
     <script th:src="@{/js/theme.js}"></script>
 </head>
 <body>
     <div class="login-page">
         <div class="login-card">
-            <div class="login-title" style="display: flex; align-items: center; justify-content: center; gap: 10px;">
+            <a th:href="@{/}" class="login-title" style="display: flex; align-items: center; justify-content: center; gap: 10px; color: inherit; text-decoration: none;">
                 <svg th:replace="~{fragments/logo :: mark(32)}"></svg>
-                <span>RentOptima</span>
-            </div>
-            <div class="login-subtitle">Система оптимизации посуточной аренды</div>
+                <span>OptiRent</span>
+            </a>
+            <h1 class="login-subtitle" style="font-weight: 400;">Вход в календарь бронирования</h1>
 
             <div th:if="${param.error}" class="login-error">
                 Неверный логин или пароль

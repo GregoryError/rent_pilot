@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<!--
+    Общее для <head> всех страниц.
+      icons        — значки сайта, манифест и предзагрузка шрифта (Inter лежит у нас, в /fonts)
+      verification — подтверждение прав в Яндекс.Вебмастере и Google Search Console;
+                     коды берутся из YANDEX_VERIFICATION / GOOGLE_VERIFICATION, пусто — тега нет
+      social       — canonical, описание, OpenGraph и Twitter для индексируемой страницы
+
+    Подключение: <th:block th:replace="~{fragments/site :: icons}"></th:block>
+-->
+<th:block th:fragment="icons">
+    <link rel="icon" href="/favicon.ico" sizes="48x48">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="manifest" href="/site.webmanifest">
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="/fonts/inter-cyrillic-wght-normal.woff2">
+</th:block>
+
+<th:block th:fragment="verification">
+    <meta name="yandex-verification" th:if="${!#strings.isEmpty(site.yandexVerification)}"
+          th:content="${site.yandexVerification}">
+    <meta name="google-site-verification" th:if="${!#strings.isEmpty(site.googleVerification)}"
+          th:content="${site.googleVerification}">
+</th:block>
+
+<th:block th:fragment="social(title, description, url, image)">
+    <meta name="description" th:content="${description}">
+    <link rel="canonical" th:href="${url}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="OptiRent">
+    <meta property="og:locale" content="ru_RU">
+    <meta property="og:title" th:content="${title}">
+    <meta property="og:description" th:content="${description}">
+    <meta property="og:url" th:content="${url}">
+    <meta property="og:image" th:if="${image != null}" th:content="${image}">
+    <meta name="twitter:card" th:content="${image != null ? 'summary_large_image' : 'summary'}">
+    <meta name="twitter:title" th:content="${title}">
+    <meta name="twitter:description" th:content="${description}">
+    <meta name="twitter:image" th:if="${image != null}" th:content="${image}">
+</th:block>
+</head>
+<body></body>
+</html>

@@ -6,7 +6,7 @@
 | Фаза | Что | Статус |
 |---|---|---|
 | 1 | Мобильный адаптив всех страниц, тест горизонтальной прокрутки | сделана, миграций нет |
-| 2 | Технический SEO: индексация, robots, sitemap, мета, IndexNow | — |
+| 2 | Технический SEO: индексация, robots, sitemap, мета, IndexNow | сделана, миграция **V34**; приёмка sitemap / og:image / Lighthouse — после фазы 4 |
 | 3 | JSON-LD | — |
 | 4 | Главная (лендинг), посадочные, инструкции, страница-заглушка | — |
 | 5 | Метрика и баннер о cookie | — |
@@ -156,3 +156,254 @@ mvn -o test -Dtest=MobileLayoutTest
       прокрутки страницы
 - [ ] Несуществующий адрес → своя страница 404
 - [ ] На компьютере (≥ 1100 px) всё выглядит как раньше
+
+---
+
+## Фаза 2 — технический SEO
+
+### Выкладка
+
+1. **На prod в `.env` и в compose-файл добавить `APP_ENVIRONMENT=prod`.** Без этой переменной
+   сайт считает себя не-prod и закрывает от индексации ВСЁ (заголовок на каждом ответе и
+   `Disallow: /`). Так сделано нарочно: забытая переменная на staging не должна открыть его
+   поиску. Compose-файл prod лежит на сервере, не в репозитории, — в него же добавить
+   `YANDEX_VERIFICATION`, `GOOGLE_VERIFICATION`, `INDEXNOW_KEY` (в `docker-compose.yml`
+   репозитория, то есть staging, они уже проброшены).
+2. `git push`. Миграция V34 добавляет `booking_widgets.search_indexed` (по умолчанию `true`).
+3. Проверить после деплоя:
+
+```bash
+# staging: noindex на всём
+for u in / /login /b/<slug> /css/core.css /robots.txt /api/widget/<slug>/config; do
+  curl -sI https://staging.optirent.ru$u | grep -i x-robots-tag || echo "НЕТ ЗАГОЛОВКА: $u"
+done
+curl -s https://staging.optirent.ru/robots.txt        # Disallow: /
+
+# prod
+curl -s  https://optirent.ru/robots.txt               # список Disallow, Clean-param, Sitemap
+curl -s  https://optirent.ru/sitemap.xml
+curl -sI https://optirent.ru/b/<slug>   | grep -i x-robots-tag     # пусто, если галочка включена
+curl -sI https://optirent.ru/login      | grep -i x-robots-tag     # noindex, nofollow
+curl -sI https://optirent.ru/b/<slug>/  | grep -iE 'HTTP|location' # 301 на адрес без слэша
+```
+
+### Индексация
+
+Решает `SeoFilter` (стоит раньше Spring Security, поэтому заголовок есть и на редиректах на
+вход):
+
+| Окружение | Что получает `X-Robots-Tag: noindex, nofollow` |
+|---|---|
+| не prod (staging, partner, локально, без переменной) | все ответы без исключения, включая статику и API |
+| prod | всё, кроме: `/`, страниц из `SitePages`, `/legal/*`, `/b/<slug>`, файлов (`/css`, `/js`, `/fonts`, `/media`, значки, `robots.txt`, `sitemap.xml`) |
+
+- **`/b/<slug>`** — по галочке «Показывать страницу в поиске» в настройках страницы
+  бронирования (раздел «Адрес и встраивание»), по умолчанию включена. Выключена — заголовок
+  и `<meta name="robots">` с `noindex`, страницы нет в `sitemap.xml`.
+- **`/b/<slug>/embed`** — всегда `noindex`.
+- Страницы за входом дополнительно несут `<meta name="robots" content="noindex, nofollow">`.
+- **`/learning`** закрыта заголовком и `robots.txt`, сама страница не трогалась.
+
+**Оговорка.** `robots.txt` запрещает обход закрытых разделов, а `noindex` поисковик видит,
+только когда страницу обходит. Для страницы, закрытой и там и там, работает запрет обхода:
+в выдаче она может остаться адресом без описания, если на неё кто-то сослался. Для админки
+это не важно (ссылок на неё нет), но если понадобится **убрать из выдачи уже попавшую туда
+страницу** — её нужно на время убрать из `Disallow`, чтобы робот увидел `noindex`.
+
+### robots.txt и sitemap.xml
+
+Оба собираются на лету (`SeoController`).
+
+- `robots.txt` на prod: `Disallow` для `/api/`, `/q/`, `/f/`, `/b/*/embed`, `/widget/`,
+  `/feedback`, `/ical/`, `/housekeeper/`, `/login`, `/register` и всех разделов админки;
+  `Clean-param` с пятнадцатью параметрами; `Sitemap`. `/media/` не закрыт — фото жилья
+  могут попасть в поиск по картинкам. `/book/` не закрыт намеренно: это 301 на `/b/`, робот
+  должен по нему пройти.
+- `Clean-param` — директива Яндекса; Google её не знает и пропускает (в Search Console может
+  показать строку как нераспознанную — это не ошибка).
+- `sitemap.xml`: страницы из `SitePages` и `/b/<slug>` с включённой индексацией, `lastmod` —
+  `booking_widgets.updated_at`. Приоритетов и `changefreq` нет. Вне prod карта пустая.
+  **Сейчас в ней только страницы бронирования**: посадочные появятся в фазе 4.
+
+### Адреса
+
+- **Канонический адрес** на prod строится от `APP_BASE_URL` (по умолчанию
+  `https://optirent.ru`), а не от адреса запроса; параметров в нём нет.
+- **Слэш на конце** — 301 на адрес без слэша (`/b/loft/` → `/b/loft`), параметры
+  сохраняются. Раздел инструкций поэтому будет `/instrukcii`, а не `/instrukcii/`.
+- **Нет такой страницы — 404, удалённая страница бронирования — 410.** Отличие: удалённый
+  виджет остаётся в базе с `active = false`.
+- **http → https и www → без www** — это nginx, см. ниже. Сейчас `http://optirent.ru` уже
+  отдаёт 301 на https, а `www.optirent.ru` не отвечает вовсе.
+
+### Мета и значки
+
+- Бренд везде **OptiRent** (было RentOptima): заголовки вкладок, меню, вход, регистрация,
+  правовые страницы. Пакеты и таблицы не тронуты.
+- `/b/<slug>`: `<title>` — «<название> — бронирование напрямую» (если влезает в 60
+  символов); описание без текста хозяина теперь содержит название жилья, а не одну фразу на
+  всех; добавлены `og:locale` и Twitter-теги.
+- Правовые страницы: свои description, canonical, OG.
+- Вход и регистрация: `noindex`, появился H1.
+- Значки: `favicon.ico` (16 / 32 / 48), `favicon.svg`, `apple-touch-icon.png`,
+  `site.webmanifest`, `icons/`. Пересоздаются из `favicon.svg` командой
+  `node icons.mjs` в `tools/mobile-check`.
+- Подтверждение прав: `YANDEX_VERIFICATION` и `GOOGLE_VERIFICATION` — значение `content` из
+  meta-тега. Фрагмент `fragments/site :: verification` готов, **но выводить его пока некуда**:
+  поисковики ищут тег на главной, а главная появится в фазе 4. До тех пор права можно
+  подтвердить DNS-записью.
+- **Шрифт Inter теперь свой** (`static/fonts`, те же файлы, что у виджета): запросов к Google
+  нет ни на одной странице.
+
+### Текст страницы бронирования в HTML
+
+Раньше в исходном HTML `/b/<slug>` были только заголовок и JSON — описание и удобства
+рисовал скрипт внутри Shadow DOM. Теперь под виджетом сервер выводит видимый блок: название,
+ориентир по адресу, описание, удобства, правила, условия отмены. Блоки, которые хозяин скрыл
+в конструкторе, не выводятся. Во фрейме (`/embed`) блока нет.
+
+**Нужно решение.** Описание и удобства при этом видны на странице дважды: в виджете и под
+ним (см. «Не сделано»). Заголовок H1 остался скрытым (`sr-only`), потому что видимый
+заголовок рисует виджет.
+
+### IndexNow
+
+`IndexNowService` шлёт адрес в `https://yandex.com/indexnow`, когда страницу бронирования
+создали, сохранили, переименовали (уходят старый и новый адрес) или удалили. Отправка — в
+фоне, её ошибка только пишется в лог. Работает лишь на prod и с ключом; иначе молча ничего
+не делает.
+
+```bash
+openssl rand -hex 16                  # → INDEXNOW_KEY в .env на prod
+curl https://optirent.ru/<ключ>.txt   # должен вернуть сам ключ
+```
+
+Уведомление о посадочных страницах добавится вместе с ними в фазе 4.
+
+### Статика: хэш в адресах
+
+Адреса `/css/**` и `/js/**` теперь содержат хэш содержимого (`/css/core-d2b7….css`) — их
+подставляет Thymeleaf. Файл можно кэшировать на год, а после деплоя браузер сам возьмёт
+новую версию: **hard reload после выкладки стилей и скриптов больше не нужен** (CSRF-токен
+после рестарта по-прежнему протухает — это отдельное). `/w.js` и `/widget.js` — без хэша:
+их адреса вставлены на сайты хозяев.
+
+### nginx
+
+Конфиг не в репозитории — правки руками в блоке `server` для `optirent.ru` (и для staging).
+
+```nginx
+# www → без www (нужны DNS-запись www и сертификат на оба имени)
+server {
+    listen 443 ssl http2;
+    server_name www.optirent.ru;
+    # ssl_certificate … те же, с www в SAN
+    return 301 https://optirent.ru$request_uri;
+}
+server {
+    listen 80;
+    server_name optirent.ru www.optirent.ru;
+    return 301 https://optirent.ru$request_uri;
+}
+
+# в основном server { … }
+gzip on;
+gzip_comp_level 5;
+gzip_min_length 1024;
+gzip_proxied any;
+gzip_vary on;
+gzip_types text/plain text/css application/javascript application/json
+           application/xml image/svg+xml text/calendar application/manifest+json;
+
+# brotli — только если nginx собран с модулем ngx_brotli (nginx -V 2>&1 | grep brotli)
+# brotli on;
+# brotli_comp_level 5;
+# brotli_types text/plain text/css application/javascript application/json
+#              application/xml image/svg+xml text/calendar application/manifest+json;
+
+# Файлы с хэшем в имени не меняются никогда
+location ~* "^/(css|js)/.+-[0-9a-f]{32}\.(css|js)$" {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_hide_header Cache-Control;
+    proxy_hide_header Pragma;
+    proxy_hide_header Expires;
+    add_header Cache-Control "public, max-age=31536000, immutable";
+}
+# Шрифты меняются редко; им нужен CORS — их грузит виджет на чужих сайтах
+location /fonts/ {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_hide_header Cache-Control;
+    proxy_hide_header Pragma;
+    proxy_hide_header Expires;
+    add_header Cache-Control "public, max-age=2592000";
+    add_header Access-Control-Allow-Origin "*";
+}
+location ~* "^/(favicon\.ico|favicon\.svg|apple-touch-icon\.png|site\.webmanifest|icons/)" {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_hide_header Cache-Control;
+    proxy_hide_header Pragma;
+    proxy_hide_header Expires;
+    add_header Cache-Control "public, max-age=604800";
+}
+# Бандл виджета без хэша в адресе: кэш короткий, чтобы правки доезжали до сайтов хозяев
+location = /w.js {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_hide_header Cache-Control;
+    proxy_hide_header Pragma;
+    proxy_hide_header Expires;
+    add_header Cache-Control "public, max-age=300";
+}
+```
+
+В блоках `location` нужно повторить те же `proxy_set_header`, что стоят в основном
+`location /` (Host, X-Forwarded-For, X-Forwarded-Proto). `add_header` внутри `location`
+отменяет `add_header` уровня `server` — если там стоит `Strict-Transport-Security` или
+`X-Robots-Tag` (на staging), их тоже нужно повторить. `/media/` приложение уже отдаёт с
+`max-age=1 год, immutable` — его не трогать. Порт 8080 — prod; на staging 8081.
+
+**Не проверено:** конфиг написан по документации nginx и по тому, что сейчас отвечает сервер
+(`Cache-Control: no-store` на `/css/core.css`), на самом сервере не применялся. После правки
+— `nginx -t`, затем `curl -sI -H 'Accept-Encoding: gzip' https://optirent.ru/css/<файл с хэшем>`.
+
+### Как проверялось
+
+- `mvn -o test` с docker: 234 теста, все прошли. Новые — `SeoFilterTest` (заголовки по
+  окружениям, `robots.txt`, слэш, ключ IndexNow) и сценарий на PostgreSQL: текст жилья в
+  HTML, скрытый блок, галочка поиска, sitemap, 410 / 404, canonical.
+- Локально два запуска — `APP_ENVIRONMENT=staging` и `prod`: по 21 адресу в каждом
+  проверены код ответа и заголовок. На staging заголовок есть на всех 21, включая статику.
+- Проверка вёрстки фазы 1 (258 открытий страниц) после правок прошла.
+
+### Не сделано и не проверено
+
+- **Дублирование текста на `/b/<slug>`.** Серверный блок повторяет то, что уже показывает
+  виджет. Так сказано в задании («видимый, не скрытый»), но выглядит это как повтор.
+  Варианты: (а) оставить; (б) выводить серверный блок, только если хозяин скрыл описание и
+  удобства в виджете, — повтора нет, но и текста для поисковика у большинства страниц не
+  будет; (в) положить текст внутрь `<optirent-booking>` — без скрипта он виден, со скриптом
+  его заменяет виджет с тем же содержимым. Вариант (в) убирает повтор, но текст в HTML
+  становится невидим пользователю со скриптом — это на грани «скрытого текста», поэтому без
+  решения не делал.
+- **Отправка в IndexNow не проверялась** — она включается только на prod с ключом. Что Яндекс
+  принимает запрос, видно в логе после первой правки страницы: строка `IndexNow: […] → 200`
+  (или 202).
+- **`og:image` 1200 × 630** для сайта нет — появится с главной в фазе 4. У `/b/<slug>`
+  по-прежнему первое фото жилья как есть.
+- **Lighthouse не мерил**: мерить нечего, пока нет главной и посадочных (перенесено на после
+  фазы 4, как договорились).
+- **Лимит 60 запросов в минуту с одного IP** действует и на `/b/**`. Обычному обходу робота
+  этого хватает; если страниц станут сотни, робот может получать 429.
+- **Проверка микроразметки и валидаторы** — фаза 3.
+- **Значки** нарисованы из существующего логотипа скриптом; как они выглядят на домашнем
+  экране телефона, не смотрел.
+
+### Что сделать руками
+
+- [ ] prod: `APP_ENVIRONMENT=prod` в `.env` и compose — **до** того, как ждать индексацию
+- [ ] prod: `INDEXNOW_KEY` (`openssl rand -hex 16`), проверить `/<ключ>.txt`
+- [ ] nginx: www → без www (DNS + сертификат), gzip / brotli, кэш статики
+- [ ] Яндекс.Вебмастер и Google Search Console: добавить сайт, подтвердить права (DNS сейчас,
+      meta-тег — после фазы 4), указать `sitemap.xml`
+- [ ] Яндекс.Вебмастер → «Инструменты» → «Анализ robots.txt»: ошибок нет, `Clean-param`
+      распознан
+- [ ] staging: `curl -I` из раздела «Выкладка» — заголовок на всех адресах

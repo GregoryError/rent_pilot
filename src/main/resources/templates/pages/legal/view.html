@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${page.title} + ' — RentOptima'">Legal</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title th:text="${page.title} + ' — OptiRent'">Legal</title>
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: social(${page.title} + ' — OptiRent', ${description}, ${canonical}, null)}"></th:block>
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
     <link rel="stylesheet" th:href="@{/css/core.css}">
     <script th:src="@{/js/theme.js}"></script>
     <style>
@@ -56,7 +57,7 @@
 
 <div class="header">
     <svg th:replace="~{fragments/logo :: mark(24)}"></svg>
-    <span style="font-weight: 600;">RentOptima</span>
+    <span style="font-weight: 600;">OptiRent</span>
     <a href="/" style="margin-left: auto;">← На главную</a>
 </div>
 

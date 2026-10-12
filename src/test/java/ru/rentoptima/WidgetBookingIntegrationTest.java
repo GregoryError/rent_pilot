@@ -953,4 +953,67 @@ class WidgetBookingIntegrationTest {
                 .andExpect(status().isOk());
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM feedback_responses WHERE session_id = 'r-bot'", Integer.class)).isZero();
     }
+
+    @Test
+    @DisplayName("поиск: текст жилья в HTML, галочка хозяина, 410 для удалённой страницы, robots и sitemap")
+    void searchIndexing() throws Exception {
+        jdbc.update("UPDATE booking_widgets SET description = ?, amenities = ?, rules = ? WHERE id = ?",
+                "Светлый лофт у парка", "Wi-Fi\nСтиральная машина", "Без вечеринок", widget.getId());
+
+        // Название, описание и удобства — в самом HTML, а не только после скрипта
+        String html = mvc.perform(get("/b/" + slug)).andExpect(status().isOk())
+                // тест идёт не в prod-окружении: закрыто всё
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(html).contains("<title>Лофт у парка — бронирование напрямую</title>",
+                "<link rel=\"canonical\" href=\"http://localhost/b/" + slug + "\">",
+                "<section class=\"about\">", "<p>Светлый лофт у парка</p>",
+                "<li>Wi-Fi</li>", "<li>Стиральная машина</li>", "<p>Без вечеринок</p>");
+        assertThat(html).doesNotContain("name=\"robots\"");
+
+        // Хозяин скрыл блок в конструкторе — в серверном тексте его тоже нет
+        jdbc.update("UPDATE booking_widgets SET config_json = ?::jsonb WHERE id = ?",
+                "{\"hidden\":[\"amenities\"]}", widget.getId());
+        assertThat(mvc.perform(get("/b/" + slug)).andReturn().getResponse()
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .contains("<p>Светлый лофт у парка</p>").doesNotContain("<li>Wi-Fi</li>");
+
+        // Галочка «Показывать страницу в поиске» выключена: форма без неё сохраняет false
+        String page = "/settings/widgets/" + widget.getId();
+        mvc.perform(get(page).with(user(host())))
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                        .contains("name=\"searchIndexed\" value=\"true\" checked=\"checked\""));
+        mvc.perform(post(page + "/update").with(user(host())).with(csrf())
+                        .param("title", "Лофт у парка").param("minNights", "1").param("maxNights", "30")
+                        .param("maxGuests", "4").param("bookingWindowDays", "180").param("holdHours", "24")
+                        .param("checkinTime", "14:00").param("checkoutTime", "12:00"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(widgetRepo.findById(widget.getId()).orElseThrow().getSearchIndexed()).isFalse();
+        assertThat(widgetRepo.findForSitemap()).noneMatch(e -> e.getSlug().equals(slug));
+        mvc.perform(get("/b/" + slug)).andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString())
+                        .contains("<meta name=\"robots\" content=\"noindex, nofollow\">"));
+
+        jdbc.update("UPDATE booking_widgets SET search_indexed = true WHERE id = ?", widget.getId());
+        assertThat(widgetRepo.findForSitemap()).anyMatch(e -> e.getSlug().equals(slug));
+
+        // Удалённая страница — 410, несуществовавшая — 404
+        mvc.perform(post(page + "/delete").with(user(host())).with(csrf())).andExpect(status().is3xxRedirection());
+        mvc.perform(get("/b/" + slug)).andExpect(status().isGone());
+        mvc.perform(get("/b/" + slug + "/embed")).andExpect(status().isGone());
+        mvc.perform(get("/b/never-existed")).andExpect(status().isNotFound());
+        assertThat(widgetRepo.findForSitemap()).noneMatch(e -> e.getSlug().equals(slug));
+
+        // Не prod: robots.txt закрывает всё, карта сайта пустая
+        mvc.perform(get("/robots.txt")).andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("Disallow: /\n"));
+        mvc.perform(get("/sitemap.xml")).andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("<urlset").doesNotContain("<loc>"));
+        mvc.perform(get("/b/" + slug + "/")).andExpect(status().isMovedPermanently())
+                .andExpect(header().string("Location", "/b/" + slug));
+        mvc.perform(get("/legal/privacy")).andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                        .contains("<link rel=\"canonical\" href=\"http://localhost/legal/privacy\">", "— OptiRent</title>"));
+        mvc.perform(get("/legal/no-such")).andExpect(status().isNotFound());
+    }
 }

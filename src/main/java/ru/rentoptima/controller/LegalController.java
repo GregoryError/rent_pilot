@@ -1,5 +1,6 @@
 package ru.rentoptima.controller;
 
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
@@ -8,18 +9,23 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.server.ResponseStatusException;
 import ru.rentoptima.repository.LegalPageRepository;
+import ru.rentoptima.seo.SiteSettings;
 
 @Controller
 @RequiredArgsConstructor
 public class LegalController {
 
     private final LegalPageRepository legalRepo;
+    private final SiteSettings site;
 
     @GetMapping("/legal/{slug}")
-    public String page(@PathVariable String slug, Model model) {
+    public String page(@PathVariable String slug, Model model, HttpServletRequest request) {
         var page = legalRepo.findBySlug(slug)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         model.addAttribute("page", page);
+        model.addAttribute("canonical", site.canonical(request, "/legal/" + page.getSlug()));
+        model.addAttribute("description", page.getTitle() + " сервиса OptiRent — календаря бронирования"
+                + " и синхронизации площадок для посуточной аренды. Действующая редакция документа.");
         model.addAttribute("htmlContent", renderMarkdown(page.getContent()));
         return "pages/legal/view";
     }

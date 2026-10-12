@@ -50,6 +50,17 @@ spring:
       max-file-size: 20MB
       max-request-size: 100MB
 
+  # Адреса /css и /js получают хэш содержимого (core-<hash>.css): их можно кэшировать
+  # надолго, а после деплоя браузер сам берёт новую версию. /w.js и /widget.js — без хэша:
+  # их адреса вставлены на сайты хозяев.
+  web:
+    resources:
+      chain:
+        strategy:
+          content:
+            enabled: true
+            paths: /css/**,/js/**
+
 server:
   port: 8080
   # Сжатие ответов: бандл виджета и JSON его API. Если перед приложением сжимает nginx,
@@ -68,6 +79,20 @@ logging:
     org.springframework.security: INFO
 
 app:
+  # Окружение. Индексируется поисковиками только prod; всё остальное (и пустое значение)
+  # отдаёт X-Robots-Tag: noindex на всех ответах и robots.txt «Disallow: /».
+  environment: ${APP_ENVIRONMENT:dev}
+
+  site:
+    # Канонический адрес сайта на prod: canonical, sitemap.xml, IndexNow
+    base-url: ${APP_BASE_URL:https://optirent.ru}
+    # Коды подтверждения Яндекс.Вебмастера и Google Search Console (значение content
+    # из meta-тега). Пусто — тег не выводится.
+    yandex-verification: ${YANDEX_VERIFICATION:}
+    google-verification: ${GOOGLE_VERIFICATION:}
+    # Ключ IndexNow (8–128 символов: латиница, цифры, дефис). Пусто — уведомления не шлются.
+    indexnow-key: ${INDEXNOW_KEY:}
+
   # Удалённые ручные записи ещё 90 дней уходят в iCal-экспорт со STATUS:CANCELLED.
   # false — не отдавать (если площадка не читает STATUS и закрывает даты по ним).
   ical:
