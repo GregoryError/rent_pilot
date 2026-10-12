@@ -16,6 +16,13 @@
             background: var(--bg-root);
             color: var(--text-primary);
             line-height: 1.7;
+            overflow-wrap: anywhere;
+        }
+        @media (max-width: 640px) {
+            body { padding: 1.25rem 1rem; }
+            .content h1 { font-size: 1.45rem; }
+            .content h2 { font-size: 1.2rem; }
+            .header a { min-height: 44px; display: inline-flex; align-items: center; }
         }
         .header {
             display: flex;

@@ -67,19 +67,19 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--sp-4);">
                 <div class="form-group">
                     <label class="form-label">Минимум ночей</label>
-                    <input type="number" name="minNights" min="1" max="365" required th:value="${w.minNights}" class="form-input form-input--sm">
+                    <input type="number" inputmode="numeric" name="minNights" min="1" max="365" required th:value="${w.minNights}" class="form-input form-input--sm">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Максимум ночей</label>
-                    <input type="number" name="maxNights" min="1" max="365" required th:value="${w.maxNights}" class="form-input form-input--sm">
+                    <input type="number" inputmode="numeric" name="maxNights" min="1" max="365" required th:value="${w.maxNights}" class="form-input form-input--sm">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Максимум гостей</label>
-                    <input type="number" name="maxGuests" min="1" max="50" required th:value="${w.maxGuests}" class="form-input form-input--sm">
+                    <input type="number" inputmode="numeric" name="maxGuests" min="1" max="50" required th:value="${w.maxGuests}" class="form-input form-input--sm">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Бронь открыта на, дней вперёд</label>
-                    <input type="number" name="bookingWindowDays" min="7" max="540" required th:value="${w.bookingWindowDays}" class="form-input form-input--sm">
+                    <input type="number" inputmode="numeric" name="bookingWindowDays" min="7" max="540" required th:value="${w.bookingWindowDays}" class="form-input form-input--sm">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Заезд с</label>
@@ -98,7 +98,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Держать даты по заявке, часов</label>
-                    <input type="number" name="holdHours" min="1" max="168" required th:value="${holdHours}" class="form-input form-input--sm">
+                    <input type="number" inputmode="numeric" name="holdHours" min="1" max="168" required th:value="${holdHours}" class="form-input form-input--sm">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Оформление</label>
@@ -150,21 +150,21 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--sp-4);">
                 <div class="form-group">
                     <label class="form-label">Уборка, ₽</label>
-                    <input type="number" name="cleaningFee" min="0" max="1000000" step="1" th:value="${cleaningFee}" class="form-input form-input--sm">
+                    <input type="number" inputmode="numeric" name="cleaningFee" min="0" max="1000000" step="1" th:value="${cleaningFee}" class="form-input form-input--sm">
                     <div class="form-hint">Добавляется к сумме один раз. 0 — уборка входит в цену.</div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Скидка от 7 ночей, %</label>
-                    <input type="number" name="weeklyDiscountPercent" min="0" max="90" th:value="${w.weeklyDiscountPercent}" class="form-input form-input--sm">
+                    <input type="number" inputmode="numeric" name="weeklyDiscountPercent" min="0" max="90" th:value="${w.weeklyDiscountPercent}" class="form-input form-input--sm">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Скидка от 28 ночей, %</label>
-                    <input type="number" name="monthlyDiscountPercent" min="0" max="90" th:value="${w.monthlyDiscountPercent}" class="form-input form-input--sm">
+                    <input type="number" inputmode="numeric" name="monthlyDiscountPercent" min="0" max="90" th:value="${w.monthlyDiscountPercent}" class="form-input form-input--sm">
                     <div class="form-hint">Скидки не складываются: действует бо́льшая.</div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Предоплата, %</label>
-                    <input type="number" name="prepaymentPercent" min="0" max="100" th:value="${w.prepaymentPercent}" class="form-input form-input--sm">
+                    <input type="number" inputmode="numeric" name="prepaymentPercent" min="0" max="100" th:value="${w.prepaymentPercent}" class="form-input form-input--sm">
                     <div class="form-hint">Гость увидит сумму предоплаты. Деньги сервис не принимает — договаривайтесь с гостем сами.</div>
                 </div>
             </div>
@@ -176,7 +176,7 @@
                 <label class="form-label">Адрес страницы</label>
                 <div style="display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap;">
                     <span class="muted text-sm" th:text="${publicAddress}">https://optirent.ru/b/</span>
-                    <input type="text" name="slug" maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" th:value="${w.slug}"
+                    <input type="text" name="slug" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="60" pattern="[a-z0-9]+(-[a-z0-9]+)*" th:value="${w.slug}"
                            class="form-input form-input--sm" style="flex: 1; min-width: 180px;">
                 </div>
                 <div class="form-hint">Латинские буквы, цифры и дефис. Если поменять адрес, прежняя ссылка /b/… перестанет открываться.</div>
@@ -206,15 +206,15 @@
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-4);">
                 <div class="form-group">
                     <label class="form-label">Телефон</label>
-                    <input type="text" name="contactPhone" maxlength="40" th:value="${w.contactPhone}" class="form-input form-input--sm" placeholder="+7 900 000-00-00">
+                    <input type="tel" name="contactPhone" inputmode="tel" autocomplete="tel" maxlength="40" th:value="${w.contactPhone}" class="form-input form-input--sm" placeholder="+7 900 000-00-00">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Telegram</label>
-                    <input type="text" name="contactTelegram" maxlength="80" th:value="${w.contactTelegram}" class="form-input form-input--sm" placeholder="@username">
+                    <input type="text" name="contactTelegram" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="80" th:value="${w.contactTelegram}" class="form-input form-input--sm" placeholder="@username">
                 </div>
                 <div class="form-group">
                     <label class="form-label">WhatsApp</label>
-                    <input type="text" name="contactWhatsapp" maxlength="40" th:value="${w.contactWhatsapp}" class="form-input form-input--sm" placeholder="+7 900 000-00-00">
+                    <input type="tel" name="contactWhatsapp" inputmode="tel" autocomplete="tel" maxlength="40" th:value="${w.contactWhatsapp}" class="form-input form-input--sm" placeholder="+7 900 000-00-00">
                 </div>
             </div>
         </div>
@@ -330,11 +330,11 @@
               style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--sp-3); align-items: end; margin: 0;">
             <div class="form-group" style="margin: 0;">
                 <label class="form-label">Код</label>
-                <input type="text" name="code" required maxlength="40" class="form-input form-input--sm" placeholder="LETO10">
+                <input type="text" name="code" autocapitalize="characters" autocorrect="off" spellcheck="false" autocomplete="off" required maxlength="40" class="form-input form-input--sm" placeholder="LETO10">
             </div>
             <div class="form-group" style="margin: 0;">
                 <label class="form-label">Скидка</label>
-                <input type="number" name="discountValue" required min="1" step="1" class="form-input form-input--sm">
+                <input type="number" inputmode="numeric" name="discountValue" required min="1" step="1" class="form-input form-input--sm">
             </div>
             <div class="form-group" style="margin: 0;">
                 <label class="form-label">В чём</label>
@@ -349,7 +349,7 @@
             </div>
             <div class="form-group" style="margin: 0;">
                 <label class="form-label">Сколько раз</label>
-                <input type="number" name="maxUses" min="1" class="form-input form-input--sm" placeholder="без лимита">
+                <input type="number" inputmode="numeric" name="maxUses" min="1" class="form-input form-input--sm" placeholder="без лимита">
             </div>
             <button type="submit" class="btn btn-ghost">Добавить</button>
         </form>

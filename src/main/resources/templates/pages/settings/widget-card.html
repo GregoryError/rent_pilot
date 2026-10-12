@@ -122,9 +122,9 @@
                     </div>
                     <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3);">
                         <div class="form-group" style="margin: 0;"><label class="form-label" for="card-ssid">Имя сети</label>
-                            <input type="text" name="wifiSsid" id="card-ssid" maxlength="32" autocomplete="off" class="form-input form-input--sm"></div>
+                            <input type="text" name="wifiSsid" id="card-ssid" maxlength="32" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" class="form-input form-input--sm"></div>
                         <div class="form-group" style="margin: 0;"><label class="form-label" for="card-pass">Пароль</label>
-                            <input type="text" name="wifiPassword" id="card-pass" maxlength="63" autocomplete="off" class="form-input form-input--sm"></div>
+                            <input type="text" name="wifiPassword" id="card-pass" maxlength="63" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" class="form-input form-input--sm"></div>
                     </div>
                     <div class="form-hint" id="wifi-hint" hidden>На визитке Wi-Fi печатается только текстом — второй QR на неё не помещается.</div>
                 </div>
@@ -171,16 +171,16 @@
                       onsubmit="return confirm('Создать промокод? Несохранённые изменения карточки будут потеряны — сначала сохраните их.');">
                     <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3);">
                         <div class="form-group" style="margin: 0;"><label class="form-label" for="np-value">Скидка</label>
-                            <input type="number" name="discountValue" id="np-value" required min="1" step="1" value="10" class="form-input form-input--sm"></div>
+                            <input type="number" inputmode="numeric" name="discountValue" id="np-value" required min="1" step="1" value="10" class="form-input form-input--sm"></div>
                         <div class="form-group" style="margin: 0;"><label class="form-label" for="np-type">В чём</label>
                             <select name="discountType" id="np-type" class="form-input form-input--sm">
                                 <option value="PERCENT">проценты</option><option value="AMOUNT">рубли</option></select></div>
                         <div class="form-group" style="margin: 0;"><label class="form-label" for="np-until">Действует до</label>
                             <input type="date" name="validUntil" id="np-until" th:value="${defaultUntil}" class="form-input form-input--sm"></div>
                         <div class="form-group" style="margin: 0;"><label class="form-label" for="np-max">Сколько раз</label>
-                            <input type="number" name="maxUses" id="np-max" min="1" placeholder="без лимита" class="form-input form-input--sm"></div>
+                            <input type="number" inputmode="numeric" name="maxUses" id="np-max" min="1" placeholder="без лимита" class="form-input form-input--sm"></div>
                         <div class="form-group" style="margin: 0; grid-column: 1 / -1;"><label class="form-label" for="np-code">Код</label>
-                            <input type="text" name="code" id="np-code" maxlength="40" placeholder="подберём сами, например SNOVA10" class="form-input form-input--sm"></div>
+                            <input type="text" name="code" id="np-code" autocapitalize="characters" autocorrect="off" spellcheck="false" autocomplete="off" maxlength="40" placeholder="подберём сами, например SNOVA10" class="form-input form-input--sm"></div>
                     </div>
                     <button type="submit" class="btn btn-ghost" style="margin-top: var(--sp-3);">Создать и выбрать</button>
                 </form>

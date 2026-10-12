@@ -1,10 +1,12 @@
 package ru.rentoptima.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.server.ResponseStatusException;
 import ru.rentoptima.repository.LegalPageRepository;
 
 @Controller
@@ -16,7 +18,7 @@ public class LegalController {
     @GetMapping("/legal/{slug}")
     public String page(@PathVariable String slug, Model model) {
         var page = legalRepo.findBySlug(slug)
-                .orElseThrow(() -> new IllegalArgumentException("Legal page not found: " + slug));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         model.addAttribute("page", page);
         model.addAttribute("htmlContent", renderMarkdown(page.getContent()));
         return "pages/legal/view";

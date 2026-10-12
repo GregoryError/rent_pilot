@@ -109,6 +109,10 @@
             fit();
         });
     });
+    // На узком экране превью открывается в размере телефона: он там и поместится без уменьшения
+    if (window.matchMedia('(max-width: 900px)').matches) {
+        document.querySelector('[data-dz-device="375"]').click();
+    }
 
     // --- Отрисовка панели
 

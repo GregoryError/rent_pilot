@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex">
+    <title>Запрос не выполнен — OptiRent</title>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
+</head>
+<body>
+<main class="error-page">
+    <a th:href="@{/}" class="error-page__logo">
+        <svg th:replace="~{fragments/logo :: mark(28)}"></svg>
+        <span>OptiRent</span>
+    </a>
+    <div class="error-page__code">Ошибка</div>
+    <h1 class="error-page__title">Запрос не выполнен</h1>
+    <p class="error-page__text">Проверьте адрес страницы и попробуйте ещё раз.</p>
+    <a th:href="@{/}" class="btn btn-primary">На главную</a>
+</main>
+</body>
+</html>

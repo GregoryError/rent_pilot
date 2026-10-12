@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
-      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security"
+      lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title layout:title-pattern="$CONTENT_TITLE — RentOptima">RentOptima</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -14,9 +15,25 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
 </head>
 <body>
+<!-- Узкий экран: компактная шапка, меню выезжает слева (core.css, «Узкий экран») -->
+<header class="topbar">
+    <button type="button" class="topbar__burger" id="nav-toggle"
+            aria-label="Меню" aria-controls="sidebar" aria-expanded="false">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16"/>
+        </svg>
+    </button>
+    <a th:href="@{/calendar/grid}" class="topbar__logo">
+        <svg th:replace="~{fragments/logo :: mark(22)}"></svg>
+        <span>RentOptima</span>
+    </a>
+</header>
+<div class="nav-backdrop" id="nav-backdrop"></div>
+
 <div class="app-layout">
     <!-- Sidebar -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="sidebar">
         <div class="sidebar__logo">
             <svg th:replace="~{fragments/logo :: mark(24)}"></svg>
             <span>RentOptima</span>
@@ -115,10 +132,7 @@
                 <span class="theme-toggle__to-dark">☾ Тёмная тема</span>
             </button>
             <form th:action="@{/logout}" method="post" style="display: inline; margin: 0;">
-                <button type="submit" class="muted text-sm"
-                        style="background: none; border: none; padding: 0; font: inherit; cursor: pointer; color: inherit; text-align: left;">
-                    Выйти
-                </button>
+                <button type="submit" class="sidebar__logout muted text-sm">Выйти</button>
             </form>
         </div>
     </aside>
@@ -341,13 +355,27 @@
     /* Hide floating chat on /chat and /login pages to avoid duplication */
     body.no-floating-chat #floating-chat { display: none; }
 
-    @media (max-width: 480px) {
-        #fc-panel {
-            right: 10px;
-            bottom: 80px;
-            width: calc(100vw - 20px);
-            height: calc(100vh - 100px);
+    /* Узкий экран: чат — лист на весь экран, кнопка не перекрывает жест «домой» */
+    @media (max-width: 640px) {
+        #fc-button {
+            right: calc(16px + env(safe-area-inset-right));
+            bottom: calc(16px + env(safe-area-inset-bottom));
         }
+        #fc-panel {
+            inset: 0;
+            width: auto;
+            max-width: none;
+            height: auto;
+            max-height: none;
+            border: none;
+            border-radius: 0;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right)
+                     env(safe-area-inset-bottom) env(safe-area-inset-left);
+        }
+        #fc-header a, #fc-header button { min-width: 44px; min-height: 44px;
+            display: inline-flex; align-items: center; justify-content: center; }
+        #fc-input { font-size: 16px; }
+        #fc-send { width: 44px; min-height: 44px; }
     }
 
 </style>
@@ -499,6 +527,19 @@ async function fcSend() {
 </script>
 
 <script>
+    // Меню на узком экране
+    (function () {
+        const toggle = document.getElementById('nav-toggle');
+        const backdrop = document.getElementById('nav-backdrop');
+        const setOpen = (open) => {
+            document.body.classList.toggle('nav-open', open);
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        };
+        toggle.addEventListener('click', () => setOpen(!document.body.classList.contains('nav-open')));
+        backdrop.addEventListener('click', () => setOpen(false));
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape') setOpen(false); });
+    })();
+
     // Auto-hide toast
     const toast = document.getElementById('toast');
     if (toast) setTimeout(() => toast.style.display = 'none', 3000);

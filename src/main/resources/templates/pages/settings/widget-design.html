@@ -36,6 +36,16 @@
         .dz-scale { transform-origin: 0 0; margin: 0 auto; }
         .dz-view iframe { display: block; border: 0; background: #f6f5f2; }
         .dz-warn { color: var(--amber); font-size: var(--text-sm); margin-top: var(--sp-2); }
+        /* Узкий экран: превью под панелью настроек, переключатель устройств остаётся */
+        @media (max-width: 900px) {
+            .dz-stage { position: static; }
+            .dz-view { height: calc(100dvh - 150px); min-height: 420px; }
+            .dz-tabs .btn { flex: 1; padding-left: var(--sp-2); padding-right: var(--sp-2); }
+            .dz-chip button { width: 44px; height: 44px; }
+            .dz-chip { flex-wrap: wrap; }
+            .dz-chip-name { flex-basis: 100%; }
+            .dz-preset { min-height: 44px; }
+        }
     </style>
 </head>
 <body>

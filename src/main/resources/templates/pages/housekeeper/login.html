@@ -2,6 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org" lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Доступ горничной</title>
     <link rel="stylesheet" th:href="@{/css/core.css}">
     <script th:src="@{/js/theme.js}"></script>
@@ -23,7 +24,7 @@
     </div>
 
     <form th:unless="${pinNotSet}" th:action="@{'/housekeeper/' + ${code} + '/login'}" method="post">
-        <input class="pin-input" type="password" name="pin" placeholder="••••" maxlength="8" autofocus>
+        <input class="pin-input" type="password" name="pin" autocomplete="off" aria-label="PIN" placeholder="••••" maxlength="8" autofocus>
         <button type="submit" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">Войти</button>
         <div class="error" th:if="${error}">Неверный PIN</div>
     </form>

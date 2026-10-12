@@ -20,6 +20,11 @@
         .q { font-size: 0.9rem; margin: 14px 0 8px; }
         .scale { display: flex; gap: 4px; }
         .scale-btn { flex: 1; min-width: 0; height: 44px; background: var(--surface); border: 2px solid var(--border); border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; color: var(--text); font-family: inherit; }
+        @media (max-width: 520px) {
+            .scale { flex-wrap: wrap; }
+            .scale-btn { flex: 1 0 calc(20% - 4px); }
+        }
+        summary { min-height: 44px; align-content: center; }
         .scale-btn[aria-pressed=true] { background: var(--accent); border-color: var(--accent); color: #fff; }
         .consent { display: none; gap: 10px; align-items: flex-start; font-size: 0.82rem; color: var(--muted); margin: 10px 0 0; font-weight: 400; }
         .consent input { width: 20px; height: 20px; flex: none; margin-top: 1px; }
@@ -29,7 +34,7 @@
         .done { text-align: center; padding: 60px 0; }
         .done-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 8px; }
         .done-text { color: var(--muted); font-size: 0.95rem; }
-        .trap { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip-path: inset(50%); pointer-events: none; }
+        .trap { position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip-path: inset(50%); pointer-events: none; }
         [hidden] { display: none !important; }
     </style>
 </head>

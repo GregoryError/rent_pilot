@@ -15,3 +15,7 @@ widget/node_modules/
 
 # Локальный каталог загруженных фото (APP_UPLOADS_DIR по умолчанию)
 /uploads/
+
+# Проверка вёрстки на узких экранах (tools/mobile-check): зависимости и снимки
+tools/mobile-check/node_modules/
+tools/mobile-check/shots/

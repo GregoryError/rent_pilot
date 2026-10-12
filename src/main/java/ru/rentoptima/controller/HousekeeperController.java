@@ -3,11 +3,13 @@ package ru.rentoptima.controller;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import ru.rentoptima.entity.FeedbackAnswer;
 import ru.rentoptima.entity.FeedbackQuestion;
 import ru.rentoptima.entity.FeedbackResponse;
@@ -64,7 +66,7 @@ public class HousekeeperController {
                                   @RequestParam(required = false, defaultValue = "schedule") String tab,
                                   Model model) {
         Property property = propertyRepo.findByHousekeeperCode(code).orElse(null);
-        if (property == null) return "error/404";
+        if (property == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
 
         if (property.getHousekeeperPinHash() == null || property.getHousekeeperPinHash().isBlank()) {
             model.addAttribute("code", code);
@@ -145,7 +147,7 @@ public class HousekeeperController {
                         @RequestParam String pin,
                         HttpServletResponse response) {
         Property property = propertyRepo.findByHousekeeperCode(code).orElse(null);
-        if (property == null) return "error/404";
+        if (property == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
 
         if (property.getHousekeeperPinHash() == null
                 || !encoder.matches(pin, property.getHousekeeperPinHash())) {
