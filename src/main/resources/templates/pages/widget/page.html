@@ -28,6 +28,12 @@
     <!-- Микроразметка жилья: только то, что видно на странице; рейтингов и отзывов нет -->
     <script type="application/ld+json" th:if="${jsonLd != null}" th:utext="${jsonLd}"></script>
     <link rel="preload" as="font" type="font/woff2" crossorigin th:each="f : ${fontFiles}" th:href="${f}">
+    <!--/* У страницы задан счётчик Метрики хозяина: виджет загрузит его только после согласия
+         посетителя (consent.js). Нет счётчика — нет ни баннера, ни этого кода. */-->
+    <th:block th:if="${!#strings.isEmpty(widget.metrikaId)}">
+        <script>window.optirentAnalyticsConsent = new Promise(function (resolve) { window.__optirentConsentResolve = resolve; });</script>
+        <script defer th:src="@{/js/consent.js}" data-widget></script>
+    </th:block>
     <style>
         html, body { margin: 0; }
         body { background: #f6f5f2; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; }

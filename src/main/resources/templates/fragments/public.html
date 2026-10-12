@@ -23,6 +23,9 @@
     <th:block th:replace="~{fragments/site :: icons}"></th:block>
     <link rel="stylesheet" th:href="@{/css/site.css}">
     <script type="application/ld+json" th:each="ld : ${jsonLd}" th:utext="${ld}"></script>
+    <!-- Метрика сайта — только после согласия в баннере (consent.js); нет счётчика — нет и баннера -->
+    <script defer th:if="${!#strings.isEmpty(site.metrikaId)}" th:src="@{/js/consent.js}"
+            th:attr="data-metrika=${site.metrikaId}"></script>
 </head>
 <body>
 
@@ -85,6 +88,7 @@
             <li><a th:href="@{/legal/terms}">Условия</a></li>
             <li><a th:href="@{/legal/privacy}">Конфиденциальность</a></li>
             <li><a href="mailto:errorgrisha@gmail.com">Связаться</a></li>
+            <li th:if="${!#strings.isEmpty(site.metrikaId)}"><a href="#" data-cookie-settings>Настройки cookie</a></li>
         </ul>
     </div>
 </footer>

@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class SeoFilterTest {
 
     private static SiteSettings site(String environment) {
-        return new SiteSettings(environment, "https://optirent.ru/", "", "", "abcdef0123456789");
+        return new SiteSettings(environment, "https://optirent.ru/", "", "", "abcdef0123456789", "");
     }
 
     private static MockHttpServletResponse get(String environment, String path) throws Exception {

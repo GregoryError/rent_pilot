@@ -59,7 +59,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock}.
  */
 @Testcontainers(disabledWithoutDocker = true)
-@SpringBootTest(properties = {"app.uploads.dir=target/test-uploads", "app.widget.requests-per-minute=100000"})
+@SpringBootTest(properties = {"app.uploads.dir=target/test-uploads", "app.widget.requests-per-minute=100000",
+        "app.site.metrika-id=12345678"})
 @AutoConfigureMockMvc
 @DisplayName("Виджет бронирования на PostgreSQL: гонка, API, CORS, экспорт, админка")
 class WidgetBookingIntegrationTest {
@@ -1073,5 +1074,39 @@ class WidgetBookingIntegrationTest {
                         .contains("<meta name=\"robots\" content=\"noindex, follow\">", "Особенности Циан"));
         mvc.perform(get("/instrukcii/no-such")).andExpect(status().isNotFound());
         mvc.perform(get("/instrukcii/")).andExpect(status().isMovedPermanently());
+    }
+
+    @Test
+    @DisplayName("согласие на cookie: баннер только там, где есть Метрика; в админке и на входе его нет")
+    void analyticsConsent() throws Exception {
+        java.nio.charset.Charset utf8 = java.nio.charset.StandardCharsets.UTF_8;
+        // Сайт: счётчик задан настройкой — скрипт согласия подключён, сама Метрика в HTML не упоминается
+        String home = mvc.perform(get("/")).andReturn().getResponse().getContentAsString(utf8);
+        assertThat(home).contains("data-metrika=\"12345678\"", "data-cookie-settings").containsPattern("/js/consent(-[0-9a-f]+)?\\.js");
+        assertThat(home).doesNotContain("mc.yandex.ru", "ym(");
+
+        // Страница бронирования без счётчика хозяина: ни баннера, ни обещания согласия
+        String plain = mvc.perform(get("/b/" + slug)).andReturn().getResponse().getContentAsString(utf8);
+        assertThat(plain).doesNotContain("consent", "optirentAnalyticsConsent", "mc.yandex.ru");
+
+        // Со счётчиком хозяина: виджет ждёт согласия; счётчик сайта на эту страницу не попадает
+        jdbc.update("UPDATE booking_widgets SET metrika_id = '87654321' WHERE id = ?", widget.getId());
+        for (String path : List.of("/b/" + slug, "/b/" + slug + "/embed")) {
+            String page = mvc.perform(get(path)).andReturn().getResponse().getContentAsString(utf8);
+            assertThat(page).as(path).contains("window.optirentAnalyticsConsent = new Promise", "data-widget")
+                    .containsPattern("/js/consent(-[0-9a-f]+)?\\.js");
+            assertThat(page).as(path).doesNotContain("12345678", "mc.yandex.ru");
+            // обещание заведено раньше, чем подключён виджет
+            assertThat(page.indexOf("optirentAnalyticsConsent")).isLessThan(page.indexOf("/w.js"));
+        }
+
+        // За входом и на самом входе Метрики нет — нет и баннера
+        for (String path : List.of("/login", "/register", "/legal/privacy")) {
+            assertThat(mvc.perform(get(path)).andReturn().getResponse().getContentAsString(utf8))
+                    .as(path).doesNotContain("consent.js", "/js/consent", "mc.yandex.ru");
+        }
+        assertThat(mvc.perform(get("/settings/widgets/" + widget.getId()).with(user(host())))
+                .andReturn().getResponse().getContentAsString(utf8)).doesNotContain("/js/consent", "mc.yandex.ru");
+        mvc.perform(get("/js/consent.js")).andExpect(status().isOk());
     }
 }

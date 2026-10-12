@@ -22,17 +22,22 @@ public class SiteSettings {
     private final String yandexVerification;
     private final String googleVerification;
     private final String indexNowKey;
+    /** Счётчик Яндекс.Метрики сайта (не хозяев): только цифры, пусто — Метрики на сайте нет. */
+    private final String metrikaId;
 
     public SiteSettings(@Value("${app.environment:dev}") String environment,
                         @Value("${app.site.base-url:https://optirent.ru}") String baseUrl,
                         @Value("${app.site.yandex-verification:}") String yandexVerification,
                         @Value("${app.site.google-verification:}") String googleVerification,
-                        @Value("${app.site.indexnow-key:}") String indexNowKey) {
+                        @Value("${app.site.indexnow-key:}") String indexNowKey,
+                        @Value("${app.site.metrika-id:}") String metrikaId) {
         this.environment = environment == null ? "" : environment.trim().toLowerCase();
         this.baseUrl = baseUrl.replaceAll("/+$", "");
         this.yandexVerification = yandexVerification.trim();
         this.googleVerification = googleVerification.trim();
         this.indexNowKey = indexNowKey.trim();
+        String digits = metrikaId == null ? "" : metrikaId.trim();
+        this.metrikaId = digits.matches("\\d{1,12}") ? digits : "";
     }
 
     public boolean isProduction() {

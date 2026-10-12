@@ -19,7 +19,7 @@ export function track(url, step, utm) {
 }
 
 const pending = [];
-let state = 0; // 0 — ещё не решали, 1 — ждём загрузки страницы, 2 — счётчик готов
+let state = 0; // 0 — ещё не решали, 1 — ждём загрузки страницы, 2 — счётчик готов, 3 — посетитель отказался
 
 /**
  * Цель в Метрике. Обычно счётчик на сайте хозяина уже стоит — тогда цели уходят в него.
@@ -30,12 +30,22 @@ let state = 0; // 0 — ещё не решали, 1 — ждём загрузк�
  */
 export function goal(id, step) {
     if (!id || !/^\d{1,12}$/.test(String(id))) return;
+    if (state === 3) return;
     pending.push([Number(id), 'optirent_' + step]);
     if (state === 2) return flush();
     if (state === 1) return;
     state = 1;
-    const decide = () => setTimeout(() => {
+    const decide = () => setTimeout(async () => {
         if (typeof window.ym !== 'function') {
+            // Страница может потребовать согласия посетителя на аналитику (наша /b/<slug>:
+            // static/js/consent.js). Тогда счётчик сами не грузим, пока согласия нет, а при
+            // отказе цели просто не отправляются. На сайте хозяина такого обещания нет.
+            const consent = window.optirentAnalyticsConsent;
+            if (consent && typeof consent.then === 'function' && !(await consent)) {
+                pending.length = 0;
+                state = 3;
+                return;
+            }
             // Очередь вызовов — как в стандартном коде счётчика
             window.ym = function () { (window.ym.a = window.ym.a || []).push(arguments); };
             window.ym.l = Date.now();
