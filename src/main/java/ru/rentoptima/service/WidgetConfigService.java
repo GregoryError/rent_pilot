@@ -81,8 +81,24 @@ public class WidgetConfigService {
      * экранируется: текст хозяина с «</script>» не должен закрыть тег и стать разметкой.
      */
     public String inlineJson(BookingWidget w, String baseUrl) {
+        return inlineJson(w, baseUrl, List.of());
+    }
+
+    /**
+     * @param shownByPage блоки, которые страница выводит сама, серверным текстом: виджету
+     *                    они передаются как скрытые, чтобы текст не повторялся дважды.
+     *                    Настройки хозяина в базе при этом не меняются.
+     */
+    public String inlineJson(BookingWidget w, String baseUrl, List<String> shownByPage) {
         try {
-            return json.writeValueAsString(config(w, baseUrl))
+            Map<String, Object> config = config(w, baseUrl);
+            if (!shownByPage.isEmpty() && config.get("layout") instanceof ObjectNode layout) {
+                var hidden = layout.withArray("hidden");
+                for (String block : shownByPage) {
+                    if (!WidgetLayout.hidden(layout, block)) hidden.add(block);
+                }
+            }
+            return json.writeValueAsString(config)
                     .replace("<", "\\u003c").replace("\u2028", "\\u2028").replace("\u2029", "\\u2029");
         } catch (Exception e) {
             return "null";

@@ -200,7 +200,13 @@
                     Необязательно. Номер вашего счётчика — виджет будет отправлять в него цели
                     <code>optirent_view</code>, <code>optirent_dates</code>, <code>optirent_form</code>,
                     <code>optirent_submit</code>, <code>optirent_success</code>. Создайте в Метрике цели типа «JavaScript-событие»
-                    с такими идентификаторами. Статистика воронки в OptiRent работает и без Метрики.
+                    с такими идентификаторами.
+                </div>
+                <div class="form-hint">
+                    Цели уходят в ваш счётчик, когда виджет вставлен на сайт скриптом, и со страницы
+                    бронирования <span th:text="${publicAddress}">https://optirent.ru/b/</span>… — там после того,
+                    как гость согласился на cookie. При вставке фреймом (Tilda, Wix) цели в Метрику
+                    не отправляются. Статистика воронки в OptiRent работает во всех случаях, и без Метрики тоже.
                 </div>
             </div>
             <div class="form-group" style="margin-bottom: 0;">

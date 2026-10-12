@@ -45,7 +45,7 @@ class SeoFilterTest {
         }
         for (String path : new String[]{"/login", "/register", "/dashboard", "/calendar/grid", "/settings/widgets/1",
                 "/b/loft/embed", "/api/widget/loft/config", "/q/abc1234", "/f/abc1234", "/feedback/abc",
-                "/widget/secret", "/ical/secret.ics", "/housekeeper/abc", "/learning", "/no-such-page"}) {
+                "/widget/secret", "/ical/secret.ics", "/housekeeper/abc", "/no-such-page"}) {
             assertThat(get("prod", path).getHeader(SeoFilter.HEADER)).as(path).isEqualTo("noindex, nofollow");
         }
     }

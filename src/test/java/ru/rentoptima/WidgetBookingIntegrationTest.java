@@ -972,6 +972,25 @@ class WidgetBookingIntegrationTest {
                 "<li>Wi-Fi</li>", "<li>Стиральная машина</li>", "<p>Без вечеринок</p>");
         assertThat(html).doesNotContain("name=\"robots\"");
 
+        // Описание, удобства и правила выводит только сервер: виджету на этой странице они
+        // переданы скрытыми, поэтому видимый текст встречается на странице один раз
+        assertThat(html.split("<p>Светлый лофт у парка</p>", -1).length - 1).isEqualTo(1);
+        assertThat(html.split("<li>Wi-Fi</li>", -1).length - 1).isEqualTo(1);
+        String inline = html.substring(html.indexOf("data-optirent-config"));
+        JsonNode pageConfig = json.readTree(inline.substring(inline.indexOf('>') + 1, inline.indexOf("</script>")));
+        assertThat(pageConfig.path("layout").path("hidden")).extracting(JsonNode::asText)
+                .contains("description", "amenities", "rules");
+        // Во фрейме на сайте хозяина серверного блока нет — виджет показывает всё сам;
+        // настройки хозяина в базе и API при этом не тронуты
+        String frame = mvc.perform(get("/b/" + slug + "/embed")).andReturn().getResponse()
+                .getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(frame).doesNotContain("<section class=\"about\">");
+        String frameInline = frame.substring(frame.indexOf("data-optirent-config"));
+        assertThat(json.readTree(frameInline.substring(frameInline.indexOf('>') + 1, frameInline.indexOf("</script>")))
+                .path("layout").path("hidden")).isEmpty();
+        assertThat(json.readTree(mvc.perform(get("/api/widget/" + slug + "/config")).andReturn().getResponse()
+                .getContentAsString()).path("layout").path("hidden")).isEmpty();
+
         // Микроразметка жилья: без рейтингов; во фрейме её нет
         String ld = html.substring(html.indexOf("<script type=\"application/ld+json\">") + 35);
         JsonNode lodging = json.readTree(ld.substring(0, ld.indexOf("</script>")));
@@ -1091,14 +1110,18 @@ class WidgetBookingIntegrationTest {
 
         // Со счётчиком хозяина: виджет ждёт согласия; счётчик сайта на эту страницу не попадает
         jdbc.update("UPDATE booking_widgets SET metrika_id = '87654321' WHERE id = ?", widget.getId());
-        for (String path : List.of("/b/" + slug, "/b/" + slug + "/embed")) {
-            String page = mvc.perform(get(path)).andReturn().getResponse().getContentAsString(utf8);
-            assertThat(page).as(path).contains("window.optirentAnalyticsConsent = new Promise", "data-widget")
-                    .containsPattern("/js/consent(-[0-9a-f]+)?\\.js");
-            assertThat(page).as(path).doesNotContain("12345678", "mc.yandex.ru");
-            // обещание заведено раньше, чем подключён виджет
-            assertThat(page.indexOf("optirentAnalyticsConsent")).isLessThan(page.indexOf("/w.js"));
-        }
+        String page = mvc.perform(get("/b/" + slug)).andReturn().getResponse().getContentAsString(utf8);
+        assertThat(page).contains("window.optirentAnalyticsConsent = new Promise", "data-widget")
+                .containsPattern("/js/consent(-[0-9a-f]+)?\\.js");
+        assertThat(page).doesNotContain("12345678", "mc.yandex.ru");
+        // обещание заведено раньше, чем подключён виджет
+        assertThat(page.indexOf("optirentAnalyticsConsent")).isLessThan(page.indexOf("/w.js"));
+
+        // Во фрейме на сайте хозяина Метрика не грузится вовсе: баннера нет, виджет сразу получает отказ
+        String frame = mvc.perform(get("/b/" + slug + "/embed")).andReturn().getResponse().getContentAsString(utf8);
+        assertThat(frame).contains("window.optirentAnalyticsConsent = Promise.resolve(false);");
+        assertThat(frame).doesNotContain("/js/consent", "__optirentConsentResolve", "mc.yandex.ru");
+        assertThat(frame.indexOf("optirentAnalyticsConsent")).isLessThan(frame.indexOf("/w.js"));
 
         // За входом и на самом входе Метрики нет — нет и баннера
         for (String path : List.of("/login", "/register", "/legal/privacy")) {

@@ -58,20 +58,27 @@ class MobileLayoutTest {
         seed();
 
         File log = Path.of("target", "mobile-check.log").toFile();
-        ProcessBuilder pb = new ProcessBuilder("node", "check.mjs")
-                .directory(TOOL.toFile())
-                .redirectErrorStream(true)
-                .redirectOutput(log);
-        pb.environment().put("BASE_URL", "http://localhost:" + port);
-        pb.environment().put("LOGIN", LOGIN);
-        pb.environment().put("PASSWORD", PASSWORD);
-        pb.environment().put("EXTRA_PATHS", String.join(",", List.of(
-                "/f/mcFeed7", "/f/nope000", "/feedback/mc-feedback", "/feedback/nope",
-                "/housekeeper/mc-keeper", "/housekeeper/nope", "/legal/nope")));
-        Process process = pb.start();
-        assertThat(process.waitFor(10, TimeUnit.MINUTES)).as("проверка уложилась в 10 минут").isTrue();
+        Process process = null;
+        String output = "";
+        // Headless Chrome изредка закрывает страницу посреди обхода — это сбой браузера, а не
+        // вёрстки: в таком случае обход повторяется один раз. Замечания по вёрстке не повторяются.
+        for (int attempt = 1; attempt <= 2; attempt++) {
+            ProcessBuilder pb = new ProcessBuilder("node", "check.mjs")
+                    .directory(TOOL.toFile())
+                    .redirectErrorStream(true)
+                    .redirectOutput(log);
+            pb.environment().put("BASE_URL", "http://localhost:" + port);
+            pb.environment().put("LOGIN", LOGIN);
+            pb.environment().put("PASSWORD", PASSWORD);
+            pb.environment().put("EXTRA_PATHS", String.join(",", List.of(
+                    "/f/mcFeed7", "/f/nope000", "/feedback/mc-feedback", "/feedback/nope",
+                    "/housekeeper/mc-keeper", "/housekeeper/nope", "/legal/nope")));
+            process = pb.start();
+            assertThat(process.waitFor(10, TimeUnit.MINUTES)).as("проверка уложилась в 10 минут").isTrue();
+            output = Files.readString(log.toPath(), StandardCharsets.UTF_8);
+            if (!output.contains("TargetCloseError")) break;
+        }
 
-        String output = Files.readString(log.toPath(), StandardCharsets.UTF_8);
         // код 2 — скрипт не нашёл Chrome: это не ошибка вёрстки
         assumeTrue(process.exitValue() != 2, output);
         assertThat(process.exitValue()).as(output).isZero();

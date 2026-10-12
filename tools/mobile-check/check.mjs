@@ -33,7 +33,6 @@ const ADMIN = [
   '/pricing', '/expenses', '/feedback-admin', '/feedback', '/staff', '/chat', '/import',
   '/settings', '/settings/integrations', '/settings/properties', '/welcome',
   '/admin/legal-pages', '/admin/legal-pages/privacy/edit',
-  // /learning не проверяется: страница падает с 500 и ждёт отдельного решения
 ];
 const PUBLIC = [
   '/', '/kalendar-bronirovaniya', '/modul-bronirovaniya', '/modul-bronirovaniya/tilda',

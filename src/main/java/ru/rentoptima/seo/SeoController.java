@@ -31,7 +31,7 @@ public class SeoController {
             "/api/", "/q/", "/f/", "/b/*/embed", "/widget/", "/feedback", "/ical/", "/housekeeper/",
             "/login", "/register", "/logout", "/welcome", "/error",
             "/dashboard", "/calendar", "/bookings/", "/settings", "/pricing", "/expenses",
-            "/staff", "/chat", "/import", "/learning", "/admin/");
+            "/staff", "/chat", "/import", "/admin/");
 
     private static final MediaType TEXT = new MediaType("text", "plain", StandardCharsets.UTF_8);
     private static final MediaType XML = new MediaType("application", "xml", StandardCharsets.UTF_8);

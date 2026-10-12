@@ -53,6 +53,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class WidgetPublicController {
 
+    /** Блоки виджета, которые на странице /b/<slug> заменяет серверный текст. */
+    static final java.util.List<String> PAGE_TEXT_BLOCKS = java.util.List.of("description", "amenities", "rules");
+
     private final WidgetBookingService widgets;
     private final WidgetConfigService configs;
     private final WidgetCardService cards;
@@ -92,7 +95,13 @@ public class WidgetPublicController {
                 baseUrl + "/fonts/" + font + "-latin-wght-normal.woff2"));
         model.addAttribute("widget", w);
         model.addAttribute("embed", embed);
-        model.addAttribute("configJson", configs.inlineJson(w, baseUrl));
+        // На нашей странице описание, удобства и правила выводит сервер (блок about ниже) —
+        // виджету они передаются скрытыми. Во фрейме на сайте хозяина серверного блока нет,
+        // и виджет показывает всё, как настроено в конструкторе.
+        model.addAttribute("configJson", configs.inlineJson(w, baseUrl, embed ? java.util.List.of() : PAGE_TEXT_BLOCKS));
+        // Во фрейме Метрику не грузим вовсе: спросить согласие там негде
+        model.addAttribute("metrika", w.getMetrikaId() == null || w.getMetrikaId().isBlank() ? null
+                : embed ? "off" : "ask");
         model.addAttribute("pageUrl", site.canonical(request, "/b/" + w.getSlug()));
         model.addAttribute("indexed", !embed && Boolean.TRUE.equals(w.getSearchIndexed()));
         model.addAttribute("pageTitle", pageTitle(w));
