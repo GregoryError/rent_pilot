@@ -1,0 +1,141 @@
+/* Онбординг в кабинете: маркер и бабл тура. Подключается, только когда есть что показать. */
+
+/* Рукописный шрифт подписей: Caveat лежит у нас (static/fonts, OFL), одно начертание.
+   Два файла с unicode-range — браузер берёт только нужный. */
+@font-face {
+    font-family: 'Caveat';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url(/fonts/caveat-cyrillic-600-normal.woff2) format('woff2');
+    unicode-range: U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116;
+}
+@font-face {
+    font-family: 'Caveat';
+    font-style: normal;
+    font-weight: 600;
+    font-display: swap;
+    src: url(/fonts/caveat-latin-600-normal.woff2) format('woff2');
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
+}
+
+:root {
+    /* Тёплый красный маркера: на тёмной теме светлее, чтобы не терялся на тёмном фоне */
+    --onb-marker: #ff6b57;
+    --onb-bubble-bg: #26272d;
+    --onb-bubble-text: #f3f1ec;
+    --onb-bubble-muted: #b5b3ad;
+    --onb-bubble-border: #3a3c46;
+}
+:root[data-theme="light"] {
+    --onb-marker: #d9361e;
+    --onb-bubble-bg: #ffffff;
+    --onb-bubble-text: #1c1c1a;
+    --onb-bubble-muted: #57564f;
+    --onb-bubble-border: #dcdad3;
+}
+
+/* Слой маркера поверх страницы; нажатия проходят сквозь него — страница не блокируется */
+.onb-marker {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10050;
+    pointer-events: none;
+    opacity: 0;
+    overflow: visible;
+}
+.onb-marker.is-on { opacity: 1; }
+.onb-marker__line {
+    fill: none;
+    stroke: var(--onb-marker);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.92;
+}
+.onb-marker__line--thin { stroke-width: 2; opacity: 0.7; }
+
+.onb-bubble {
+    position: fixed;
+    z-index: 10051;
+    display: none;
+    width: 300px;
+    max-width: calc(100vw - 24px);
+    padding: 16px 18px 14px;
+    background: var(--onb-bubble-bg);
+    color: var(--onb-bubble-text);
+    border: 1px solid var(--onb-bubble-border);
+    border-radius: 16px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
+}
+.onb-bubble.is-on { display: block; animation: onb-pop 180ms ease-out; }
+@keyframes onb-pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+.onb-bubble__text {
+    margin: 0 0 12px;
+    font-family: 'Caveat', 'Segoe Print', 'Comic Sans MS', cursive;
+    font-weight: 600;
+    font-size: 24px;
+    line-height: 1.15;
+}
+.onb-bubble__row { display: flex; align-items: center; gap: 8px; font-family: var(--font-sans); }
+.onb-bubble__counter { margin-right: auto; font-size: 13px; color: var(--onb-bubble-muted); font-variant-numeric: tabular-nums; }
+.onb-bubble__skip, .onb-bubble__next {
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 10px;
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+}
+.onb-bubble__skip { background: none; border: 1px solid transparent; color: var(--onb-bubble-muted); }
+.onb-bubble__skip:hover { color: var(--onb-bubble-text); }
+.onb-bubble__next { background: var(--accent); border: 1px solid var(--accent); color: #fff; }
+.onb-bubble__skip:focus-visible, .onb-bubble__next:focus-visible { outline: 3px solid var(--onb-marker); outline-offset: 2px; }
+
+/* Хвостик: повёрнутый квадрат на кромке, обращённой к элементу */
+.onb-bubble__tail {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: var(--onb-bubble-bg);
+    border: 1px solid var(--onb-bubble-border);
+    transform: rotate(45deg);
+}
+.onb-bubble--bottom .onb-bubble__tail { top: -9px; margin-left: -8px; border-right: none; border-bottom: none; }
+.onb-bubble--top .onb-bubble__tail { bottom: -9px; top: auto !important; margin-left: -8px; border-left: none; border-top: none; }
+.onb-bubble--right .onb-bubble__tail { left: -9px !important; margin-top: -8px; border-right: none; border-top: none; }
+.onb-bubble--left .onb-bubble__tail { right: -9px; left: auto !important; margin-top: -8px; border-left: none; border-bottom: none; }
+
+/* Узкий экран: бабл — лист у нижнего края, хвостика нет */
+.onb-bubble--sheet {
+    left: 0 !important;
+    right: 0;
+    top: auto !important;
+    bottom: 0;
+    width: auto;
+    max-width: none;
+    padding: 16px calc(16px + env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    border-radius: 18px 18px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+}
+.onb-bubble--sheet .onb-bubble__tail { display: none; }
+.onb-bubble--sheet .onb-bubble__text { font-size: 22px; }
+
+/* Пока идёт тур, под листом должно оставаться место, чтобы докрутить обведённый пункт меню */
+@media (max-width: 900px) {
+    body.onb-touring .sidebar { padding-bottom: calc(var(--onb-sheet, 0px) + 32px); }
+    /* меню открыто туром: фон не затемняем — страницу должно быть видно */
+    body.onb-touring.nav-open .nav-backdrop { background: rgba(0, 0, 0, 0.12); }
+    /* кнопка чата не должна лежать на листе */
+    body.onb-touring #fc-button { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .onb-bubble.is-on { animation: none; }
+}

@@ -323,4 +323,52 @@ class OnboardingIntegrationTest {
         assertThat(page(u, "/settings/channels")).contains("<h1 class=\"page-title\">Площадки</h1>", "Площадки — OptiRent")
                 .contains("href=\"/settings/channels\"");
     }
+
+    @Test
+    @DisplayName("тур: стартует после мастера, закрытый не возвращается, «Знакомство» запускает заново")
+    void tour() throws Exception {
+        TenantUserDetails u = newcomer();
+        mvc.perform(post("/onboarding/branch").with(user(u)).with(csrf()).param("branch", "B"));
+        mvc.perform(post("/onboarding/property").with(user(u)).with(csrf()).param("name", "Квартира")
+                .param("city", "Приморск").param("basePrice", "3000"));
+        // пока идёт мастер, тура и его скрипта на страницах нет
+        assertThat(page(u, "/settings/channels")).doesNotContain("onboarding-config", "/js/onboarding");
+
+        mvc.perform(post("/onboarding/finish").with(user(u)).with(csrf())).andExpect(redirectedUrl("/calendar/grid"));
+        String grid = page(u, "/calendar/grid");
+        assertThat(grid).contains("id=\"onboarding-config\"", "\"start\":0", "Это шахматка — календарь всех ваших броней",
+                "data-tour=\"platforms\"", "data-tour=\"page\"", "data-tour=\"help\"", "Знакомство", "Инструкции")
+                .containsPattern("/js/onboarding(-[0-9a-f]+)?\\.js").containsPattern("/css/onboarding(-[0-9a-f]+)?\\.css");
+
+        // показан третий кадр, вкладку закрыли — в следующий раз тур продолжится с него
+        mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "frame").param("frame", "2"))
+                .andExpect(status().isNoContent());
+        assertThat(page(u, "/calendar/grid")).contains("\"start\":2");
+
+        // закрыл тур на кадре 2 — после перезагрузки его нет, как и скрипта со стилями и шрифтом
+        mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "close").param("frame", "1"))
+                .andExpect(status().isNoContent());
+        assertThat(page(u, "/calendar/grid")).doesNotContain("onboarding-config", "/js/onboarding", "/css/onboarding");
+        // опоздавшее событие кадра закрытый тур не оживляет
+        mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "frame").param("frame", "3"));
+        assertThat(page(u, "/calendar/grid")).doesNotContain("onboarding-config");
+
+        // «Знакомство» в меню — тур с первого кадра
+        mvc.perform(post("/onboarding/tour/start").with(user(u)).with(csrf())).andExpect(redirectedUrl("/calendar/grid"));
+        assertThat(page(u, "/calendar/grid")).contains("\"start\":0");
+        mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "done").param("frame", "4"));
+        assertThat(page(u, "/calendar/grid")).doesNotContain("onboarding-config");
+
+        // Старый пользователь: тура нет, пока не нажмёт «Знакомство»; мастер ему при этом не открывается
+        TenantUserDetails old = account();
+        assertThat(page(old, "/calendar/grid")).doesNotContain("onboarding-config").contains("Знакомство");
+        mvc.perform(post("/onboarding/tour/start").with(user(old)).with(csrf())).andExpect(redirectedUrl("/calendar/grid"));
+        assertThat(page(old, "/calendar/grid")).contains("onboarding-config");
+        assertThat(states.findById(old.getUserId()).orElseThrow().wizardActive()).isFalse();
+
+        // событие без состояния и без входа ничего не ломает
+        mvc.perform(post("/onboarding/tour").with(user(account())).with(csrf()).param("event", "close"))
+                .andExpect(status().isNoContent());
+        mvc.perform(post("/onboarding/tour").with(csrf()).param("event", "close")).andExpect(status().is3xxRedirection());
+    }
 }

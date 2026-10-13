@@ -52,6 +52,7 @@ public class OnboardingService {
     /** Ключ площадки в настройках канала: по нему карточка мастера находит свой канал. */
     public static final String CONFIG_PLATFORM = "platform";
     public static final String CONFIG_IMPORT_URL = "import_url";
+    public static final String TOUR_PENDING = "pending";
 
     private final OnboardingStateRepository states;
     private final PropertyCreator propertyCreator;
@@ -335,6 +336,64 @@ public class OnboardingService {
         s.setWizardStatus(OnboardingState.STATUS_DONE);
         s.setWizardStep(STEP_DONE);
         s.setWizardFinishedAt(LocalDateTime.now());
+        // После мастера в шахматке стартует тур
+        ObjectNode data = s.dataCopy();
+        data.set("tour", JsonNodeFactory.instance.objectNode().put("status", TOUR_PENDING).put("frame", 0));
+        s.setData(data);
+        save(s);
+    }
+
+    // --- Тур
+
+    /** Тур ждёт показа: только что пройден мастер либо нажато «Знакомство». */
+    public static boolean tourPending(OnboardingState s) {
+        return TOUR_PENDING.equals(s.getData().path("tour").path("status").asText());
+    }
+
+    /** Кадр, с которого тур продолжится: закрыли вкладку на третьем — вернёмся к третьему. */
+    public static int tourFrame(OnboardingState s) {
+        return Math.max(0, s.getData().path("tour").path("frame").asInt(0));
+    }
+
+    /**
+     * «Знакомство» в меню: тур с первого кадра. Пользователю, созданному до онбординга,
+     * заводится состояние с уже «пройденным» мастером — мастер ему сам не откроется.
+     */
+    @Transactional
+    public void startTour(Long userId, Long tenantId) {
+        OnboardingState s = states.findById(userId).orElseGet(() -> {
+            OnboardingState fresh = new OnboardingState();
+            fresh.setUserId(userId);
+            fresh.setTenantId(tenantId);
+            fresh.setWizardStatus(OnboardingState.STATUS_SKIPPED);
+            fresh.setWizardFinishedAt(LocalDateTime.now());
+            return fresh;
+        });
+        ObjectNode data = s.dataCopy();
+        data.set("tour", JsonNodeFactory.instance.objectNode().put("status", TOUR_PENDING).put("frame", 0));
+        s.setData(data);
+        save(s);
+    }
+
+    /**
+     * Событие тура из браузера: показан кадр, тур закрыт («Пропустить», Esc) или пройден.
+     * Закрытый и пройденный тур сам больше не появляется — только по «Знакомству».
+     */
+    @Transactional
+    public void tourEvent(OnboardingState s, String event, int frame) {
+        ObjectNode data = s.dataCopy();
+        ObjectNode tour = data.has("tour") && data.get("tour").isObject()
+                ? (ObjectNode) data.get("tour") : data.putObject("tour");
+        switch (event) {
+            case "frame" -> {
+                if (!TOUR_PENDING.equals(tour.path("status").asText())) return;
+                tour.put("frame", Math.max(0, Math.min(frame, 20)));
+            }
+            case "close" -> tour.put("status", "closed").put("frame", Math.max(0, Math.min(frame, 20)));
+            case "done" -> tour.put("status", "done");
+            default -> { return; }
+        }
+        s.setData(data);
         save(s);
     }
 

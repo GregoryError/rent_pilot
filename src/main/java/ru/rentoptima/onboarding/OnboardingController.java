@@ -3,7 +3,9 @@ package ru.rentoptima.onboarding;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -282,6 +284,24 @@ public class OnboardingController {
     public String restart() {
         onboarding.restart(AuthContext.userId(), AuthContext.tenantId());
         return "redirect:/onboarding";
+    }
+
+    // --- Тур
+
+    /** «Знакомство» в меню: тур начинается в шахматке. */
+    @PostMapping("/tour/start")
+    public String tourStart() {
+        onboarding.startTour(AuthContext.userId(), AuthContext.tenantId());
+        return "redirect:/calendar/grid";
+    }
+
+    /** Ход тура из браузера: показан кадр, закрыт, пройден. Состояния нет — молча ничего. */
+    @PostMapping("/tour")
+    @ResponseBody
+    public ResponseEntity<Void> tourEvent(@RequestParam String event,
+                                          @RequestParam(required = false, defaultValue = "0") int frame) {
+        onboarding.find(AuthContext.userId()).ifPresent(s -> onboarding.tourEvent(s, event, frame));
+        return ResponseEntity.noContent().build();
     }
 
     // --- Данные для шаблона

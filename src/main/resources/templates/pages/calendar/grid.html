@@ -33,7 +33,7 @@
 
             <form method="get" th:action="@{/calendar/grid}" class="grid-controls__form">
                 <input type="hidden" name="from" th:value="${fromParam}">
-                <select name="days" onchange="this.form.submit()"
+                <select name="days" onchange="this.form.submit()" aria-label="Сколько дней показывать"
                         class="form-input form-input--sm grid-controls__span">
                     <option th:each="o : ${spanOptions}" th:value="${o.days}"
                             th:selected="${o.selected}" th:text="${o.label}">30 дней</option>

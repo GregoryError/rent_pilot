@@ -65,12 +65,12 @@
                class="nav-item">
                 <span>✉</span> Заявки
             </a>
-            <a th:href="@{/settings/widgets}"
+            <a th:href="@{/settings/widgets}" data-tour="page"
                th:classappend="${activePage == 'widgets'} ? 'nav-item--active'"
                class="nav-item">
                 <span>⌂</span> Страница брони
             </a>
-            <a th:href="@{/settings/channels}"
+            <a th:href="@{/settings/channels}" data-tour="platforms"
                th:classappend="${activePage == 'channels'} ? 'nav-item--active'"
                class="nav-item">
                 <span>⇄</span> Площадки
@@ -114,6 +114,17 @@
                class="nav-item">
                 <span>⚙</span> Настройки
             </a>
+
+            <!-- Помощь: тур по кабинету и инструкции по площадкам -->
+            <div data-tour="help">
+                <div class="nav-section">Помощь</div>
+                <form th:action="@{/onboarding/tour/start}" method="post" class="nav-form">
+                    <button type="submit" class="nav-item nav-item--button"><span>✎</span> Знакомство</button>
+                </form>
+                <a th:href="@{/instrukcii}" target="_blank" rel="noopener" class="nav-item">
+                    <span>?</span> Инструкции
+                </a>
+            </div>
 
             <!-- Admin only -->
             <div sec:authorize="hasRole('ADMIN')">
@@ -571,5 +582,11 @@ async function fcSend() {
     });
 </script>
 <script layout:fragment="scripts"></script>
+<!-- Онбординг: тур и подсказки. Скрипт, стили и шрифт грузятся, только когда есть что показать -->
+<th:block th:if="${onboardingJson != null}">
+    <link rel="stylesheet" th:href="@{/css/onboarding.css}">
+    <script type="application/json" id="onboarding-config" th:utext="${onboardingJson}"></script>
+    <script defer th:src="@{/js/onboarding.js}"></script>
+</th:block>
 </body>
 </html>

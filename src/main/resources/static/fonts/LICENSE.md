@@ -11,3 +11,10 @@ Inter, Manrope, Montserrat, Lora — вариативные шрифты под 
 
 Лежат у нас, а не на Google Fonts: виджет на сайте хозяина не делает запросов к третьим
 сторонам. Подключается только шрифт, выбранный в настройках виджета.
+
+## Caveat — рукописный шрифт подсказок онбординга
+
+Caveat — © The Caveat Project Authors (https://github.com/googlefonts/caveat), SIL Open Font
+License 1.1. Файлы из пакета @fontsource/caveat без изменений: начертание 600, подмножества
+latin и cyrillic. Подключается только на страницах кабинета, где идёт тур или показана
+подсказка (`static/css/onboarding.css`).
