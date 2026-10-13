@@ -84,6 +84,8 @@ class OnboardingIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired OnboardingService onboarding;
     @Autowired OnboardingStateRepository states;
+    @Autowired OnboardingNotifier notifier;
+    @Autowired OnboardingStats stats;
 
     /** Новый пользователь, как после регистрации: со строкой состояния онбординга. */
     private TenantUserDetails newcomer() {
@@ -512,5 +514,120 @@ class OnboardingIntegrationTest {
         mvc.perform(get("/calendar/grid").with(user(old))).andExpect(status().isOk());
         assertThat(page(old, "/calendar/grid")).doesNotContain("id=\"first-steps\"", "onboarding-config");
         mvc.perform(get("/onboarding").with(user(account()))).andExpect(redirectedUrl("/calendar/grid"));
+    }
+
+    private long hits(String event) {
+        return stats.totals(LocalDate.now(), LocalDate.now()).get(event);
+    }
+
+    @Test
+    @DisplayName("сопровождение: площадка забрала ссылку и пришли брони — плашка один раз; через сутки — напоминание")
+    void notices() throws Exception {
+        TenantUserDetails u = newcomer();
+        wizardDone(u);
+        Long cian = channel(u, "cian");
+        notifier.check();
+        assertThat(page(u, "/calendar/grid")).doesNotContain("class=\"notice\"");
+
+        // пришли брони с площадки
+        mvc.perform(post("/onboarding/links/" + cian).with(user(u)).with(csrf()).param("url", CIAN_LINK));
+        assertThat(notifier.check()).isGreaterThanOrEqualTo(1);
+        String grid = page(u, "/calendar/grid");
+        assertThat(grid).contains("class=\"notice\"", "С площадки «Циан» пришли первые брони — они уже в шахматке.");
+        // показана один раз; повторный проход второй раз не создаёт
+        assertThat(page(u, "/calendar/grid")).doesNotContain("class=\"notice\"");
+        notifier.check();
+        assertThat(page(u, "/calendar/grid")).doesNotContain("class=\"notice\"");
+
+        // площадка впервые забрала нашу ссылку
+        String secret = jdbc.queryForObject("SELECT export_secret FROM channels WHERE id = ?", String.class, cian);
+        mvc.perform(get("/ical/" + secret + ".ics").header("User-Agent", "CianCalendar/1.0"));
+        notifier.check();
+        assertThat(page(u, "/settings/channels")).contains("«Циан» подключилась: площадка забрала вашу ссылку и видит ваш календарь.");
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM onboarding_notices WHERE channel_id = ?", Integer.class, cian))
+                .isEqualTo(2);
+        // чужой хозяин чужих плашек не видит
+        TenantUserDetails stranger = newcomer();
+        wizardDone(stranger);
+        assertThat(page(stranger, "/calendar/grid")).doesNotContain("class=\"notice\"");
+
+        // у созданного до онбординга сопровождения нет: событие есть, сообщения нет
+        TenantUserDetails old = account();
+        Long propertyId = jdbc.queryForObject("INSERT INTO properties(tenant_id, name, feedback_code, housekeeper_code)"
+                + " VALUES (?, 'Старая', ?, ?) RETURNING id", Long.class, old.getTenantId(), "f" + old.getUserId(), "h" + old.getUserId());
+        Long unitId = jdbc.queryForObject("INSERT INTO unit_types(tenant_id, property_id, name, unit_count)"
+                + " VALUES (?, ?, 'Основной', 1) RETURNING id", Long.class, old.getTenantId(), propertyId);
+        Long oldChannel = jdbc.queryForObject("INSERT INTO channels(tenant_id, unit_type_id, channel_type, name, sync_enabled, export_secret)"
+                + " VALUES (?, ?, 'ICAL', 'Авито', false, ?) RETURNING id", Long.class, old.getTenantId(), unitId, "old-" + old.getUserId());
+        jdbc.update("INSERT INTO channel_feed_fetches(tenant_id, channel_id, user_agent) VALUES (?, ?, 'AvitoBot/1.0')",
+                old.getTenantId(), oldChannel);
+        notifier.check();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM onboarding_notices WHERE channel_id = ?", Integer.class, oldChannel))
+                .isZero();
+
+        // напоминание: площадка заведена больше суток назад и ни разу не забрала ссылку
+        TenantUserDetails late = newcomer();
+        wizardDone(late);
+        assertThat(page(late, "/calendar/grid")).contains("Отметится само, когда площадка в первый раз заберёт ссылку.")
+                .doesNotContain("ссылку пока не забирали");
+        jdbc.update("UPDATE channels SET created_at = NOW() - INTERVAL '25 hours' WHERE tenant_id = ?", late.getTenantId());
+        assertThat(page(late, "/calendar/grid")).contains("«Циан»: ссылку пока не забирали. Проверьте, что вставили её в кабинете площадки.",
+                "href=\"/instrukcii/cian\"", "Открыть инструкцию", "onb-steps__item is-late");
+    }
+
+    @Test
+    @DisplayName("воронка: события считаются без пользователей; страница — только администратору")
+    void funnel() throws Exception {
+        long start = hits("wizard_start"), branch = hits("branch_A"), property = hits("step_property"),
+                done = hits("wizard_done"), skip = hits("wizard_skip"), frame2 = hits("tour_frame_2"),
+                close = hits("tour_close"), checkProperty = hits("check_property");
+
+        TenantUserDetails u = newcomer();
+        mvc.perform(post("/onboarding/branch").with(user(u)).with(csrf()).param("branch", "A"));
+        mvc.perform(post("/onboarding/property").with(user(u)).with(csrf()).param("name", "Студия").param("city", "Приморск")
+                .param("basePrice", "4500"));
+        mvc.perform(post("/onboarding/finish").with(user(u)).with(csrf()));
+        // кадр считается один раз, даже если браузер прислал его дважды; закрытие — один раз
+        for (int i = 0; i < 2; i++) {
+            mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "frame").param("frame", "1"));
+        }
+        mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "close").param("frame", "1"));
+        mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "close").param("frame", "1"));
+        // пункт чек-листа — один раз на пользователя, сколько бы страниц он ни открыл
+        page(u, "/calendar/grid");
+        page(u, "/dashboard");
+        TenantUserDetails quitter = newcomer();
+        mvc.perform(post("/onboarding/skip").with(user(quitter)).with(csrf()));
+
+        assertThat(hits("wizard_start")).isEqualTo(start + 2);
+        assertThat(hits("branch_A")).isEqualTo(branch + 1);
+        assertThat(hits("step_property")).isEqualTo(property + 1);
+        assertThat(hits("wizard_done")).isEqualTo(done + 1);
+        assertThat(hits("wizard_skip")).isEqualTo(skip + 1);
+        assertThat(hits("tour_frame_2")).isEqualTo(frame2 + 1);
+        assertThat(hits("tour_close")).isEqualTo(close + 1);
+        assertThat(hits("check_property")).isEqualTo(checkProperty + 1);
+        // в таблице только день, событие и число
+        assertThat(jdbc.queryForList("SELECT column_name FROM information_schema.columns WHERE table_name = 'onboarding_funnel_daily'"
+                + " ORDER BY ordinal_position", String.class)).containsExactly("day", "event", "hits");
+
+        // страница — только администратору системы
+        mvc.perform(get("/admin/onboarding").with(user(u))).andExpect(status().isForbidden());
+        Tenant tenant = new Tenant();
+        tenant.setId(u.getTenantId());
+        User admin = new User();
+        admin.setId(u.getUserId());
+        admin.setTenant(tenant);
+        admin.setUsername("admin");
+        admin.setPasswordHash("x");
+        admin.setDisplayName("Администратор");
+        admin.setRole(User.Role.ADMIN);
+        String html = mvc.perform(get("/admin/onboarding").with(user(new TenantUserDetails(admin)))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(UTF8);
+        assertThat(html).contains("Воронка онбординга", "Мастер открыт (регистрация)", "Мастер пройден", "Мастер пропущен",
+                "Кадр 2 — площадки", "Все шаги пройдены", "По дням", "href=\"/admin/onboarding?days=7\"");
+        // ни одного адреса почты и названия объекта: только агрегаты
+        assertThat(html).doesNotContain("@example.com", "Студия");
+        mvc.perform(get("/admin/onboarding").param("days", "90").with(user(new TenantUserDetails(admin)))).andExpect(status().isOk());
     }
 }

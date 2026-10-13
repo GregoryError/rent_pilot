@@ -42,6 +42,7 @@ public class OnboardingUi {
 
     private final OnboardingService onboarding;
     private final OnboardingChecklist checklist;
+    private final OnboardingNotifier notifier;
 
     /** Страницы кабинета с общим layout: только им нужны чек-лист и подсказки. */
     private static boolean cabinetPage(HttpServletRequest request) {
@@ -65,6 +66,16 @@ public class OnboardingUi {
     @ModelAttribute("ot")
     public java.util.Map<String, String> texts() {
         return OnboardingTexts.RU;
+    }
+
+    /**
+     * Плашки сопровождения: «площадка подключилась», «пришли первые брони». Показываются один раз —
+     * при первом открытии кабинета после события.
+     */
+    @ModelAttribute("onboardingNotices")
+    public List<String> notices(HttpServletRequest request) {
+        return state(request).filter(s -> !OnboardingService.legacy(s) && !s.wizardActive())
+                .map(s -> notifier.takeUnshown(s.getTenantId())).orElse(List.of());
     }
 
     /** Чек-лист «Первые шаги» — над шахматкой, на главной и числом в шапке. */

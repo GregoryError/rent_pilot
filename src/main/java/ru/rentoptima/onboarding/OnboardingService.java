@@ -62,6 +62,7 @@ public class OnboardingService {
     private final UnitTypeRepository unitTypeRepo;
     private final BookingWidgetRepository widgetRepo;
     private final FeedChecker feedChecker;
+    private final OnboardingStats stats;
 
     public Optional<OnboardingState> find(Long userId) {
         return userId == null ? Optional.empty() : states.findById(userId);
@@ -73,6 +74,7 @@ public class OnboardingService {
         OnboardingState s = new OnboardingState();
         s.setUserId(userId);
         s.setTenantId(tenantId);
+        stats.hit("wizard_start");
         return states.save(s);
     }
 
@@ -112,6 +114,7 @@ public class OnboardingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST);
         }
         s.setBranch(branch);
+        stats.hit("branch_" + branch);
         go(s, STEP_PROPERTY);
     }
 
@@ -135,6 +138,7 @@ public class OnboardingService {
         data.put("propertyId", propertyId);
         data.put("unitTypeId", ut.getId());
         s.setData(data);
+        stats.hit("step_property");
         go(s, next(s, STEP_PROPERTY));
     }
 
@@ -194,6 +198,7 @@ public class OnboardingService {
                     .orElse(otherName == null || otherName.isBlank() ? "Другая площадка" : cut(otherName.trim(), 100));
             addPlatformChannel(s.getTenantId(), ut.getId(), id, name, platform.map(Platform::color).orElse(null));
         }
+        stats.hit("step_platforms");
         go(s, STEP_LINKS);
     }
 
@@ -264,6 +269,7 @@ public class OnboardingService {
         } catch (RuntimeException e) {
             log.warn("Онбординг: первая синхронизация channel={} не удалась: {}", c.getId(), e.getMessage());
         }
+        stats.hit("step_link");
         return new LinkOutcome(true, OnboardingTexts.feedMessage(result, today), null, v.url());
     }
 
@@ -312,6 +318,7 @@ public class OnboardingService {
         data.put("widgetId", w.getId());
         s.setData(data);
         save(s);
+        stats.hit("step_page");
         return w;
     }
 
@@ -329,10 +336,12 @@ public class OnboardingService {
         s.setWizardStatus(OnboardingState.STATUS_SKIPPED);
         s.setWizardFinishedAt(LocalDateTime.now());
         save(s);
+        stats.hit("wizard_skip");
     }
 
     @Transactional
     public void finish(OnboardingState s) {
+        if (s.wizardActive()) stats.hit("wizard_done");
         s.setWizardStatus(OnboardingState.STATUS_DONE);
         s.setWizardStep(STEP_DONE);
         s.setWizardFinishedAt(LocalDateTime.now());
@@ -403,10 +412,24 @@ public class OnboardingService {
         switch (event) {
             case "frame" -> {
                 if (!TOUR_PENDING.equals(tour.path("status").asText())) return;
-                tour.put("frame", Math.max(0, Math.min(frame, 20)));
+                int shown = Math.max(0, Math.min(frame, 20));
+                tour.put("frame", shown);
+                // кадр считается один раз за прохождение: пересчёт при повороте экрана шлёт его повторно
+                if (shown > tour.path("counted").asInt(-1)) {
+                    tour.put("counted", shown);
+                    stats.hit("tour_frame_" + (shown + 1));
+                }
             }
-            case "close" -> tour.put("status", "closed").put("frame", Math.max(0, Math.min(frame, 20)));
-            case "done" -> tour.put("status", "done");
+            case "close" -> {
+                if (!TOUR_PENDING.equals(tour.path("status").asText())) return;
+                tour.put("status", "closed").put("frame", Math.max(0, Math.min(frame, 20)));
+                stats.hit("tour_close");
+            }
+            case "done" -> {
+                if (!TOUR_PENDING.equals(tour.path("status").asText())) return;
+                tour.put("status", "done");
+                stats.hit("tour_done");
+            }
             default -> { return; }
         }
         s.setData(data);
@@ -418,6 +441,26 @@ public class OnboardingService {
     /** Пользователь создан до онбординга: тур по просьбе, но без чек-листа и подсказок. */
     public static boolean legacy(OnboardingState s) {
         return s.getData().path("legacy").asBoolean(false);
+    }
+
+    /**
+     * Пункты чек-листа, выполненные впервые, — в воронку: каждый пункт у каждого пользователя
+     * считается один раз. Что уже посчитано, помнит состояние ({@code counted}).
+     */
+    @Transactional
+    public void countChecklist(OnboardingState s, java.util.List<String> doneItems, boolean all) {
+        ObjectNode data = s.dataCopy();
+        ArrayNode counted = data.withArray("counted");
+        java.util.Set<String> known = new java.util.HashSet<>();
+        counted.forEach(n -> known.add(n.asText()));
+        boolean changed = false;
+        for (String id : doneItems) {
+            if (known.add(id)) { counted.add(id); stats.hit("check_" + id); changed = true; }
+        }
+        if (all && known.add("all")) { counted.add("all"); stats.hit("check_all"); changed = true; }
+        if (!changed) return;
+        s.setData(data);
+        save(s);
     }
 
     /** Отметка в состоянии: «видел бронь в шахматке», «открыл лист печати», «чек-лист скрыт» и т. п. */

@@ -38,7 +38,11 @@
                     <span class="onb-steps__text">
                         <span th:text="${item.title}">Добавить объект</span>
                         <span class="sr-only" th:if="${item.done}"> — сделано</span>
-                        <small th:if="${item.note != null}" th:text="${item.note}">Отметится само.</small>
+                        <small th:if="${item.note != null}">
+                            <span th:text="${item.note}">Отметится само.</span>
+                            <a th:if="${item.guideHref != null}" th:href="${item.guideHref}" target="_blank" rel="noopener"
+                               th:text="${t['notice.stale.guide']}">Открыть инструкцию</a>
+                        </small>
                     </span>
                     <a th:unless="${item.done}" th:href="${item.href}" class="btn btn-ghost onb-steps__do"
                        th:text="${t['first.do']}">Сделать</a>

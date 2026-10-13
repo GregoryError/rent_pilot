@@ -32,7 +32,7 @@ const ADMIN = [
   '/settings/widgets', '/settings/channels', '/settings/channels/diagnostics',
   '/pricing', '/expenses', '/feedback-admin', '/feedback', '/staff', '/chat', '/import',
   '/settings', '/settings/integrations', '/settings/properties', '/welcome',
-  '/admin/legal-pages', '/admin/legal-pages/privacy/edit',
+  '/admin/legal-pages', '/admin/legal-pages/privacy/edit', '/admin/onboarding',
   // Мастер первой настройки: шаги открываются по ?step=, если у пользователя есть состояние онбординга
   '/onboarding?step=start', '/onboarding?step=property', '/onboarding?step=platforms',
   '/onboarding?step=links', '/onboarding?step=page', '/onboarding?step=done',

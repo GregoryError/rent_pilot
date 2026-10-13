@@ -51,6 +51,23 @@ public class OnboardingFacts {
                 tenantId, tenantId, tenantId, tenantId, tenantId);
     }
 
+    /** Площадка, которая не забирала ссылку. */
+    public record Stale(String name, String platform) {}
+
+    /**
+     * Площадка, заведённая больше суток назад и ни разу не забравшая нашу ссылку, — скорее
+     * всего, ссылку не вставили в кабинет. Самая давняя из таких; нет таких — null.
+     */
+    public Stale staleChannel(Long tenantId) {
+        return jdbc.query("""
+                SELECT c.name, c.config_json->>'platform' AS platform FROM channels c
+                 WHERE c.tenant_id = ? AND c.active AND c.channel_type = 'ICAL' AND c.export_secret IS NOT NULL
+                   AND c.created_at < NOW() - INTERVAL '24 hours'
+                   AND NOT EXISTS (SELECT 1 FROM channel_feed_fetches f WHERE f.channel_id = c.id AND """
+                + PLATFORM_FETCH + ") ORDER BY c.created_at LIMIT 1",
+                rs -> rs.next() ? new Stale(rs.getString("name"), rs.getString("platform")) : null, tenantId);
+    }
+
     /** Площадки хозяина, которые ни разу не забирали нашу ссылку. */
     public Set<Long> neverFetched(Long tenantId) {
         return new HashSet<>(jdbc.queryForList("""

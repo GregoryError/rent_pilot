@@ -134,6 +134,11 @@
             <!-- Admin only -->
             <div sec:authorize="hasRole('ADMIN')">
                 <div class="nav-section">Администрирование</div>
+                <a th:href="@{/admin/onboarding}"
+                   th:classappend="${activePage == 'admin-onboarding'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>◔</span> Воронка онбординга
+                </a>
                 <a th:href="@{/admin/legal-pages}"
                    th:classappend="${activePage == 'admin-legal'} ? 'nav-item--active'"
                    class="nav-item">
@@ -164,6 +169,13 @@
 
         <div th:if="${error}" class="toast toast--error" id="toast-error">
             <span th:text="${error}"></span>
+        </div>
+
+        <!-- Сопровождение после мастера: площадка подключилась, пришли первые брони. Показывается один раз -->
+        <div class="notice" role="status" th:each="n : ${onboardingNotices}">
+            <span class="notice__mark" aria-hidden="true">✓</span>
+            <span th:text="${n}">«Циан» подключилась: площадка забрала вашу ссылку.</span>
+            <button type="button" class="notice__close" aria-label="Закрыть" onclick="this.parentNode.remove()">×</button>
         </div>
 
         <!-- После удаления ручной записи, которую успели забрать площадки -->

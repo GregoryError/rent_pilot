@@ -199,3 +199,8 @@
     100% { opacity: 0; transform: translateY(150px) rotate(320deg); }
 }
 @media (prefers-reduced-motion: reduce) { .onb-confetti { display: none; } }
+
+/* напоминание в чек-листе: за сутки площадка не забрала ссылку */
+.onb-steps__item.is-late .onb-steps__check { border-color: var(--amber); }
+.onb-steps__item.is-late small { color: var(--amber); }
+.onb-steps__text small a { text-decoration: underline; white-space: nowrap; }

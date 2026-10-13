@@ -23,7 +23,9 @@ public class OnboardingChecklist {
     public static final String COLLAPSED = "stepsCollapsed";
     public static final String CELEBRATED = "stepsCelebrated";
 
-    public record Item(String id, String title, boolean done, String href, String note, String cssClass) {}
+    /** @param guideHref ссылка на инструкцию площадки — у напоминания «за сутки не забрала ссылку» */
+    public record Item(String id, String title, boolean done, String href, String note, String cssClass,
+                       String guideHref) {}
 
     /**
      * @param celebrate все пункты выполнены и поздравление ещё не показывали: блок выводится
@@ -33,6 +35,7 @@ public class OnboardingChecklist {
                        String progress, int left) {}
 
     private final OnboardingFacts facts;
+    private final OnboardingService onboarding;
 
     /** Чек-лист для показа; null — показывать нечего (скрыт, пройден, пользователь создан до онбординга). */
     public View view(OnboardingState s) {
@@ -42,20 +45,28 @@ public class OnboardingChecklist {
         items.add(item("property", f.property(), "/onboarding?step=property", null));
         items.add(item("platform", f.platform(), "/onboarding?step=" + (f.property() ? "platforms" : "property"), null));
         // «Сделать» у пункта, который отмечается сам, ведёт к карточкам площадок: проверить, что ссылка вставлена
-        items.add(item("fetched", f.fetched(), "/onboarding?step=links",
-                f.fetched() ? null : OnboardingTexts.get("first.fetched.wait")));
+        // Прошли сутки, а площадка ни разу не забрала ссылку — вместо «отметится само» напоминание с инструкцией
+        OnboardingFacts.Stale stale = f.fetched() ? null : facts.staleChannel(s.getTenantId());
+        String guide = stale == null || stale.platform() == null ? null
+                : PlatformGuides.find(stale.platform()).map(PlatformGuides.Platform::guidePath).orElse(null);
+        items.add(new Item("fetched", OnboardingTexts.get("first.fetched"), f.fetched(), "/onboarding?step=links",
+                f.fetched() ? null : stale != null ? OnboardingTexts.format("notice.stale", stale.name())
+                        : OnboardingTexts.get("first.fetched.wait"),
+                f.fetched() ? "onb-steps__item is-done" : stale != null ? "onb-steps__item is-late" : "onb-steps__item",
+                guide));
         items.add(item("booking", f.booking() && flag(s, SEEN_BOOKING), "/calendar/grid", null));
         items.add(item("page", f.page(), f.property() ? "/onboarding?step=page" : "/onboarding?step=property", null));
         items.add(item("card", flag(s, CARD_PRINTED),
                 f.page() ? "/settings/widgets/" + f.widgetId() + "/card" : "/settings/widgets", null));
         int done = (int) items.stream().filter(Item::done).count();
+        onboarding.countChecklist(s, items.stream().filter(Item::done).map(Item::id).toList(), done == items.size());
         return new View(items, done, items.size(), flag(s, COLLAPSED), done == items.size(),
                 OnboardingTexts.format("first.progress", done, items.size()), items.size() - done);
     }
 
     private static Item item(String id, boolean done, String href, String note) {
         return new Item(id, OnboardingTexts.get("first." + id), done, href, note,
-                done ? "onb-steps__item is-done" : "onb-steps__item");
+                done ? "onb-steps__item is-done" : "onb-steps__item", null);
     }
 
     private static boolean flag(OnboardingState s, String key) {
