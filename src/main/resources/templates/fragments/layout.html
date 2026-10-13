@@ -30,6 +30,8 @@
         <svg th:replace="~{fragments/logo :: mark(22)}"></svg>
         <span>OptiRent</span>
     </a>
+    <a th:if="${firstSteps != null and !firstSteps.celebrate}" th:href="@{/calendar/grid} + '#first-steps'"
+       class="steps-badge steps-badge--top">Первые шаги <b th:text="${firstSteps.left}">3</b></a>
 </header>
 <div class="nav-backdrop" id="nav-backdrop"></div>
 
@@ -40,6 +42,9 @@
             <svg th:replace="~{fragments/logo :: mark(24)}"></svg>
             <span>OptiRent</span>
         </div>
+
+        <a th:if="${firstSteps != null and !firstSteps.celebrate}" th:href="@{/calendar/grid} + '#first-steps'"
+           class="steps-badge steps-badge--side">Первые шаги <b th:text="${firstSteps.left}">3</b></a>
 
         <nav class="sidebar__nav">
             <div class="nav-section">Аналитика</div>
@@ -583,9 +588,9 @@ async function fcSend() {
 </script>
 <script layout:fragment="scripts"></script>
 <!-- Онбординг: тур и подсказки. Скрипт, стили и шрифт грузятся, только когда есть что показать -->
-<th:block th:if="${onboardingJson != null}">
+<th:block th:if="${onboardingJson != null or firstSteps != null}">
     <link rel="stylesheet" th:href="@{/css/onboarding.css}">
-    <script type="application/json" id="onboarding-config" th:utext="${onboardingJson}"></script>
+    <script type="application/json" id="onboarding-config" th:if="${onboardingJson != null}" th:utext="${onboardingJson}"></script>
     <script defer th:src="@{/js/onboarding.js}"></script>
 </th:block>
 </body>

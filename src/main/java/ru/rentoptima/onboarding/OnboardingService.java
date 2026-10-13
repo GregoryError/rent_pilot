@@ -345,6 +345,20 @@ public class OnboardingService {
 
     // --- Тур
 
+    /** Состояние для пользователя, созданного до онбординга: мастер «пропущен», чек-листа и подсказок нет. */
+    @Transactional
+    public OnboardingState ensureLegacy(Long userId, Long tenantId) {
+        return states.findById(userId).orElseGet(() -> {
+            OnboardingState fresh = new OnboardingState();
+            fresh.setUserId(userId);
+            fresh.setTenantId(tenantId);
+            fresh.setWizardStatus(OnboardingState.STATUS_SKIPPED);
+            fresh.setWizardFinishedAt(LocalDateTime.now());
+            fresh.setData(JsonNodeFactory.instance.objectNode().put("legacy", true));
+            return states.save(fresh);
+        });
+    }
+
     /** Тур ждёт показа: только что пройден мастер либо нажато «Знакомство». */
     public static boolean tourPending(OnboardingState s) {
         return TOUR_PENDING.equals(s.getData().path("tour").path("status").asText());
@@ -367,6 +381,8 @@ public class OnboardingService {
             fresh.setTenantId(tenantId);
             fresh.setWizardStatus(OnboardingState.STATUS_SKIPPED);
             fresh.setWizardFinishedAt(LocalDateTime.now());
+            // создан до онбординга: тур — по просьбе, а чек-листа и подсказок не получает
+            fresh.setData(JsonNodeFactory.instance.objectNode().put("legacy", true));
             return fresh;
         });
         ObjectNode data = s.dataCopy();
@@ -393,6 +409,41 @@ public class OnboardingService {
             case "done" -> tour.put("status", "done");
             default -> { return; }
         }
+        s.setData(data);
+        save(s);
+    }
+
+    // --- Чек-лист и подсказки
+
+    /** Пользователь создан до онбординга: тур по просьбе, но без чек-листа и подсказок. */
+    public static boolean legacy(OnboardingState s) {
+        return s.getData().path("legacy").asBoolean(false);
+    }
+
+    /** Отметка в состоянии: «видел бронь в шахматке», «открыл лист печати», «чек-лист скрыт» и т. п. */
+    @Transactional
+    public void flag(OnboardingState s, String key, boolean value) {
+        if (s.getData().path(key).asBoolean(false) == value && s.getData().has(key)) return;
+        ObjectNode data = s.dataCopy();
+        data.put(key, value);
+        s.setData(data);
+        save(s);
+    }
+
+    /**
+     * Подсказка показана. Записывается день показа: по нему считается лимит «две в день».
+     * Повторная запись и подсказка сверх лимита молча пропускаются.
+     */
+    @Transactional
+    public void hintShown(OnboardingState s, String hintId, LocalDate today) {
+        if (OnboardingHints.ALL.stream().noneMatch(h -> h.id().equals(hintId))) return;
+        ObjectNode data = s.dataCopy();
+        ObjectNode shown = data.with("hints").with("shown");
+        if (shown.has(hintId)) return;
+        int todayCount = 0;
+        for (JsonNode d : shown) if (today.toString().equals(d.asText())) todayCount++;
+        if (todayCount >= OnboardingHints.PER_DAY) return;
+        shown.put(hintId, today.toString());
         s.setData(data);
         save(s);
     }

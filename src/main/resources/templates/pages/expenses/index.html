@@ -68,7 +68,7 @@
                         </td>
                     </tr>
                     <tr th:if="${#lists.isEmpty(expenses)}">
-                        <td colspan="5" class="muted" style="text-align:center">Нет расходов за этот месяц</td>
+                        <td colspan="5"><div th:replace="~{fragments/onboarding :: empty('expenses', null)}"></div></td>
                     </tr>
                 </tbody>
             </table>

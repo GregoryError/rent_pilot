@@ -48,6 +48,7 @@ public class ChannelController {
     private final ChannelSyncService syncService;
     private final ChannelRateLimiter rateLimiter;
     private final ObjectMapper objectMapper;
+    private final ru.rentoptima.onboarding.OnboardingFacts facts;
 
     @GetMapping
     public String list(Model model, HttpServletRequest request) {
@@ -76,6 +77,8 @@ public class ChannelController {
         model.addAttribute("channels", views);
         model.addAttribute("unitTypes", unitTypeOptions);
         model.addAttribute("hasUnitTypes", !unitTypes.isEmpty());
+        // Площадки, ни разу не забравшие нашу ссылку, — пометка в карточке
+        model.addAttribute("neverFetched", facts.neverFetched(tenantId));
         return "pages/settings/channels";
     }
 

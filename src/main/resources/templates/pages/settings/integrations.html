@@ -87,7 +87,7 @@
                 <tr><th>Замечено</th><th>Тип</th><th>Что случилось</th><th>Статус</th></tr>
                 </thead>
                 <tbody>
-                <tr th:each="a : ${alerts}">
+                <tr th:each="a : ${alerts}" th:attr="data-hint=${a.type == 'Пересечение'} ? 'conflict'">
                     <td th:text="${a.time}" style="white-space: nowrap;">04.10 12:30</td>
                     <td th:text="${a.type}" style="white-space: nowrap;">Пересечение</td>
                     <td th:text="${a.message}">Садовая / Основной: 12–14 октября</td>

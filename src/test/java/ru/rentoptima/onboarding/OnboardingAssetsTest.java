@@ -43,7 +43,8 @@ class OnboardingAssetsTest {
         String jsCode = js.replaceAll("(?s)/\\*.*?\\*/", "").replaceAll("(?m)//.*$", "");
         assertThat(jsCode).doesNotContain("rough", "floating-ui", "popper", "import ", "require(");
         assertThat(jsCode.replace("http://www.w3.org/2000/svg", "")).doesNotContain("http://", "https://");
-        assertThat(css).doesNotContain("http://", "https://");
+        // галочка чек-листа — встроенный SVG; его пространство имён — не внешний адрес
+        assertThat(css.replace("http://www.w3.org/2000/svg", "")).doesNotContain("http://", "https://");
         // рисование линии — переход stroke-dashoffset; остальное — keyframes с opacity и transform
         assertThat(jsCode).contains("stroke-dashoffset").contains("prefers-reduced-motion");
         assertThat(css).contains("prefers-reduced-motion");

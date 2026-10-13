@@ -1,5 +1,5 @@
 /*
- * Онбординг в кабинете: тур «обвели фломастером».
+ * Онбординг в кабинете: тур «обвели фломастером», подсказки по ходу работы и чек-лист.
  *
  * Вокруг элемента рисуется неровный овал красным маркером, рядом — бабл с короткой подписью.
  * Страница не блокируется и не затемняется: всё вокруг по-прежнему нажимается.
@@ -11,9 +11,8 @@
  */
 (function () {
     var configEl = document.getElementById('onboarding-config');
-    if (!configEl) return;
-    var config;
-    try { config = JSON.parse(configEl.textContent); } catch (e) { return; }
+    var config = {};
+    try { if (configEl) config = JSON.parse(configEl.textContent); } catch (e) { config = {}; }
 
     var SVG = 'http://www.w3.org/2000/svg';
     var NARROW = 900;          // ниже — меню спрятано за бургер, бабл превращается в лист снизу
@@ -22,15 +21,19 @@
 
     function narrow() { return window.innerWidth < NARROW; }
 
-    function send(event, frame) {
+    /** Сообщить серверу о ходе онбординга. Сбой не важен: тур и подсказки от него не ломаются. */
+    function post(url, body) {
         var header = document.querySelector('meta[name="_csrf_header"]');
         var token = document.querySelector('meta[name="_csrf"]');
-        var headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
+        var headers = { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'fetch' };
         if (header && token) headers[header.content] = token.content;
         try {
-            fetch(config.tour.url, { method: 'POST', headers: headers, keepalive: true,
-                body: 'event=' + event + '&frame=' + frame }).catch(function () {});
-        } catch (e) { /* состояние не сохранилось — тур от этого не ломается */ }
+            fetch(url, { method: 'POST', headers: headers, keepalive: true, body: body }).catch(function () {});
+        } catch (e) { /* не сохранилось */ }
+    }
+
+    function send(event, frame) {
+        post(config.tour.url, 'event=' + event + '&frame=' + frame);
     }
 
     // ---------------------------------------------------------------- маркер
@@ -79,6 +82,12 @@
     }
 
     var layer, strokes = [], bubble, textEl, counterEl, nextBtn, skipBtn, tail;
+
+    /** Овал и бабл живут в body; если элемент внутри открытого окна <dialog> — в нём: окно рисуется поверх всей страницы. */
+    function mountNear(el) {
+        var host = (el && el.closest('dialog[open]')) || document.body;
+        if (layer.parentNode !== host) { host.appendChild(layer); host.appendChild(bubble); }
+    }
 
     function build() {
         layer = document.createElementNS(SVG, 'svg');
@@ -177,7 +186,8 @@
 
     // ---------------------------------------------------------------- тур
 
-    var frames = config.tour.frames, index = -1, target = null, running = false, pendingFrame = 0;
+    var frames = config.tour ? config.tour.frames : [], index = -1, target = null, running = false, pendingFrame = 0;
+    var hintMode = false;
 
     function setMenu(open) {
         var toggle = document.getElementById('nav-toggle');
@@ -203,6 +213,8 @@
             var el = findTarget(frame);
             if (!el) { setMenu(false); continue; }
             index = i; target = el;
+            mountNear(null);
+            bubble.setAttribute('aria-label', config.labels.name);
             textEl.textContent = frame.text;
             var last = !frames.slice(i + 1).some(function (f) { return document.querySelector(f.target); });
             nextBtn.textContent = last ? config.labels.done : config.labels.next;
@@ -243,11 +255,13 @@
 
     function layout(animate) {
         if (!running || !target) return;
+        // элемент исчез (окно закрыли, строку удалили) — подсказке больше не на что указывать
+        if (hintMode && !document.body.contains(target)) { stop(); return; }
         var rect = visibleRect(target);
         if (!rect) { layer.classList.remove('is-on'); return; }
         layer.classList.add('is-on');
         drawMarker(rect, 1000 + index * 97, animate);
-        placeBubble(rect, frames[index].menu ? 'right' : 'bottom');
+        placeBubble(rect, !hintMode && frames[index].menu ? 'right' : 'bottom');
     }
 
     var scheduled = false;
@@ -258,11 +272,11 @@
     }
 
     function stop() {
-        running = false; target = null;
+        running = false; target = null; hintMode = false;
         layer.classList.remove('is-on'); bubble.classList.remove('is-on');
         document.body.classList.remove('onb-touring');
         document.documentElement.style.removeProperty('--onb-sheet');
-        if (narrow()) setMenu(false);
+        if (narrow() && frames.length) setMenu(false);
         window.removeEventListener('resize', onResize);
         window.removeEventListener('scroll', relayout, true);
         document.removeEventListener('keydown', onKey, true);
@@ -274,10 +288,15 @@
 
     function onResize() {
         // Перешли границу узкого экрана: меню и бабл устроены иначе — показать кадр заново
-        if (index >= 0) show(index); else relayout();
+        if (!hintMode && index >= 0) show(index); else relayout();
     }
 
     function onKey(e) {
+        if (hintMode) {
+            // подсказка: Esc — «Понятно»; остальные клавиши не трогаем — человек может работать дальше
+            if (e.key === 'Escape') stop();
+            return;
+        }
         if (e.key === 'Escape') { e.preventDefault(); close(); return; }
         // Набор текста в поле ввода тур не перехватывает
         var tag = e.target && e.target.tagName;
@@ -304,12 +323,103 @@
 
     // Нажатие по фону открытого меню закрывает меню — а с ним и кадр, который в нём показан
     var backdrop = document.getElementById('nav-backdrop');
-    if (backdrop) backdrop.addEventListener('click', function () { if (running) close(); });
+    if (backdrop) backdrop.addEventListener('click', function () { if (running && !hintMode) close(); });
 
-    pendingFrame = Math.min(config.tour.start || 0, frames.length - 1);
-    if (location.pathname === config.tour.page) {
+    function whenLoaded(fn, delay) {
+        var run = function () { setTimeout(fn, delay); };
+        if (document.readyState === 'complete') run(); else window.addEventListener('load', run);
+    }
+
+    if (config.tour) {
+        pendingFrame = Math.min(config.tour.start || 0, frames.length - 1);
         // после первой отрисовки: шахматка сама прокручивается к сегодняшнему дню
-        var begin = function () { setTimeout(function () { start(pendingFrame); }, 350); };
-        if (document.readyState === 'complete') begin(); else window.addEventListener('load', begin);
+        if (location.pathname === config.tour.page) whenLoaded(function () { start(pendingFrame); }, 350);
+    }
+
+    // ---------------------------------------------------------------- подсказки по ходу работы
+
+    /**
+     * Подсказка — тот же овал и бабл, но одна и с одной кнопкой «Понятно». Сервер присылает
+     * только те, что ещё не показывали и на которые не исчерпан дневной лимит; здесь показывается
+     * первая, чей элемент нашёлся. За одно открытие страницы — не больше одной.
+     */
+    var hintShown = false, observer = null;
+
+    function typing() {
+        var a = document.activeElement;
+        return a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName);
+    }
+
+    function showHint(hint, el) {
+        if (hintShown || running) return false;
+        // не поверх формы, в которую печатают; окно — можно, если элемент подсказки в нём самом
+        var dialog = document.querySelector('dialog[open]');
+        if (typing() || (dialog && !dialog.contains(el))) return false;
+        var r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) return false;
+        if (!layer) build();
+        hintShown = true; running = true; hintMode = true; target = el; index = hint.id.length;
+        if (observer) { observer.disconnect(); observer = null; }
+        mountNear(el);
+        textEl.textContent = hint.text;
+        counterEl.textContent = '';
+        skipBtn.hidden = true;
+        nextBtn.textContent = config.labels.ok;
+        nextBtn.onclick = stop;
+        bubble.setAttribute('aria-label', config.labels.hint);
+        layer.classList.add('is-on'); bubble.classList.add('is-on');
+        if (r.top < 60 || r.bottom > window.innerHeight - 24) el.scrollIntoView({ block: 'center', behavior: 'auto' });
+        window.addEventListener('resize', onResize);
+        window.addEventListener('scroll', relayout, true);
+        document.addEventListener('keydown', onKey, true);
+        layout(true);
+        // фокус не забираем: подсказка не должна сбивать то, чем человек занят
+        post(config.hintUrl, 'id=' + encodeURIComponent(hint.id));
+        return true;
+    }
+
+    function tryHints(onlyWatched) {
+        if (hintShown || running) return;
+        for (var i = 0; i < config.hints.length; i++) {
+            var hint = config.hints[i];
+            if (onlyWatched && !hint.watch) continue;
+            // первый видимый из подходящих: одноимённый элемент может быть скрыт
+            var found = document.querySelectorAll(hint.target);
+            for (var j = 0; j < found.length; j++) {
+                if (showHint(hint, found[j])) return;
+            }
+        }
+    }
+
+    if (config.hints && config.hints.length && !config.tour) {
+        whenLoaded(function () {
+            tryHints(false);
+            // элемент появится позже (в окне дня, после действия): ждём его появления
+            if (hintShown || !config.hints.some(function (h) { return h.watch; }) || !window.MutationObserver) return;
+            var queued = false;
+            observer = new MutationObserver(function () {
+                if (queued) return;
+                queued = true;
+                setTimeout(function () { queued = false; tryHints(true); }, 250);
+            });
+            observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['open', 'style'] });
+        }, 700);
+    }
+
+    // ---------------------------------------------------------------- чек-лист «Первые шаги»
+
+    var steps = document.getElementById('first-steps');
+    if (steps) {
+        // Свернуть и развернуть — без перезагрузки; состояние запоминается на сервере
+        var toggle = steps.querySelector('[data-steps-toggle]');
+        if (toggle) toggle.addEventListener('click', function (e) {
+            e.preventDefault();
+            var collapsed = steps.classList.toggle('is-collapsed');
+            toggle.textContent = collapsed ? toggle.dataset.expand : toggle.dataset.collapse;
+            toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+            post(toggle.form.action, 'action=' + (collapsed ? 'collapse' : 'expand'));
+        });
+        // Поздравление показано — в следующий раз блока уже не будет
+        if (steps.dataset.celebrate) post('/onboarding/steps', 'action=celebrated');
     }
 })();

@@ -61,7 +61,7 @@
         </form>
     </div>
 
-    <div th:unless="${hasUnitTypes}" class="card">
+    <div th:if="${!hasUnitTypes and !#lists.isEmpty(channels)}" class="card">
         <div class="card__title">Сначала добавьте категорию номеров</div>
         <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
             Канал привязывается к категории внутри объекта. Создайте хотя бы одну
@@ -102,6 +102,10 @@
                 </div>
             </div>
             <span class="tag" th:classappend="${c.statusCssClass}" th:text="${c.statusText}">OK</span>
+        </div>
+        <!-- Площадка ни разу не обращалась за нашей ссылкой: скорее всего, её не вставили в кабинете -->
+        <div th:if="${neverFetched.contains(c.id)}" style="margin-bottom: var(--sp-3);">
+            <span class="tag tag--amber" data-hint="not-fetched">Площадка ещё не забирала ссылку</span>
         </div>
 
         <div class="text-sm" style="margin-bottom: var(--sp-4); color: var(--text-secondary);">
@@ -171,9 +175,8 @@
         </div>
     </div>
 
-    <div th:if="${hasUnitTypes and #lists.isEmpty(channels)}" class="card"
-         style="text-align: center; padding: var(--sp-10);">
-        <div class="muted">Пока нет подключённых каналов. Нажмите «Подключить канал» выше.</div>
+    <div th:if="${#lists.isEmpty(channels)}" class="card">
+        <div th:replace="~{fragments/onboarding :: empty('platforms', '/onboarding?step=platforms')}"></div>
     </div>
 
 </div>

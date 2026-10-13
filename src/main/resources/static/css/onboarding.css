@@ -139,3 +139,63 @@
 @media (prefers-reduced-motion: reduce) {
     .onb-bubble.is-on { animation: none; }
 }
+
+/* ---------------------------------------------------------------- чек-лист «Первые шаги» */
+.onb-steps {
+    position: relative;
+    margin-bottom: var(--sp-6);
+    padding: var(--sp-4) var(--sp-5);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    scroll-margin-top: 72px;
+    overflow: hidden;
+}
+.onb-steps__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); }
+.onb-steps__head h2 { font-size: var(--text-base); font-weight: var(--weight-semibold); }
+.onb-steps__count { font-size: var(--text-sm); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+.onb-steps__tools { display: flex; gap: var(--sp-1); margin: 0 0 0 auto; }
+.onb-steps__tool { min-height: 44px; padding: 0 var(--sp-2); background: none; border: none; font: inherit; font-size: var(--text-sm); color: var(--text-secondary); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.onb-steps__tool:hover { color: var(--text-primary); }
+.onb-steps__list { list-style: none; margin-top: var(--sp-2); }
+.onb-steps.is-collapsed .onb-steps__list { display: none; }
+.onb-steps__item { display: flex; align-items: center; gap: var(--sp-3); min-height: 48px; padding: var(--sp-1) 0; border-top: 1px solid var(--border-subtle); }
+.onb-steps__check { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); }
+.onb-steps__item.is-done .onb-steps__check {
+    border-color: var(--green);
+    background: var(--green) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E") center / 14px no-repeat;
+}
+.onb-steps__text { flex: 1; min-width: 0; color: var(--text-primary); }
+.onb-steps__text small { display: block; font-size: var(--text-xs); color: var(--text-secondary); }
+.onb-steps__item.is-done .onb-steps__text { color: var(--text-secondary); text-decoration: line-through; }
+.onb-steps__do { min-height: 36px; padding: 0 var(--sp-4); }
+@media (max-width: 900px) { .onb-steps__do { min-height: 44px; } }
+
+/* Поздравление: конфетти на CSS, без библиотек */
+.onb-steps__done { position: relative; padding: var(--sp-4) 0; text-align: center; }
+.onb-steps__done h2 { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.onb-steps__done p { margin-top: var(--sp-1); color: var(--text-secondary); }
+.onb-confetti { position: absolute; inset: 0; pointer-events: none; }
+.onb-confetti i { position: absolute; top: -12px; width: 8px; height: 12px; border-radius: 2px; opacity: 0; animation: onb-fall 1600ms ease-in forwards; }
+.onb-confetti i:nth-child(4n+1) { background: var(--onb-marker); }
+.onb-confetti i:nth-child(4n+2) { background: var(--accent); }
+.onb-confetti i:nth-child(4n+3) { background: var(--green); }
+.onb-confetti i:nth-child(4n) { background: var(--amber); }
+.onb-confetti i:nth-child(1) { left: 6%; animation-delay: 0ms; }
+.onb-confetti i:nth-child(2) { left: 14%; animation-delay: 220ms; }
+.onb-confetti i:nth-child(3) { left: 23%; animation-delay: 90ms; }
+.onb-confetti i:nth-child(4) { left: 31%; animation-delay: 340ms; }
+.onb-confetti i:nth-child(5) { left: 40%; animation-delay: 150ms; }
+.onb-confetti i:nth-child(6) { left: 48%; animation-delay: 420ms; }
+.onb-confetti i:nth-child(7) { left: 56%; animation-delay: 60ms; }
+.onb-confetti i:nth-child(8) { left: 64%; animation-delay: 280ms; }
+.onb-confetti i:nth-child(9) { left: 72%; animation-delay: 190ms; }
+.onb-confetti i:nth-child(10) { left: 80%; animation-delay: 380ms; }
+.onb-confetti i:nth-child(11) { left: 88%; animation-delay: 120ms; }
+.onb-confetti i:nth-child(12) { left: 95%; animation-delay: 300ms; }
+@keyframes onb-fall {
+    0% { opacity: 1; transform: translateY(0) rotate(0); }
+    100% { opacity: 0; transform: translateY(150px) rotate(320deg); }
+}
+@media (prefers-reduced-motion: reduce) { .onb-confetti { display: none; } }

@@ -72,6 +72,8 @@
         </div>
     </div>
 
+    <section th:replace="~{fragments/onboarding :: steps}"></section>
+
     <div th:replace="~{fragments/occupancy-grid :: empty(${grid})}"></div>
 
     <th:block th:with="prevUrl=@{/calendar/grid(from=${prevStart}, days=${span})},

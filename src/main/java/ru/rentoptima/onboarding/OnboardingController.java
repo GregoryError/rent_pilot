@@ -61,6 +61,7 @@ public class OnboardingController {
     /** Проверок ссылки в минуту на пользователя: каждая — запрос к чужому серверу. */
     private static final int CHECKS_PER_MINUTE = 20;
     private static final int MAX_PHOTOS = 3;
+    private static final List<String> ALL_STEPS = List.of(STEP_START, STEP_PROPERTY, STEP_PLATFORMS, STEP_LINKS, STEP_PAGE);
 
     private final OnboardingService onboarding;
     private final PropertyRepository propertyRepo;
@@ -71,9 +72,11 @@ public class OnboardingController {
     @GetMapping
     public String wizard(@RequestParam(required = false) String step, Model model, HttpServletRequest request) {
         Optional<OnboardingState> found = onboarding.find(AuthContext.userId());
-        // Пользователь создан до онбординга: мастер сам ему не показывается
-        if (found.isEmpty()) return "redirect:/calendar/grid";
-        OnboardingState s = found.get();
+        // Пользователь создан до онбординга: мастер сам ему не показывается. Но к отдельному шагу
+        // он может прийти по кнопке с пустой страницы («Подключить площадку») — тогда шаг открывается
+        // как обычный инструмент, без чек-листа и подсказок.
+        if (found.isEmpty() && (step == null || !ALL_STEPS.contains(step))) return "redirect:/calendar/grid";
+        OnboardingState s = found.orElseGet(() -> onboarding.ensureLegacy(AuthContext.userId(), AuthContext.tenantId()));
 
         String view = resolveStep(s, step);
         List<String> steps = OnboardingService.steps(s);
@@ -87,9 +90,12 @@ public class OnboardingController {
         model.addAttribute("t", OnboardingTexts.RU);
         model.addAttribute("step", view);
         model.addAttribute("progress", progress);
-        model.addAttribute("stepLabel", STEP_DONE.equals(view) ? null
+        // Шкала — только пока идёт мастер; вернувшийся из чек-листа делает одно действие и уходит
+        boolean returning = !s.wizardActive();
+        model.addAttribute("returning", returning);
+        model.addAttribute("stepLabel", STEP_DONE.equals(view) || returning ? null
                 : OnboardingTexts.format("common.step", current + 1, steps.size()));
-        model.addAttribute("backStep", current > 0 && !STEP_DONE.equals(view) ? steps.get(current - 1) : null);
+        model.addAttribute("backStep", current > 0 && !STEP_DONE.equals(view) && !returning ? steps.get(current - 1) : null);
 
         String baseUrl = ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
         Optional<UnitType> unit = onboarding.unitType(s);
@@ -116,9 +122,12 @@ public class OnboardingController {
 
     /** Шаг для показа: запрошенный, если он из ветки пользователя и для него уже есть объект; иначе текущий. */
     private String resolveStep(OnboardingState s, String requested) {
-        String step = requested != null && (OnboardingService.steps(s).contains(requested) || STEP_DONE.equals(requested))
-                ? requested : s.getWizardStep();
-        if (s.getBranch() == null) return STEP_START;
+        // После мастера из чек-листа можно прийти к любому шагу, даже не из своей ветки
+        boolean known = requested != null && (OnboardingService.steps(s).contains(requested) || STEP_DONE.equals(requested)
+                || (!s.wizardActive() && ALL_STEPS.contains(requested)));
+        String step = known ? requested : s.getWizardStep();
+        // Ветка не выбрана — мастер начинается с выбора; вернувшийся из чек-листа идёт сразу к своему шагу
+        if (s.getBranch() == null && s.wizardActive()) return STEP_START;
         boolean needsUnit = List.of(STEP_PLATFORMS, STEP_LINKS, STEP_PAGE).contains(step);
         if (needsUnit && onboarding.unitType(s).isEmpty()) return STEP_PROPERTY;
         if (STEP_LINKS.equals(step) && onboarding.platformChannels(s).isEmpty()) return STEP_PLATFORMS;
@@ -212,6 +221,7 @@ public class OnboardingController {
     @PostMapping("/links/continue")
     public String linksDone() {
         OnboardingState s = state();
+        if (!s.wizardActive()) return "redirect:/calendar/grid";
         onboarding.go(s, OnboardingService.next(s, STEP_LINKS));
         return "redirect:/onboarding";
     }
@@ -263,6 +273,7 @@ public class OnboardingController {
     @PostMapping("/page/continue")
     public String pageDone() {
         OnboardingState s = state();
+        if (!s.wizardActive()) return "redirect:/calendar/grid";
         onboarding.go(s, STEP_DONE);
         return "redirect:/onboarding";
     }
@@ -302,6 +313,33 @@ public class OnboardingController {
                                           @RequestParam(required = false, defaultValue = "0") int frame) {
         onboarding.find(AuthContext.userId()).ifPresent(s -> onboarding.tourEvent(s, event, frame));
         return ResponseEntity.noContent().build();
+    }
+
+    // --- Подсказки и чек-лист
+
+    /** Подсказка показана: больше не появится. */
+    @PostMapping("/hint")
+    @ResponseBody
+    public ResponseEntity<Void> hintShown(@RequestParam String id) {
+        onboarding.find(AuthContext.userId()).ifPresent(s -> onboarding.hintShown(s, id, java.time.LocalDate.now()));
+        return ResponseEntity.noContent().build();
+    }
+
+    /** Чек-лист: свернуть или развернуть (запоминается), скрыть насовсем, поздравление показано. */
+    @PostMapping("/steps")
+    public Object steps(@RequestParam String action, HttpServletRequest request) {
+        onboarding.find(AuthContext.userId()).ifPresent(s -> {
+            switch (action) {
+                case "collapse" -> onboarding.flag(s, OnboardingChecklist.COLLAPSED, true);
+                case "expand" -> onboarding.flag(s, OnboardingChecklist.COLLAPSED, false);
+                case "hide" -> onboarding.flag(s, OnboardingChecklist.HIDDEN, true);
+                case "celebrated" -> onboarding.flag(s, OnboardingChecklist.CELEBRATED, true);
+                default -> { }
+            }
+        });
+        // из скрипта — без перезагрузки; обычной формой — обратно в шахматку
+        if ("fetch".equals(request.getHeader("X-Requested-With"))) return ResponseEntity.noContent().build();
+        return "redirect:/calendar/grid";
     }
 
     // --- Данные для шаблона

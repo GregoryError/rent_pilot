@@ -24,9 +24,10 @@
         <svg th:replace="~{fragments/logo :: mark(24)}"></svg>
         <span>OptiRent</span>
     </div>
-    <form method="post" th:action="@{/onboarding/skip}" th:if="${step != 'done'}">
+    <form method="post" th:action="@{/onboarding/skip}" th:if="${step != 'done' and !returning}">
         <button type="submit" class="wz-skip" th:text="${t['common.skip']}">Пропустить, настрою сам</button>
     </form>
+    <a class="wz-skip wz-skip--link" th:if="${returning}" th:href="@{/calendar/grid}" th:text="${t['back.cabinet']}">Вернуться в кабинет</a>
 </header>
 
 <main class="wz">

@@ -345,19 +345,22 @@ class OnboardingIntegrationTest {
                 .andExpect(status().isNoContent());
         assertThat(page(u, "/calendar/grid")).contains("\"start\":2");
 
-        // закрыл тур на кадре 2 — после перезагрузки его нет, как и скрипта со стилями и шрифтом
+        // закрыл тур на кадре 2 — после перезагрузки тура нет (остаются чек-лист и подсказки)
         mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "close").param("frame", "1"))
                 .andExpect(status().isNoContent());
-        assertThat(page(u, "/calendar/grid")).doesNotContain("onboarding-config", "/js/onboarding", "/css/onboarding");
+        assertThat(page(u, "/calendar/grid")).doesNotContain("\"tour\"", "Это шахматка — календарь всех ваших броней");
         // опоздавшее событие кадра закрытый тур не оживляет
         mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "frame").param("frame", "3"));
-        assertThat(page(u, "/calendar/grid")).doesNotContain("onboarding-config");
+        assertThat(page(u, "/calendar/grid")).doesNotContain("\"tour\"");
+        // там, где показывать нечего, скрипт, стили и шрифт онбординга не загружаются вовсе
+        mvc.perform(post("/onboarding/steps").with(user(u)).with(csrf()).param("action", "hide"));
+        assertThat(page(u, "/pricing")).doesNotContain("onboarding-config", "/js/onboarding", "/css/onboarding");
 
         // «Знакомство» в меню — тур с первого кадра
         mvc.perform(post("/onboarding/tour/start").with(user(u)).with(csrf())).andExpect(redirectedUrl("/calendar/grid"));
         assertThat(page(u, "/calendar/grid")).contains("\"start\":0");
         mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "done").param("frame", "4"));
-        assertThat(page(u, "/calendar/grid")).doesNotContain("onboarding-config");
+        assertThat(page(u, "/calendar/grid")).doesNotContain("\"tour\"");
 
         // Старый пользователь: тура нет, пока не нажмёт «Знакомство»; мастер ему при этом не открывается
         TenantUserDetails old = account();
@@ -370,5 +373,144 @@ class OnboardingIntegrationTest {
         mvc.perform(post("/onboarding/tour").with(user(account())).with(csrf()).param("event", "close"))
                 .andExpect(status().isNoContent());
         mvc.perform(post("/onboarding/tour").with(csrf()).param("event", "close")).andExpect(status().is3xxRedirection());
+    }
+
+    private void wizardDone(TenantUserDetails u) throws Exception {
+        mvc.perform(post("/onboarding/branch").with(user(u)).with(csrf()).param("branch", "A"));
+        mvc.perform(post("/onboarding/property").with(user(u)).with(csrf()).param("name", "Студия у парка")
+                .param("city", "Приморск").param("basePrice", "4500"));
+        mvc.perform(post("/onboarding/platforms").with(user(u)).with(csrf()).param("platform", "cian"));
+        mvc.perform(post("/onboarding/finish").with(user(u)).with(csrf()));
+        // тур пройден — дальше подсказки и чек-лист
+        mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "done"));
+    }
+
+    @Test
+    @DisplayName("чек-лист: пункты отмечаются сами, сворачивается и скрывается, после всех шагов — поздравление и исчезает")
+    void firstSteps() throws Exception {
+        TenantUserDetails u = newcomer();
+        // пока идёт мастер, чек-листа нет
+        assertThat(page(u, "/settings/channels")).doesNotContain("id=\"first-steps\"", "steps-badge");
+        wizardDone(u);
+
+        String grid = page(u, "/calendar/grid");
+        assertThat(grid).contains("id=\"first-steps\"", "Первые шаги", "1 из 6", "Добавить объект",
+                "Подключить первую площадку", "Площадка забрала вашу ссылку", "Увидеть первую бронь в шахматке",
+                "Создать страницу бронирования", "Распечатать карточку для гостей",
+                "Отметится само, когда площадка в первый раз заберёт ссылку.", "href=\"/onboarding?step=platforms\"")
+                .containsPattern("/css/onboarding(-[0-9a-f]+)?\\.css");
+        assertThat(grid.split("onb-steps__item is-done", -1).length - 1).isEqualTo(1);
+        // число оставшихся — в шапке и под логотипом; чек-лист есть и на главной
+        assertThat(grid.split("class=\"steps-badge", -1).length - 1).isEqualTo(2);
+        assertThat(grid).contains("Первые шаги <b>5</b>");
+        assertThat(page(u, "/dashboard")).contains("id=\"first-steps\"");
+        assertThat(page(u, "/pricing")).doesNotContain("id=\"first-steps\"").contains("steps-badge");
+
+        // площадка подключена, брони пришли, шахматку открыл
+        Long cian = channel(u, "cian");
+        mvc.perform(post("/onboarding/links/" + cian).with(user(u)).with(csrf()).param("url", CIAN_LINK));
+        assertThat(page(u, "/calendar/grid")).contains("3 из 6");
+        // площадка забрала нашу ссылку: один заход из браузера — это, скорее всего, сам хозяин; не считается
+        String secret = jdbc.queryForObject("SELECT export_secret FROM channels WHERE id = ?", String.class, cian);
+        mvc.perform(get("/ical/" + secret + ".ics").header("User-Agent", "Mozilla/5.0 (Macintosh) Chrome/140 Safari/537"))
+                .andExpect(status().isOk());
+        assertThat(page(u, "/calendar/grid")).contains("3 из 6");
+        mvc.perform(get("/ical/" + secret + ".ics").header("User-Agent", "CianCalendar/1.0")).andExpect(status().isOk());
+        assertThat(page(u, "/calendar/grid")).contains("4 из 6");
+
+        // свернул — запомнилось; из скрипта ответ без перезагрузки
+        mvc.perform(post("/onboarding/steps").with(user(u)).with(csrf()).param("action", "collapse")
+                .header("X-Requested-With", "fetch")).andExpect(status().isNoContent());
+        assertThat(page(u, "/calendar/grid")).contains("class=\"onb-steps is-collapsed\"", "aria-expanded=\"false\"");
+        mvc.perform(post("/onboarding/steps").with(user(u)).with(csrf()).param("action", "expand"))
+                .andExpect(redirectedUrl("/calendar/grid"));
+
+        // из чек-листа — к шагу мастера: без шкалы и «Пропустить», с выходом в кабинет
+        String step = page(u, "/onboarding?step=page");
+        assertThat(step).contains("Ваша страница бронирования", "Вернуться в кабинет")
+                .doesNotContain("Пропустить, настрою сам", "wz-progress__bar");
+        mvc.perform(multipart("/onboarding/page").with(user(u)).with(csrf()).param("title", "Студия у парка"));
+        Long widgetId = jdbc.queryForObject("SELECT id FROM booking_widgets WHERE tenant_id = ?", Long.class, u.getTenantId());
+        mvc.perform(post("/onboarding/page/continue").with(user(u)).with(csrf())).andExpect(redirectedUrl("/calendar/grid"));
+        assertThat(states.findById(u.getUserId()).orElseThrow().getWizardStatus()).isEqualTo("DONE");
+        assertThat(page(u, "/calendar/grid")).contains("5 из 6", "href=\"/settings/widgets/" + widgetId + "/card\"");
+
+        // лист печати карточки открыт — все шаги пройдены: поздравление один раз, потом блока нет
+        mvc.perform(get("/settings/widgets/" + widgetId + "/card/print").with(user(u))).andExpect(status().isOk());
+        String done = page(u, "/calendar/grid");
+        assertThat(done).contains("data-celebrate=\"true\"", "Всё готово!", "onb-confetti").doesNotContain("steps-badge", "onb-steps__list");
+        mvc.perform(post("/onboarding/steps").with(user(u)).with(csrf()).param("action", "celebrated")
+                .header("X-Requested-With", "fetch")).andExpect(status().isNoContent());
+        assertThat(page(u, "/calendar/grid")).doesNotContain("id=\"first-steps\"", "steps-badge");
+
+        // «Скрыть» — блока нет, хотя шаги не пройдены
+        TenantUserDetails other = newcomer();
+        wizardDone(other);
+        mvc.perform(post("/onboarding/steps").with(user(other)).with(csrf()).param("action", "hide"));
+        assertThat(page(other, "/calendar/grid")).doesNotContain("id=\"first-steps\"", "steps-badge");
+        // старому пользователю чек-лист не показывается и после «Знакомства»
+        TenantUserDetails old = account();
+        mvc.perform(post("/onboarding/tour/start").with(user(old)).with(csrf()));
+        mvc.perform(post("/onboarding/tour").with(user(old)).with(csrf()).param("event", "done"));
+        assertThat(page(old, "/calendar/grid")).doesNotContain("id=\"first-steps\"", "steps-badge", "onboarding-config");
+    }
+
+    @Test
+    @DisplayName("подсказки: не при туре и не старым пользователям, каждая один раз, не больше двух за день")
+    void hints() throws Exception {
+        TenantUserDetails u = newcomer();
+        mvc.perform(post("/onboarding/branch").with(user(u)).with(csrf()).param("branch", "A"));
+        mvc.perform(post("/onboarding/property").with(user(u)).with(csrf()).param("name", "Студия").param("city", "Приморск")
+                .param("basePrice", "4500"));
+        mvc.perform(post("/onboarding/platforms").with(user(u)).with(csrf()).param("platform", "cian"));
+        mvc.perform(post("/onboarding/finish").with(user(u)).with(csrf()));
+        // пока ждёт тур — подсказок в настройках страницы нет
+        assertThat(page(u, "/calendar/grid")).contains("\"tour\"").doesNotContain("\"hints\"");
+        mvc.perform(post("/onboarding/tour").with(user(u)).with(csrf()).param("event", "close"));
+
+        String grid = page(u, "/calendar/grid");
+        assertThat(grid).contains("\"hints\":[", "\"id\":\"first-booking\"", "\"id\":\"manual-delete\"", "\"watch\":true")
+                .doesNotContain("\"tour\"", "not-fetched");
+        // площадка без единого обращения помечена — на неё укажет подсказка
+        assertThat(page(u, "/settings/channels")).contains("data-hint=\"not-fetched\"", "Площадка ещё не забирала ссылку",
+                "\"id\":\"not-fetched\"");
+
+        // показана — больше не приходит
+        mvc.perform(post("/onboarding/hint").with(user(u)).with(csrf()).param("id", "first-booking"))
+                .andExpect(status().isNoContent());
+        assertThat(page(u, "/calendar/grid")).doesNotContain("first-booking").contains("manual-delete");
+        // вторая за день — и на сегодня всё, на любой странице
+        mvc.perform(post("/onboarding/hint").with(user(u)).with(csrf()).param("id", "not-fetched"));
+        assertThat(page(u, "/calendar/grid")).doesNotContain("onboarding-config");
+        // третья сверх лимита и несуществующая не записываются
+        mvc.perform(post("/onboarding/hint").with(user(u)).with(csrf()).param("id", "manual-delete"));
+        mvc.perform(post("/onboarding/hint").with(user(u)).with(csrf()).param("id", "no-such-hint"));
+        assertThat(states.findById(u.getUserId()).orElseThrow().getData().path("hints").path("shown").size()).isEqualTo(2);
+
+        // старый пользователь подсказок не получает, даже нажав «Знакомство»
+        TenantUserDetails old = account();
+        assertThat(page(old, "/calendar/grid")).doesNotContain("onboarding-config");
+        mvc.perform(post("/onboarding/tour/start").with(user(old)).with(csrf()));
+        mvc.perform(post("/onboarding/tour").with(user(old)).with(csrf()).param("event", "close"));
+        assertThat(page(old, "/calendar/grid")).doesNotContain("onboarding-config", "\"hints\"");
+        assertThat(page(old, "/settings/channels")).doesNotContain("onboarding-config");
+    }
+
+    @Test
+    @DisplayName("пустые страницы: что здесь будет и одна кнопка; старому пользователю кнопка тоже открывает шаг")
+    void emptyStates() throws Exception {
+        TenantUserDetails old = account();
+        assertThat(page(old, "/calendar/grid")).contains("empty-state", "Здесь будет шахматка",
+                "Шахматка — календарь всех ваших броней", "href=\"/onboarding?step=property\"");
+        assertThat(page(old, "/settings/channels")).contains("Площадок пока нет", "href=\"/onboarding?step=platforms\"")
+                .doesNotContain("Сначала добавьте категорию номеров");
+        assertThat(page(old, "/bookings/pending")).contains("Заявок пока нет", "href=\"/settings/widgets\"");
+        assertThat(page(old, "/expenses")).contains("Расходов за этот месяц нет");
+        // кнопка с пустой страницы ведёт к шагу мастера — он открывается и тому, кто создан до онбординга,
+        // но мастер, чек-лист и подсказки после этого ему не навязываются
+        assertThat(page(old, "/onboarding?step=platforms")).contains("Расскажите о квартире", "Вернуться в кабинет");
+        mvc.perform(get("/calendar/grid").with(user(old))).andExpect(status().isOk());
+        assertThat(page(old, "/calendar/grid")).doesNotContain("id=\"first-steps\"", "onboarding-config");
+        mvc.perform(get("/onboarding").with(user(account()))).andExpect(redirectedUrl("/calendar/grid"));
     }
 }

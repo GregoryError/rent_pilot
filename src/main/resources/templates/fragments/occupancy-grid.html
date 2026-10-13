@@ -8,20 +8,19 @@
 <body>
 
     <div th:fragment="empty(grid)" th:if="${grid.empty}" class="card">
-        <div class="card__title" th:if="${!grid.hasProperties}">Пока нет объектов</div>
-        <div class="card__title" th:if="${grid.hasProperties}">Нет категорий номеров</div>
-        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;"
-           th:if="${!grid.hasProperties}">
-            Добавьте объект в настройках — шахматка появится сразу после создания
-            первой категории номеров.
-        </p>
-        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;"
-           th:if="${grid.hasProperties}">
-            У ваших объектов пока нет ни одной категории номеров. Для квартиры
-            достаточно одной «Основной» с количеством 1; для мини-отеля — по
-            одной на каждый тип номера.
-        </p>
-        <a class="btn btn-primary" th:href="@{/settings/properties}">К настройкам объектов</a>
+        <!-- Объектов ещё нет: что здесь будет и одна кнопка -->
+        <th:block th:if="${!grid.hasProperties}">
+            <div th:replace="~{fragments/onboarding :: empty('grid', '/onboarding?step=property')}"></div>
+        </th:block>
+        <th:block th:if="${grid.hasProperties}">
+            <div class="card__title">Нет категорий номеров</div>
+            <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
+                У ваших объектов пока нет ни одной категории номеров. Для квартиры
+                достаточно одной «Основной» с количеством 1; для мини-отеля — по
+                одной на каждый тип номера.
+            </p>
+            <a class="btn btn-primary" th:href="@{/settings/properties}">К настройкам объектов</a>
+        </th:block>
     </div>
 
 

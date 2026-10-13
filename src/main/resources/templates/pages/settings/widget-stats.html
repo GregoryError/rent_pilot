@@ -43,9 +43,9 @@
         <div class="text-sm muted" style="margin-bottom: var(--sp-4);">
             Сколько раз гости дошли до каждого шага. Считаются открытия нового виджета, а не люди: один гость, зашедший трижды, — три открытия.
         </div>
-        <p class="muted" th:unless="${hasEvents}" style="margin: 0;">
-            За этот период виджет ещё никто не открывал. Данные появятся, когда гости начнут переходить по ссылке на страницу бронирования.
-        </p>
+        <div th:unless="${hasEvents}">
+            <div th:replace="~{fragments/onboarding :: empty('stats', '/b/' + ${w.slug})}"></div>
+        </div>
         <div class="table-wrap" th:if="${hasEvents}">
             <table>
                 <thead><tr><th>Шаг</th><th>Раз</th><th>От предыдущего</th><th>От открытий</th></tr></thead>

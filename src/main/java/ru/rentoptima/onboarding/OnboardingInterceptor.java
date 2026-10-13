@@ -26,10 +26,12 @@ import java.util.Optional;
 public class OnboardingInterceptor implements WebMvcConfigurer, HandlerInterceptor {
 
     private final OnboardingService onboarding;
+    private final OnboardingFacts facts;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(this).addPathPatterns("/calendar/grid", "/dashboard", "/welcome");
+        registry.addInterceptor(this).addPathPatterns("/calendar/grid", "/dashboard", "/welcome",
+                "/settings/widgets/*/card/print");
     }
 
     @Override
@@ -38,6 +40,14 @@ public class OnboardingInterceptor implements WebMvcConfigurer, HandlerIntercept
         if (!"GET".equals(request.getMethod())) return true;
         Long userId = AuthContext.userId();
         if (userId == null) return true;
+
+        String path = request.getRequestURI().substring(request.getContextPath().length());
+        // Лист печати карточки открыт — пункт чек-листа «Распечатать карточку» выполнен
+        if (path.endsWith("/card/print")) {
+            onboarding.find(userId).filter(s -> !OnboardingService.legacy(s))
+                    .ifPresent(s -> onboarding.flag(s, OnboardingChecklist.CARD_PRINTED, true));
+            return true;
+        }
 
         if ("reset".equals(request.getParameter("onboarding"))) {
             onboarding.restart(userId, AuthContext.tenantId());
@@ -48,6 +58,12 @@ public class OnboardingInterceptor implements WebMvcConfigurer, HandlerIntercept
         if (state.isPresent() && state.get().wizardActive()) {
             response.sendRedirect(request.getContextPath() + "/onboarding");
             return false;
+        }
+        // Шахматка открыта, и в ней уже есть бронь с площадки — «Увидеть первую бронь» выполнено
+        if (path.equals("/calendar/grid") && state.isPresent() && !OnboardingService.legacy(state.get())
+                && !state.get().getData().path(OnboardingChecklist.SEEN_BOOKING).asBoolean(false)
+                && facts.of(state.get().getTenantId()).booking()) {
+            onboarding.flag(state.get(), OnboardingChecklist.SEEN_BOOKING, true);
         }
         return true;
     }

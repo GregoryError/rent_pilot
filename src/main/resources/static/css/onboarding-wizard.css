@@ -194,3 +194,5 @@
 @media (prefers-reduced-motion: reduce) {
     .wz-choice { transition: none; }
 }
+
+.wz-skip--link { display: inline-flex; align-items: center; }

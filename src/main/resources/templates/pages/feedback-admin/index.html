@@ -24,7 +24,7 @@
                      th:text="${averageRating != null ? #numbers.formatDecimal(averageRating, 1, 2) + '/10' : '—'}"></div>
             </div>
 
-            <div class="card">
+            <div class="card" id="feedback-link">
                 <div class="card__title">Ссылка на анкету для гостей</div>
                 <div class="form-group" th:each="l : ${feedbackLinks}"
                      style="margin: var(--sp-3) 0 0 0;">
@@ -67,8 +67,8 @@
                 <div class="card__title">Все отзывы</div>
             </div>
 
-            <div th:if="${#lists.isEmpty(items)}" class="muted" style="text-align: center; padding: var(--sp-8);">
-                Пока нет отзывов.
+            <div th:if="${#lists.isEmpty(items)}">
+                <div th:replace="~{fragments/onboarding :: empty('reviews', '#feedback-link')}"></div>
             </div>
 
             <div th:each="it : ${items}"

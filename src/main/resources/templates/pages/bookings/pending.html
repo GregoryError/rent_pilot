@@ -11,7 +11,11 @@
         <p class="page-subtitle">Приходят со страницы бронирования. Свяжитесь с гостем и подтвердите — или отклоните, чтобы освободить даты</p>
     </div>
 
-    <div class="card" th:if="${#lists.isEmpty(pending)}">
+    <!-- Заявок не было никогда — пустое состояние; были, но все обработаны — короткая строка -->
+    <div class="card" th:if="${#lists.isEmpty(pending) and #lists.isEmpty(history)}">
+        <div th:replace="~{fragments/onboarding :: empty('bookings', '/settings/widgets')}"></div>
+    </div>
+    <div class="card" th:if="${#lists.isEmpty(pending) and !#lists.isEmpty(history)}">
         <div class="card__title">Новых заявок нет</div>
         <p class="muted" style="margin: var(--sp-3) 0 0 0;">
             Заявки появятся здесь, когда гости начнут бронировать по вашей ссылке.

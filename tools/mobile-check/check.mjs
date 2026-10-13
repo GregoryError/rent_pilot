@@ -102,6 +102,8 @@ async function check(page, path, width, label) {
 async function checkGrid(page, width) {
   await setWidth(page, width);
   await page.goto(BASE + '/calendar/grid', { waitUntil: 'networkidle2' });
+  // Над шахматкой может стоять чек-лист «Первые шаги»: сама сетка тогда ниже первого экрана
+  await page.evaluate(() => document.getElementById('grid-wrap')?.scrollIntoView({ block: 'center' }));
   const g = await page.evaluate(() => {
     // Первая ячейка, которая видна целиком: начало строки может быть прокручено под липкую колонку
     const cell = [...document.querySelectorAll('#grid [data-unit-type-id]')].find(c => {
