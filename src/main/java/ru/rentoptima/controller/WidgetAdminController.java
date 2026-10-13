@@ -31,6 +31,7 @@ import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.seo.IndexNowService;
+import ru.rentoptima.service.WidgetCreator;
 import ru.rentoptima.config.WidgetCorsConfig;
 import ru.rentoptima.service.PhotoProcessor;
 import ru.rentoptima.service.WidgetBookingService;
@@ -81,6 +82,7 @@ public class WidgetAdminController {
     private final PhotoProcessor photoProcessor;
     private final WidgetCorsConfig cors;
     private final IndexNowService indexNow;
+    private final WidgetCreator widgetCreator;
 
     private static final Map<String, String> BLOCK_LABELS = Map.ofEntries(
             Map.entry("gallery", "Фотографии"), Map.entry("title", "Название и цена «от»"),
@@ -131,27 +133,7 @@ public class WidgetAdminController {
             return "redirect:/settings/widgets";
         }
 
-        Channel channel = new Channel();
-        channel.setTenantId(tenantId);
-        channel.setUnitTypeId(unitTypeId);
-        channel.setChannelType(Channel.ChannelType.WIDGET);
-        channel.setColor(ru.rentoptima.service.ChannelPalette.randomColor(
-                channelRepo.findByTenantIdAndActiveTrue(tenantId).stream().map(Channel::getColor).toList()));
-        channel.setName("Прямая бронь: " + (cleanTitle.length() > 180 ? cleanTitle.substring(0, 180) : cleanTitle));
-        channel.setConfigJson(JsonNodeFactory.instance.objectNode());
-        // Тянуть каналу нечего — планировщик синхронизации его не трогает
-        channel.setSyncEnabled(false);
-        channelRepo.save(channel);
-
-        BookingWidget w = new BookingWidget();
-        w.setTenantId(tenantId);
-        w.setChannelId(channel.getId());
-        w.setUnitTypeId(unitTypeId);
-        w.setSecret(generateSecret());
-        w.setSlug(WidgetSlug.unique(WidgetSlug.fromTitle(cleanTitle), widgetRepo::existsBySlug));
-        w.setTitle(cleanTitle);
-        widgetRepo.save(w);
-        indexNow.submit("/b/" + w.getSlug());
+        BookingWidget w = widgetCreator.create(tenantId, unitTypeId, cleanTitle);
 
         redirect.addFlashAttribute("success", "Страница бронирования создана");
         return "redirect:/settings/widgets/" + w.getId();
@@ -768,9 +750,7 @@ public class WidgetAdminController {
     }
 
     private static String generateSecret() {
-        byte[] buf = new byte[24];
-        RANDOM.nextBytes(buf);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(buf);
+        return WidgetCreator.generateSecret();
     }
 
     public record WidgetRow(Long id, String title, String unitLabel, String link, String inputId) {}

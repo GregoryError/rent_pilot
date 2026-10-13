@@ -11,6 +11,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.rentoptima.entity.User;
+import ru.rentoptima.onboarding.OnboardingService;
 import ru.rentoptima.security.AppUserDetailsService;
 import ru.rentoptima.service.RegistrationService;
 
@@ -21,6 +22,7 @@ public class RegistrationController {
 
     private final RegistrationService registrationService;
     private final AppUserDetailsService userDetailsService;
+    private final OnboardingService onboarding;
 
     @GetMapping("/register")
     public String registerPage() {
@@ -54,7 +56,9 @@ public class RegistrationController {
             request.getSession(true).setAttribute(
                     "SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
 
-            return "redirect:/welcome";
+            // Новичка встречает мастер первой настройки
+            onboarding.begin(user.getId(), user.getTenant().getId());
+            return "redirect:/onboarding";
         } catch (IllegalArgumentException e) {
             model.addAttribute("error", e.getMessage());
             model.addAttribute("email", email);
@@ -67,9 +71,9 @@ public class RegistrationController {
         }
     }
 
+    /** Прежняя страница приветствия: её заменил мастер первой настройки. Адрес оставлен редиректом. */
     @GetMapping("/welcome")
-    public String welcome(Model model) {
-        model.addAttribute("activePage", "welcome");
-        return "pages/auth/welcome";
+    public String welcome() {
+        return "redirect:/calendar/grid";
     }
 }

@@ -11,6 +11,7 @@ import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.service.PropertyCreator;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -33,6 +34,7 @@ public class UnitTypeController {
 
     private final UnitTypeRepository unitTypeRepo;
     private final PropertyRepository propertyRepo;
+    private final PropertyCreator propertyCreator;
 
     @PostMapping
     @Transactional
@@ -48,18 +50,7 @@ public class UnitTypeController {
             redirect.addFlashAttribute("error", "Объект не найден");
             return "redirect:/settings/properties";
         }
-        UnitType ut = new UnitType();
-        ut.setTenantId(tenantId);
-        ut.setPropertyId(propertyId);
-        ut.setName(name != null ? name.trim() : "Основной");
-        ut.setUnitCount(unitCount == null || unitCount < 1 ? 1 : unitCount);
-        ut.setBasePrice(basePrice);
-        ut.setWeekendPrice(weekendPrice);
-        ut.setActive(true);
-        ut.setCreatedAt(LocalDateTime.now());
-        ut.setUpdatedAt(LocalDateTime.now());
-        unitTypeRepo.save(ut);
-        log.info("UnitType создан: tenant={}, property={}, name='{}'", tenantId, propertyId, ut.getName());
+        UnitType ut = propertyCreator.createUnitType(tenantId, propertyId, name, unitCount, basePrice, weekendPrice);
         redirect.addFlashAttribute("success", "Категория «" + ut.getName() + "» добавлена");
         return "redirect:/settings/properties";
     }

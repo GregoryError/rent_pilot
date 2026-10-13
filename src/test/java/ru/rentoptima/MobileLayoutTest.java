@@ -88,8 +88,8 @@ class MobileLayoutTest {
     private void seed() {
         Long tenantId = jdbc.queryForObject(
                 "INSERT INTO tenants(name, slug) VALUES ('Проверка вёрстки', 'mobile-check') RETURNING id", Long.class);
-        jdbc.update("INSERT INTO users(tenant_id, username, password_hash, display_name, role, email)"
-                        + " VALUES (?, ?, ?, 'Проверка вёрстки', 'ADMIN', ?)",
+        Long userId = jdbc.queryForObject("INSERT INTO users(tenant_id, username, password_hash, display_name, role, email)"
+                        + " VALUES (?, ?, ?, 'Проверка вёрстки', 'ADMIN', ?) RETURNING id", Long.class,
                 tenantId, LOGIN, new BCryptPasswordEncoder().encode(PASSWORD), LOGIN);
         Long propertyId = jdbc.queryForObject(
                 "INSERT INTO properties(tenant_id, name, feedback_code, housekeeper_code)"
@@ -110,6 +110,17 @@ class MobileLayoutTest {
                         + " RETURNING id", Long.class, tenantId, widgetChannel, unitTypeId);
         jdbc.update("INSERT INTO widget_qr_links(tenant_id, widget_id, code, kind) VALUES (?, ?, 'mcFeed7', 'FEEDBACK')",
                 tenantId, widgetId);
+        // Мастер первой настройки пройден (иначе вход уводил бы в него с шахматки), но его шаги
+        // открываются по ?step=: две площадки — одна подключена, другая ждёт ссылку
+        jdbc.update("INSERT INTO channels(tenant_id, unit_type_id, channel_type, name, sync_enabled, export_secret, color, config_json)"
+                + " VALUES (?, ?, 'ICAL', 'Циан', false, 'mc-cian-secret', '#1D4ED8', ?::jsonb)", tenantId, unitTypeId,
+                "{\"platform\":\"cian\",\"import_url\":\"https://www.cian.ru/calendar/ical/calendars/1.ics\"}");
+        jdbc.update("INSERT INTO channels(tenant_id, unit_type_id, channel_type, name, sync_enabled, export_secret, color, config_json)"
+                + " VALUES (?, ?, 'ICAL', 'Яндекс Путешествия', false, 'mc-yandex-secret', '#E5552B', ?::jsonb)",
+                tenantId, unitTypeId, "{\"platform\":\"yandex-puteshestviya\"}");
+        jdbc.update("INSERT INTO onboarding_state(user_id, tenant_id, branch, wizard_step, wizard_status, data)"
+                + " VALUES (?, ?, 'AB', 'done', 'DONE', ?::jsonb)", userId, tenantId,
+                "{\"unitTypeId\":" + unitTypeId + ",\"propertyId\":" + propertyId + "}");
         LocalDate from = LocalDate.now().plusDays(2);
         jdbc.update("INSERT INTO calendar_blocks(tenant_id, unit_type_id, from_date, to_date, block_type)"
                 + " VALUES (?, ?, ?, ?, 'MAINTENANCE')", tenantId, unitTypeId, from, from.plusDays(3));

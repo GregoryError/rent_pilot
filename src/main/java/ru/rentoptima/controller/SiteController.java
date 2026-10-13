@@ -8,6 +8,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.server.ResponseStatusException;
+import ru.rentoptima.onboarding.PlatformGuides;
 import ru.rentoptima.seo.SitePages;
 import ru.rentoptima.seo.SitePages.Page;
 import ru.rentoptima.seo.SiteSettings;
@@ -39,9 +40,15 @@ public class SiteController {
         return render(request.getRequestURI().substring(request.getContextPath().length()), model, request);
     }
 
-    @GetMapping(SitePages.GUIDES + "/{platform:[a-z]+}")
+    /** Инструкция по площадке: текст — из её файла onboarding/platforms/<id>.yml. */
+    @GetMapping(SitePages.GUIDES + "/{platform:[a-z][a-z0-9-]*}")
     public String guide(@PathVariable String platform, Model model, HttpServletRequest request) {
-        return render(SitePages.GUIDES + "/" + platform, model, request);
+        PlatformGuides.Platform p = PlatformGuides.find(platform)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        model.addAttribute("platform", p);
+        // «обычно до получаса» читается как есть, «10–60 минут» нужен предлог
+        model.addAttribute("refresh", Character.isDigit(p.refresh().charAt(0)) ? "раз в " + p.refresh() : p.refresh());
+        return render(p.guidePath(), model, request);
     }
 
     private String render(String path, Model model, HttpServletRequest request) {

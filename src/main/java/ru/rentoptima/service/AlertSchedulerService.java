@@ -249,7 +249,7 @@ public class AlertSchedulerService {
             sb.append("🔌 OptiRent: канал не синхронизируется\n");
             appendItems(sb, down);
             sb.append("\nЗанятость с этой площадки не обновляется — проверьте ссылку iCal.\n");
-            sb.append("Каналы: ").append(baseUrl).append("/settings/channels\n");
+            sb.append("Площадки: ").append(baseUrl).append("/settings/channels\n");
         }
         return sb.toString().trim();
     }

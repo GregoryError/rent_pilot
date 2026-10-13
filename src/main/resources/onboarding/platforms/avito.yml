@@ -1,0 +1,18 @@
+id: avito
+order: 1
+name: Авито
+cabinet: Авито
+letter: А
+color: "#0E9558"
+logo:
+domains: [avito.ru]
+domains_draft: true
+draft: true
+from_platform:
+  steps: []
+  screenshot:
+to_platform:
+  steps: []
+  screenshot:
+refresh: 10–60 минут
+notes: []

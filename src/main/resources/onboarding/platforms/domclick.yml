@@ -1,0 +1,22 @@
+id: domclick
+order: 5
+name: DomClick
+cabinet: DomClick
+letter: D
+color: "#3B9A2F"
+logo:
+# Проверено на настоящей ссылке: https://24.domclick.ru/...
+domains: [domclick.ru]
+domains_draft: false
+draft: true
+from_platform:
+  steps: []
+  screenshot:
+to_platform:
+  steps: []
+  screenshot:
+# Замер на пилоте: обычно около 40 минут между обращениями, самое долгое — 60
+refresh: обычно до часа
+notes:
+  - Если вы закрыли дни в OptiRent вручную, а потом удалили запись, DomClick может оставить эти дни закрытыми у себя. Проверьте календарь в кабинете DomClick и откройте даты там.
+  - DomClick может вернуть вашу же запись обратно как свою. OptiRent это распознаёт и второй бронью не считает.

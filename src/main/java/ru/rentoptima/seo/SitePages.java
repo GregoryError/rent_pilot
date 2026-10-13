@@ -1,5 +1,6 @@
 package ru.rentoptima.seo;
 
+import ru.rentoptima.onboarding.PlatformGuides;
 import ru.rentoptima.seo.StructuredData.Crumb;
 import ru.rentoptima.seo.StructuredData.Question;
 
@@ -16,8 +17,8 @@ import java.util.Optional;
  * вместе с текстом: поисковики перестают верить lastmod, если он обновляется без причины.
  * <p>
  * {@code indexed = false} — страница открывается, но закрыта от поиска и не входит в карту
- * сайта. Так помечены черновики инструкций: пока в них нет проверенных шагов и скриншотов
- * по конкретной площадке, это пять похожих страниц, а такие поиску показывать нельзя.
+ * сайта. Так помечены черновики инструкций: пока в файле площадки нет проверенных шагов и
+ * скриншотов, это похожие друг на друга страницы, а такие поиску показывать нельзя.
  * <p>
  * Заголовок — до ~60 символов, описание — 140–160: длиннее поисковик обрежет.
  */
@@ -116,18 +117,25 @@ public final class SitePages {
                     "Как подключить Авито, Циан, Суточно, Островок и DomClick к календарю OptiRent: где "
                             + "взять ссылку экспорта, куда вставить ссылку импорта, как часто обновляется.",
                     "Инструкции", HOME, WRITTEN, true, List.of()),
-            guide("avito", "Авито"), guide("cian", "Циан"), guide("sutochno", "Суточно"),
-            guide("ostrovok", "Островок"), guide("domclick", "DomClick"));
+            guide("avito"), guide("cian"), guide("sutochno"), guide("ostrovok"), guide("domclick"),
+            guide("yandex-puteshestviya"));
 
     private SitePages() {}
 
-    /** Черновик инструкции по площадке: открывается, но закрыт от поиска, пока не проверен. */
-    private static Page guide(String slug, String platform) {
-        return new Page(GUIDES + "/" + slug, "instrukciya-" + slug,
-                platform + ": синхронизация календаря по iCal | OptiRent",
-                "Как подключить " + platform + " к календарю OptiRent по iCal: ссылка экспорта, ссылка "
+    /**
+     * Инструкция по площадке — из её файла {@code onboarding/platforms/<id>.yml}. Пока в файле
+     * {@code draft: true}, страница закрыта от поиска; убрали draft — открылась, код не меняется.
+     */
+    private static Page guide(String id) {
+        PlatformGuides.Platform p = PlatformGuides.find(id)
+                .orElseThrow(() -> new IllegalStateException("Нет файла площадки: " + id));
+        // Заголовок — до 60 символов: у длинного названия площадки бренд в конце не помещается
+        String title = p.name() + ": синхронизация календаря по iCal";
+        if (title.length() + " | OptiRent".length() <= 60) title += " | OptiRent";
+        return new Page(p.guidePath(), "instrukciya", title,
+                "Как подключить " + p.name() + " к календарю OptiRent по iCal: ссылка экспорта, ссылка "
                         + "импорта, частота обновления и особенности площадки.",
-                platform, GUIDES, WRITTEN, false, List.of());
+                p.name(), GUIDES, WRITTEN, !p.draft(), List.of());
     }
 
     public static Optional<Page> find(String path) {

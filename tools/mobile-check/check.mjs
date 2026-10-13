@@ -33,11 +33,15 @@ const ADMIN = [
   '/pricing', '/expenses', '/feedback-admin', '/feedback', '/staff', '/chat', '/import',
   '/settings', '/settings/integrations', '/settings/properties', '/welcome',
   '/admin/legal-pages', '/admin/legal-pages/privacy/edit',
+  // Мастер первой настройки: шаги открываются по ?step=, если у пользователя есть состояние онбординга
+  '/onboarding?step=start', '/onboarding?step=property', '/onboarding?step=platforms',
+  '/onboarding?step=links', '/onboarding?step=page', '/onboarding?step=done',
 ];
 const PUBLIC = [
   '/', '/kalendar-bronirovaniya', '/modul-bronirovaniya', '/modul-bronirovaniya/tilda',
   '/sinhronizaciya', '/instrukcii', '/instrukcii/avito', '/instrukcii/cian',
   '/instrukcii/sutochno', '/instrukcii/ostrovok', '/instrukcii/domclick',
+  '/instrukcii/yandex-puteshestviya',
   '/login', '/register',
   '/legal/terms', '/legal/privacy', '/legal/consent', '/legal/feedback-consent',
   '/no-such-page', '/b/no-such-page',

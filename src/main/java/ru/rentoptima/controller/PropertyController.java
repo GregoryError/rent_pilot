@@ -12,6 +12,7 @@ import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.service.PropertyCreator;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -40,6 +41,7 @@ public class PropertyController {
     private final PropertyRepository propertyRepo;
     private final UnitTypeRepository unitTypeRepo;
     private final JdbcTemplate jdbc;
+    private final PropertyCreator propertyCreator;
 
     @GetMapping
     public String list(Model model, jakarta.servlet.http.HttpServletRequest request) {
@@ -67,22 +69,7 @@ public class PropertyController {
             throw new IllegalStateException("tenantId в сессии не установлен");
         }
         String cityValue = (city != null && !city.isBlank()) ? city : "Выборг";
-        String feedbackCode = generateCode();
-        String housekeeperCode = generateCode();
-        Timestamp now = Timestamp.valueOf(LocalDateTime.now());
-
-        jdbc.update("""
-                INSERT INTO properties
-                    (tenant_id, name, address, city,
-                     feedback_code, housekeeper_code,
-                     active, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, ?)
-                """,
-                tenantId, name, address, cityValue,
-                feedbackCode, housekeeperCode,
-                now, now);
-
-        log.info("Property создан: tenant={}, name='{}'", tenantId, name);
+        propertyCreator.createProperty(tenantId, name, address, cityValue);
         redirect.addFlashAttribute("success", "Объект «" + name + "» добавлен");
         return "redirect:/settings/properties";
     }
@@ -124,7 +111,4 @@ public class PropertyController {
         return "redirect:/settings/properties";
     }
 
-    private String generateCode() {
-        return UUID.randomUUID().toString().substring(0, 8);
-    }
 }

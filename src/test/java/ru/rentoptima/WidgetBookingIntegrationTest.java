@@ -1090,7 +1090,12 @@ class WidgetBookingIntegrationTest {
         // Черновик инструкции открывается, но в поиск не идёт
         mvc.perform(get("/instrukcii/cian")).andExpect(status().isOk())
                 .andExpect(r -> assertThat(r.getResponse().getContentAsString(utf8))
-                        .contains("<meta name=\"robots\" content=\"noindex, follow\">", "Особенности Циан"));
+                        .contains("<meta name=\"robots\" content=\"noindex, follow\">", "<h1><span>Циан</span>",
+                                "Циан может вернуть вашу же запись обратно как свою", "обычно до получаса"));
+        // Площадка из нового файла — страница появляется без правок кода
+        mvc.perform(get("/instrukcii/yandex-puteshestviya")).andExpect(status().isOk())
+                .andExpect(r -> assertThat(r.getResponse().getContentAsString(utf8))
+                        .contains("Яндекс Путешествия", "раз в 10–60 минут", "noindex, follow"));
         mvc.perform(get("/instrukcii/no-such")).andExpect(status().isNotFound());
         mvc.perform(get("/instrukcii/")).andExpect(status().isMovedPermanently());
     }
