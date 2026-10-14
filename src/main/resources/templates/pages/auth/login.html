@@ -25,6 +25,9 @@
             <div th:if="${param.reset}" class="login-ok" role="status">
                 Пароль изменён. Войдите с новым паролем.
             </div>
+            <div th:if="${param.verified}" class="login-ok" role="status">
+                Почта подтверждена. Войдите, чтобы продолжить.
+            </div>
             <div th:if="${param.expired}" class="login-note" role="status">
                 Вы вышли из аккаунта: пароль был изменён. Войдите снова.
             </div>

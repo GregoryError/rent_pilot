@@ -43,7 +43,7 @@ const PUBLIC = [
   '/sinhronizaciya', '/instrukcii', '/instrukcii/avito', '/instrukcii/cian',
   '/instrukcii/sutochno', '/instrukcii/ostrovok', '/instrukcii/domclick',
   '/instrukcii/yandex-puteshestviya',
-  '/login', '/register', '/forgot', '/forgot?sent=email', '/reset?token=expired',
+  '/login', '/register', '/forgot', '/forgot?sent=email', '/reset?token=expired', '/verify?token=expired',
   '/legal/terms', '/legal/privacy', '/legal/consent', '/legal/feedback-consent',
   '/no-such-page', '/b/no-such-page',
   ...(process.env.EXTRA_PATHS || '').split(',').filter(Boolean),

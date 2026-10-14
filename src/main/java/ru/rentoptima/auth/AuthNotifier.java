@@ -45,6 +45,23 @@ public class AuthNotifier {
         email.send(changedMail(to, LocalDateTime.now(), forgotLink));
     }
 
+    @Async
+    public void verifyLink(String to, String link) {
+        email.send(verifyMail(to, link));
+    }
+
+    static Mail verifyMail(String to, String link) {
+        return Mail.to(to)
+                .subject("Подтвердите почту для OptiRent")
+                .heading("Подтвердите адрес почты")
+                .paragraph("Этот адрес указан в аккаунте OptiRent. Подтвердите его — так вы не потеряете доступ: "
+                        + "на него придёт ссылка, если вы забудете пароль.")
+                .button("Подтвердить почту", link)
+                .footer("Ссылка действует " + EmailVerificationService.TOKEN_TTL.toDays() + " дней. "
+                        + "Если вы не регистрировались в OptiRent, просто удалите это письмо.")
+                .build();
+    }
+
     static Mail resetMail(String to, String link) {
         return Mail.to(to)
                 .subject("Новый пароль для OptiRent")

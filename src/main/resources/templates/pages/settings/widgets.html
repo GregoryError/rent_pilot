@@ -5,6 +5,7 @@
 <head><title>Страница бронирования</title></head>
 <body>
 <div layout:fragment="content">
+    <div th:replace="~{fragments/verify :: page-note}"></div>
 
     <div class="page-header">
         <h1 class="page-title">Страница бронирования</h1>
@@ -24,7 +25,7 @@
             <div style="display: flex; gap: var(--sp-2);">
                 <input type="text" readonly th:id="${w.inputId}" th:value="${w.link}"
                        class="form-input form-input--sm" style="flex: 1; min-width: 0;">
-                <button type="button" class="btn btn-ghost" th:data-copy="${w.inputId}">Копировать</button>
+                <button type="button" class="btn btn-ghost" th:disabled="${pageInactive}" th:data-copy="${w.inputId}">Копировать</button>
                 <a class="btn btn-ghost" th:href="${w.link}" target="_blank" rel="noopener">Открыть</a>
             </div>
         </div>

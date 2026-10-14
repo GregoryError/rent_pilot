@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<body>
+
+<!-- Плашка «Подтвердите почту» вверху кабинета (модель: verifyBanner, pageInactive) -->
+<details th:fragment="banner" class="verify-banner" id="verify-banner" open th:if="${verifyBanner != null and verifyBanner.inLayout}">
+    <summary>Подтвердите почту, чтобы не потерять доступ</summary>
+    <div class="verify-banner__body">
+        <p>
+            <th:block th:if="${verifyBanner.neverSent}">Отправим письмо со ссылкой на</th:block>
+            <th:block th:unless="${verifyBanner.neverSent}">Мы отправили письмо со ссылкой на</th:block>
+            <b th:text="${verifyBanner.email}">host@example.com</b>.
+            <th:block th:if="${pageInactive}">Пока почта не подтверждена, страница бронирования не принимает гостей.</th:block>
+            <th:block th:if="${verifyBanner.deadline != null}">
+                Без подтверждения кабинет закроется <span th:text="${verifyBanner.deadline}">21 октября</span>
+                — до перехода по ссылке.
+            </th:block>
+        </p>
+        <div class="verify-banner__actions">
+            <form th:action="@{/account/verify/resend}" method="post">
+                <input type="hidden" name="back" th:value="${verifyBanner.back}">
+                <button type="submit" class="btn btn-primary"
+                        th:text="${verifyBanner.neverSent} ? 'Отправить письмо' : 'Отправить ещё раз'">Отправить ещё раз</button>
+            </form>
+        </div>
+        <details class="verify-change">
+            <summary>Ошиблись адресом? Изменить</summary>
+            <form th:action="@{/account/email}" method="post">
+                <input type="hidden" name="back" th:value="${verifyBanner.back}">
+                <div class="form-group">
+                    <label class="form-label" for="vb-email">Новый адрес</label>
+                    <input type="email" id="vb-email" name="email" class="form-input" required
+                           inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="vb-password">Пароль от OptiRent</label>
+                    <input type="password" id="vb-password" name="password" class="form-input" required
+                           autocomplete="current-password">
+                </div>
+                <button type="submit" class="btn btn-ghost">Изменить адрес</button>
+            </form>
+        </details>
+    </div>
+    <script>
+        (function () {
+            // Свёрнутая плашка остаётся свёрнутой на других страницах (удобство, не данные)
+            var d = document.getElementById('verify-banner'), key = 'optirent.verifyBanner';
+            try { if (localStorage.getItem(key) === 'closed') d.open = false; } catch (e) {}
+            d.addEventListener('toggle', function () {
+                try { localStorage.setItem(key, d.open ? 'open' : 'closed'); } catch (e) {}
+            });
+        })();
+    </script>
+</details>
+
+<!-- Пояснение у ссылок на страницу бронирования (модель: pageInactive). Письмо — из плашки выше -->
+<div th:fragment="page-note" class="page-inactive-note" role="status" th:if="${pageInactive}">
+    Ссылка и код для сайта заработают после подтверждения почты — пока гости по ссылке видят
+    «Страница скоро заработает». Настраивать страницу можно уже сейчас.
+</div>
+
+</body>
+</html>

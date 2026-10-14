@@ -13,12 +13,14 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import ru.rentoptima.auth.EmailVerificationService;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.entity.WidgetQrLink;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
+import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.seo.StructuredData;
 import ru.rentoptima.seo.SeoFilter;
 import ru.rentoptima.seo.SiteSettings;
@@ -58,6 +60,7 @@ public class WidgetPublicController {
 
     private final WidgetBookingService widgets;
     private final WidgetConfigService configs;
+    private final EmailVerificationService verification;
     private final WidgetCardService cards;
     private final SiteSettings site;
     private final UnitTypeRepository unitTypeRepo;
@@ -67,6 +70,7 @@ public class WidgetPublicController {
     public String page(@PathVariable String slug, Model model, HttpServletRequest request,
                        HttpServletResponse response) {
         BookingWidget w = bySlug(slug);
+        if (inactive(w)) return inactivePage(model, w, response);
         // В поиске страница — только с согласия хозяина
         if (!Boolean.TRUE.equals(w.getSearchIndexed())) response.setHeader(SeoFilter.HEADER, SeoFilter.NOINDEX);
         fill(model, w, request, false);
@@ -79,6 +83,7 @@ public class WidgetPublicController {
                         HttpServletResponse response) {
         BookingWidget w = bySlug(slug);
         response.setHeader("Content-Security-Policy", WidgetOrigins.frameAncestors(w.getAllowedOrigins()));
+        if (inactive(w)) return inactivePage(model, w, response);
         response.setHeader(SeoFilter.HEADER, SeoFilter.NOINDEX);
         fill(model, w, request, true);
         return "pages/widget/page";
@@ -172,6 +177,21 @@ public class WidgetPublicController {
         return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY)
                 .header(HttpHeaders.LOCATION, URI.create(target).toASCIIString())
                 .build();
+    }
+
+    /**
+     * Хозяин новой страницы не подтвердил почту — гости видят «скоро заработает». Сам хозяин
+     * (вошедший в свой кабинет) видит страницу как есть.
+     */
+    private boolean inactive(BookingWidget w) {
+        return verification.pageInactive(w.getTenantId()) && !w.getTenantId().equals(AuthContext.tenantIdOrNull());
+    }
+
+    private static String inactivePage(Model model, BookingWidget w, HttpServletResponse response) {
+        response.setHeader(SeoFilter.HEADER, SeoFilter.NOINDEX);
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        model.addAttribute("title", w.getTitle());
+        return "pages/widget/inactive";
     }
 
     /** Нет такой страницы — 404; была, но хозяин удалил — 410: поисковик уберёт её быстрее. */

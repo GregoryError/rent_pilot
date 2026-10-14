@@ -589,6 +589,59 @@ h1.login-subtitle { font-weight: 400; text-align: center; }
     margin: calc(-1 * var(--sp-2)) 0 var(--sp-4);
 }
 .account-form { max-width: 420px; }
+.link-button {
+    background: none;
+    border: none;
+    padding: var(--sp-2);
+    min-height: 44px;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+}
+.verify-change { margin-top: var(--sp-5); font-size: var(--text-sm); }
+.verify-change summary { cursor: pointer; color: var(--accent); min-height: 44px; display: flex; align-items: center; }
+.verify-change form { margin-top: var(--sp-3); }
+.page-soon__title { text-align: center; margin-bottom: var(--sp-4); }
+
+/* Плашка «Подтвердите почту» вверху кабинета. Сворачивается; состояние помнит браузер */
+.verify-banner {
+    margin-bottom: var(--sp-4);
+    border: 1px solid var(--amber);
+    border-radius: var(--radius-sm);
+    background: var(--amber-dim);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+}
+.verify-banner > summary {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: 44px;
+    padding: var(--sp-2) var(--sp-4);
+    cursor: pointer;
+    font-weight: var(--weight-semibold);
+    list-style: none;
+}
+.verify-banner > summary::-webkit-details-marker { display: none; }
+.verify-banner > summary::after { content: '▾'; margin-left: auto; color: var(--text-secondary); }
+.verify-banner:not([open]) > summary::after { content: '▸'; }
+.verify-banner__body { padding: 0 var(--sp-4) var(--sp-3); line-height: 1.5; }
+.verify-banner__body p { margin: 0 0 var(--sp-3); }
+.verify-banner__actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; }
+.verify-banner .verify-change { margin-top: var(--sp-2); }
+.verify-banner .verify-change form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-3); align-items: end; max-width: 640px; }
+.verify-banner .verify-change .form-group { margin: 0; }
+
+/* Страница бронирования ждёт подтверждения почты: пояснение над ссылками */
+.page-inactive-note {
+    margin-bottom: var(--sp-4);
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--amber);
+    border-radius: var(--radius-sm);
+    background: var(--amber-dim);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
 
 /* --- Utility --- */
 .mono { font-family: var(--font-mono); }

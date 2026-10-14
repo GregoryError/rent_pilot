@@ -11,9 +11,11 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import ru.rentoptima.auth.EmailVerificationService;
 import ru.rentoptima.entity.User;
 import ru.rentoptima.onboarding.OnboardingService;
 import ru.rentoptima.security.AppUserDetailsService;
+import ru.rentoptima.seo.SiteSettings;
 import ru.rentoptima.service.RegistrationService;
 
 @Slf4j
@@ -25,6 +27,8 @@ public class RegistrationController {
     private final AppUserDetailsService userDetailsService;
     private final OnboardingService onboarding;
     private final SessionRegistry sessionRegistry;
+    private final EmailVerificationService verification;
+    private final SiteSettings site;
 
     @GetMapping("/register")
     public String registerPage() {
@@ -59,6 +63,8 @@ public class RegistrationController {
             session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
             // в реестр — чтобы смена пароля могла завершить и эту сессию
             sessionRegistry.registerNewSession(session.getId(), userDetails);
+
+            verification.sendFirst(user, site.linkBase(request));
 
             // Новичка встречает мастер первой настройки
             onboarding.begin(user.getId(), user.getTenant().getId());

@@ -47,6 +47,7 @@ public class PasswordService {
     private final AuthNotifier notifier;
     private final EmailService email;
     private final TelegramService telegram;
+    private final EmailVerificationService verification;
 
     public boolean emailAvailable() {
         return email.smtpConfigured();
@@ -102,7 +103,8 @@ public class PasswordService {
         String error = PasswordPolicy.check(password, confirm, emailOf(user));
         if (error != null) return error;
         if (tokens.consume(token, AuthTokenService.Kind.RESET).isEmpty()) return INVALID_LINK;
-        user.setEmailVerified(true);
+        // ссылка пришла на этот адрес — значит, он рабочий
+        if (user.getEmail() != null) verification.markVerified(user);
         apply(user, password, keepSessionId, linkBase);
         log.info("Пароль пользователя {} сброшен по ссылке", user.getId());
         return null;

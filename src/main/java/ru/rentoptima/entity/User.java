@@ -54,6 +54,18 @@ public class User extends BaseEntity {
     @Column(nullable = false)
     private Boolean active = true;
 
+    /** Когда адрес подтверждён по ссылке из письма; null — не подтверждён. */
+    @Column(name = "email_verified_at")
+    private java.time.OffsetDateTime emailVerifiedAt;
+
+    /** До этого момента кабинет работает без подтверждения почты. */
+    @Column(name = "verify_deadline")
+    private java.time.OffsetDateTime verifyDeadline;
+
+    /** Страница бронирования ждёт подтверждения почты (аккаунты, созданные после V38). */
+    @Column(name = "page_needs_verified_email", nullable = false)
+    private Boolean pageNeedsVerifiedEmail = false;
+
     @Column(name = "agreed_to_terms_at")
     private java.time.LocalDateTime agreedToTermsAt;
 

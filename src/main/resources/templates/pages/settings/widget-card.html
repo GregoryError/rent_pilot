@@ -36,6 +36,7 @@
 </head>
 <body>
 <div layout:fragment="content">
+    <div th:replace="~{fragments/verify :: page-note}"></div>
 
     <div class="page-header flex justify-between items-center" style="gap: var(--sp-3); flex-wrap: wrap;">
         <div>
@@ -162,7 +163,7 @@
                 <div class="card__title">Текст для гостя</div>
                 <div class="text-sm muted" style="margin-bottom: var(--sp-3);">Отправьте после выезда в мессенджер. Переходы по этой ссылке видны в статистике отдельно от карточки.</div>
                 <textarea readonly id="card-message" rows="4" class="form-input form-input--sm"></textarea>
-                <button type="button" class="btn btn-ghost" data-copy="card-message" style="margin-top: var(--sp-2);">Скопировать текст для гостя</button>
+                <button type="button" class="btn btn-ghost" th:disabled="${pageInactive}" data-copy="card-message" style="margin-top: var(--sp-2);">Скопировать текст для гостя</button>
             </div>
 
             <details class="card">

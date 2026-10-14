@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подтверждение почты — OptiRent</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <a th:href="@{/}" class="login-title login-brand">
+                <svg th:replace="~{fragments/logo :: mark(32)}"></svg>
+                <span>OptiRent</span>
+            </a>
+            <h1 class="login-subtitle">Подтверждение почты</h1>
+            <div class="login-error" role="alert">
+                Ссылка устарела или уже использована. Ссылкой работает только последнее письмо.
+            </div>
+            <div class="login-actions">
+                <a th:if="${loggedIn}" th:href="@{/verify-email}" class="btn btn-primary">Получить новое письмо</a>
+                <a th:unless="${loggedIn}" th:href="@{/login}" class="btn btn-primary">Войти и получить новое письмо</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

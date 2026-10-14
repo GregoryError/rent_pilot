@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.rentoptima.auth.EmailVerificationService;
 import ru.rentoptima.entity.Tenant;
 import ru.rentoptima.entity.User;
 import ru.rentoptima.repository.TenantRepository;
@@ -67,7 +68,8 @@ public class RegistrationService {
         user.setDisplayName(tenantName.trim());
         user.setRole(User.Role.OWNER);
         user.setActive(true);
-        user.setEmailVerified(true);
+        // адрес ещё не подтверждён: плашка, срок, страница бронирования ждёт подтверждения
+        EmailVerificationService.prepareNew(user);
 
         LocalDateTime now = LocalDateTime.now();
         user.setAgreedToPdAt(now); // legacy

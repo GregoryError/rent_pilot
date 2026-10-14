@@ -50,6 +50,7 @@
 </head>
 <body>
 <div layout:fragment="content">
+    <div th:replace="~{fragments/verify :: page-note}"></div>
 
     <div class="page-header flex justify-between items-center" style="gap: var(--sp-3); flex-wrap: wrap;">
         <div>
@@ -137,20 +138,20 @@
                     <label class="form-label" for="dz-link">Ссылка на страницу бронирования</label>
                     <div style="display: flex; gap: var(--sp-2);">
                         <input type="text" readonly id="dz-link" th:value="${pageLink}" class="form-input form-input--sm" style="flex: 1; min-width: 0;">
-                        <button type="button" class="btn btn-ghost" data-copy="dz-link">Скопировать ссылку</button>
+                        <button type="button" class="btn btn-ghost" th:disabled="${pageInactive}" data-copy="dz-link">Скопировать ссылку</button>
                     </div>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label" for="dz-embed">Код для своего сайта</label>
                     <textarea readonly id="dz-embed" rows="3" class="form-input form-input--sm"
                               style="font-family: var(--font-mono);" th:text="${embedCode}"></textarea>
-                    <button type="button" class="btn btn-ghost" data-copy="dz-embed" style="margin-top: var(--sp-2);">Скопировать код встраивания</button>
+                    <button type="button" class="btn btn-ghost" th:disabled="${pageInactive}" data-copy="dz-embed" style="margin-top: var(--sp-2);">Скопировать код встраивания</button>
                     <details style="margin-top: var(--sp-3);">
                         <summary class="text-sm" style="cursor: pointer;">Сайт на Tilda, Wix или другом конструкторе</summary>
                         <div class="form-hint">Если первый код конструктор не пропускает, вставьте этот — виджет откроется во фрейме.</div>
                         <textarea readonly id="dz-iframe" rows="4" class="form-input form-input--sm"
                                   style="font-family: var(--font-mono);" th:text="${iframeCode}"></textarea>
-                        <button type="button" class="btn btn-ghost" data-copy="dz-iframe" style="margin-top: var(--sp-2);">Скопировать код фрейма</button>
+                        <button type="button" class="btn btn-ghost" th:disabled="${pageInactive}" data-copy="dz-iframe" style="margin-top: var(--sp-2);">Скопировать код фрейма</button>
                     </details>
                     <div class="form-hint" th:unless="${hasOrigins}" style="color: var(--amber);">
                         Виджет заработает только на сайтах из списка разрешённых — сейчас он пуст. Добавьте свой сайт в

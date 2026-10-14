@@ -39,6 +39,9 @@
     </div>
 
     <div class="wz-error" role="alert" th:if="${formError}" th:text="${formError}">Ошибка</div>
+    <!-- Ответ на «Отправить письмо ещё раз» (шаг «Страница готова»): общие flash-сообщения кабинета -->
+    <div class="wz-result" role="status" th:if="${success}" th:text="${success}"></div>
+    <div class="wz-error" role="alert" th:if="${error}" th:text="${error}"></div>
 
     <!-- Шаг 1. С чего начнём -->
     <section th:if="${step == 'start'}">
@@ -270,8 +273,18 @@
         </th:block>
 
         <th:block th:if="${pageUrl != null}">
-            <h1 class="wz-title" th:text="${t['page.ready.title']}">Ваша страница готова</h1>
-            <div class="wz-card">
+            <h1 class="wz-title" th:text="${pageInactive} ? ${t['page.ready.verify.title']} : ${t['page.ready.title']}">Ваша страница готова</h1>
+            <!-- Почта не подтверждена: вместо ссылки — письмо. Гости по ссылке пока видят «скоро заработает» -->
+            <div class="wz-card" th:if="${pageInactive}">
+                <p th:text="${verifyText}"></p>
+                <form method="post" th:action="@{/account/verify/resend}" class="wz-actions wz-actions--start">
+                    <input type="hidden" name="back" value="/onboarding?step=page">
+                    <button type="submit" class="btn btn-primary" th:text="${t['page.ready.verify.resend']}">Отправить письмо ещё раз</button>
+                    <a class="btn btn-ghost" th:href="${designUrl}" target="_blank" rel="noopener" th:text="${t['page.ready.design']}">Настроить вид</a>
+                </form>
+                <p class="wz-muted" th:text="${t['page.ready.verify.later']}"></p>
+            </div>
+            <div class="wz-card" th:unless="${pageInactive}">
                 <div class="wz-ourlink">
                     <output class="wz-ourlink__url" id="page-url" th:text="${pageUrl}">https://optirent.ru/b/…</output>
                     <button type="button" class="btn btn-primary" data-wz-copy="page-url" th:attr="data-copied=${t['common.copied']}"

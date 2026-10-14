@@ -79,6 +79,7 @@ public class SecurityConfig {
                                 "/register",
                                 "/forgot",
                                 "/reset",
+                                "/verify",
                                 "/legal/**",
                                 "/ical/**",
                                 "/book/**",

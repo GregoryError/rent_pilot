@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import ru.rentoptima.auth.EmailVerificationService;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.Channel;
 import ru.rentoptima.entity.Property;
@@ -68,6 +69,7 @@ public class OnboardingController {
     private final WidgetPhotoService photos;
     private final PublicRateLimiter rateLimiter;
     private final SiteSettings site;
+    private final EmailVerificationService verification;
 
     @GetMapping
     public String wizard(@RequestParam(required = false) String step, Model model, HttpServletRequest request) {
@@ -107,6 +109,9 @@ public class OnboardingController {
             case STEP_PAGE -> {
                 Optional<BookingWidget> w = onboarding.widget(s);
                 model.addAttribute("pageUrl", w.map(x -> baseUrl + "/b/" + x.getSlug()).orElse(null));
+                // почта не подтверждена — вместо ссылки письмо (страница пока не принимает гостей)
+                verification.status(AuthContext.userId()).filter(EmailVerificationService.Status::pending)
+                        .ifPresent(v -> model.addAttribute("verifyText", OnboardingTexts.format("page.ready.verify.text", v.email())));
                 model.addAttribute("designUrl", w.map(x -> "/settings/widgets/" + x.getId() + "/design").orElse(null));
                 model.addAttribute("offerPlatforms", w.isPresent() && !s.wantsPlatforms());
                 model.addAttribute("defaultTitle", unit.flatMap(u -> propertyRepo.findById(u.getPropertyId()))

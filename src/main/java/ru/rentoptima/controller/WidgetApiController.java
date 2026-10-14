@@ -19,9 +19,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import ru.rentoptima.auth.EmailVerificationService;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.payment.PaymentProvider;
+import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.PublicRateLimiter;
 import ru.rentoptima.service.WidgetBookingService;
 import ru.rentoptima.service.WidgetBookingService.PromoCheck;
@@ -78,6 +80,7 @@ public class WidgetApiController {
     private final PaymentProvider payments;
     private final WidgetConfigService configs;
     private final WidgetFunnelService funnel;
+    private final EmailVerificationService verification;
 
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> config(@PathVariable String slug, HttpServletRequest http) {
@@ -179,6 +182,10 @@ public class WidgetApiController {
                                                        HttpServletRequest http) {
         BookingWidget w = require(slug);
         String ip = http.getRemoteAddr();
+        // Хозяин новой страницы не подтвердил почту — заявки не принимаются (себе — можно, для проверки)
+        if (verification.pageInactive(w.getTenantId()) && !w.getTenantId().equals(AuthContext.tenantIdOrNull())) {
+            return error(HttpStatus.FORBIDDEN, WidgetError.PAGE_INACTIVE, w);
+        }
 
         // Honeypot: поле скрыто от людей, заполняют его только боты. Отвечаем «успехом»,
         // чтобы бот не подбирал, что именно не так.

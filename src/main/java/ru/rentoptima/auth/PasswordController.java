@@ -91,7 +91,8 @@ public class PasswordController {
             redirect.addFlashAttribute("changed", true);
             return "redirect:/account/password";
         }
-        model.addAttribute("error", error);
+        // не «error»: его layout показывает всплывающим сообщением, текст был бы дважды
+        model.addAttribute("pwError", error);
         return changeForm(model);
     }
 

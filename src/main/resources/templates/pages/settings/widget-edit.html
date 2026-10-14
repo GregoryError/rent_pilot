@@ -5,6 +5,7 @@
 <head><title>Страница бронирования</title></head>
 <body>
 <div layout:fragment="content">
+    <div th:replace="~{fragments/verify :: page-note}"></div>
 
     <div class="page-header flex justify-between items-center" style="gap: var(--sp-3); flex-wrap: wrap;">
         <div>
@@ -32,7 +33,7 @@
             <div style="display: flex; gap: var(--sp-2);">
                 <input type="text" readonly id="embed-link" th:value="${directLink}"
                        class="form-input form-input--sm" style="flex: 1; min-width: 0;">
-                <button type="button" class="btn btn-ghost" data-copy="embed-link">Копировать</button>
+                <button type="button" class="btn btn-ghost" th:disabled="${pageInactive}" data-copy="embed-link">Копировать</button>
                 <a class="btn btn-ghost" th:href="${directLink}" target="_blank" rel="noopener">Открыть</a>
             </div>
             <div class="form-hint">Отправьте эту ссылку в WhatsApp, Telegram или Instagram. Чтобы видеть в статистике, откуда пришли гости,
@@ -42,7 +43,7 @@
             <div style="display: flex; gap: var(--sp-2); align-items: flex-start;">
                 <textarea readonly id="embed-js" rows="3" class="form-input form-input--sm"
                           style="flex: 1; min-width: 0; font-family: var(--font-mono);" th:text="${jsCode}"></textarea>
-                <button type="button" class="btn btn-ghost" data-copy="embed-js">Копировать</button>
+                <button type="button" class="btn btn-ghost" th:disabled="${pageInactive}" data-copy="embed-js">Копировать</button>
             </div>
             <div class="form-hint">Вставьте этот код на свой сайт в любое место. Сайт должен быть в списке разрешённых ниже.</div>
         </div>
@@ -50,7 +51,7 @@
             <div style="display: flex; gap: var(--sp-2); align-items: flex-start;">
                 <textarea readonly id="embed-iframe" rows="4" class="form-input form-input--sm"
                           style="flex: 1; min-width: 0; font-family: var(--font-mono);" th:text="${iframeCode}"></textarea>
-                <button type="button" class="btn btn-ghost" data-copy="embed-iframe">Копировать</button>
+                <button type="button" class="btn btn-ghost" th:disabled="${pageInactive}" data-copy="embed-iframe">Копировать</button>
             </div>
             <div class="form-hint">Запасной вариант для Tilda, Wix и других конструкторов, которые не пропускают первый код.
                 Сайт тоже должен быть в списке разрешённых.</div>

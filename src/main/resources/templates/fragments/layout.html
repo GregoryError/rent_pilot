@@ -176,6 +176,9 @@
             <span th:text="${error}"></span>
         </div>
 
+        <!-- Почта не подтверждена: сворачиваемая плашка (в потоке страницы — тур и подсказки она не перекрывает) -->
+        <details th:replace="~{fragments/verify :: banner}"></details>
+
         <!-- Сопровождение после мастера: площадка подключилась, пришли первые брони. Показывается один раз -->
         <div class="notice" role="status" th:each="n : ${onboardingNotices}">
             <span class="notice__mark" aria-hidden="true">✓</span>
