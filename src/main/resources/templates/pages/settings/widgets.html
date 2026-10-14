@@ -5,7 +5,10 @@
 <head><title>Страница бронирования</title></head>
 <body>
 <div layout:fragment="content">
-    <div th:replace="~{fragments/verify :: page-note}"></div>
+    <!--/* без квартиры ссылок ещё нет — и пояснять про них нечего */-->
+    <th:block th:if="${!#lists.isEmpty(unitTypes)}">
+        <div th:replace="~{fragments/verify :: page-note}"></div>
+    </th:block>
 
     <div class="page-header">
         <h1 class="page-title">Страница бронирования</h1>
