@@ -32,8 +32,10 @@ public class EmailVerificationUi {
      * @param deadline   «до 21 октября» — когда без подтверждения закроется кабинет
      * @param back       адрес текущей страницы — вернуться сюда после кнопок плашки
      * @param inLayout   показывать плашку в layout; в мастере — нет, там своё пояснение
+     * @param urgent     до закрытия кабинета меньше суток — полосу нельзя скрыть «до завтра»
      */
-    public record Banner(String email, boolean neverSent, String deadline, String back, boolean inLayout) {}
+    public record Banner(String email, boolean neverSent, String deadline, String back, boolean inLayout,
+                         boolean urgent) {}
 
     private final EmailVerificationService verification;
 
@@ -57,7 +59,8 @@ public class EmailVerificationUi {
         String query = request.getQueryString();
         String back = path(request) + (query == null ? "" : "?" + query);
         return new Banner(s.get().email(), s.get().lastSentAt() == null, deadline, back,
-                !path(request).startsWith("/onboarding"));
+                !path(request).startsWith("/onboarding"),
+                s.get().deadline() != null && s.get().deadline().isBefore(java.time.OffsetDateTime.now().plusDays(1)));
     }
 
     @ModelAttribute("pageInactive")

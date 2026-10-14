@@ -746,8 +746,8 @@ h1.login-subtitle { font-weight: 400; text-align: center; }
 .verify-change form { margin-top: var(--sp-3); }
 .page-soon__title { text-align: center; margin-bottom: var(--sp-4); }
 
-/* Плашка «Подтвердите почту» вверху кабинета. Сворачивается; состояние помнит браузер */
-.verify-banner {
+/* Полоса «Подтвердите почту» вверху кабинета: одна строка, на 320 px — не больше двух */
+.verify-strip {
     margin-bottom: var(--sp-4);
     border: 1px solid var(--amber);
     border-radius: var(--radius-sm);
@@ -755,25 +755,64 @@ h1.login-subtitle { font-weight: 400; text-align: center; }
     color: var(--text-primary);
     font-size: var(--text-sm);
 }
-.verify-banner > summary {
+.verify-strip--urgent { border-width: 2px; }
+.verify-strip__line {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--sp-2);
+    gap: 0 var(--sp-3);
     min-height: 44px;
-    padding: var(--sp-2) var(--sp-4);
-    cursor: pointer;
-    font-weight: var(--weight-semibold);
-    list-style: none;
+    padding: 0 0 0 var(--sp-4);
 }
-.verify-banner > summary::-webkit-details-marker { display: none; }
-.verify-banner > summary::after { content: '▾'; margin-left: auto; color: var(--text-secondary); }
-.verify-banner:not([open]) > summary::after { content: '▸'; }
-.verify-banner__body { padding: 0 var(--sp-4) var(--sp-3); line-height: 1.5; }
-.verify-banner__body p { margin: 0 0 var(--sp-3); }
-.verify-banner__actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; }
-.verify-banner .verify-change { margin-top: var(--sp-2); }
-.verify-banner .verify-change form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-3); align-items: end; max-width: 640px; }
-.verify-banner .verify-change .form-group { margin: 0; }
+.verify-strip__text {
+    flex: 1 1 9em;
+    min-width: 9em;
+    padding: var(--sp-2) 0;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.verify-strip__actions { display: flex; flex: 0 0 auto; align-items: center; }
+.verify-strip__form { margin: 0; }
+.verify-strip__short { display: none; }
+.verify-strip__link,
+.verify-strip__close {
+    min-height: 44px;
+    padding: 0 var(--sp-2);
+    border: none;
+    background: none;
+    font: inherit;
+    color: var(--accent);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.verify-strip__close { min-width: 44px; color: var(--text-secondary); }
+.verify-strip__close:hover, .verify-strip__link:hover { text-decoration: underline; }
+.verify-strip__change {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--sp-3);
+    align-items: end;
+    max-width: 640px;
+    padding: 0 var(--sp-4) var(--sp-3);
+}
+.verify-strip__change[hidden] { display: none; }
+.verify-strip__change .form-group { margin: 0; }
+/* на телефоне — без адреса и пояснения: «Подтвердите почту — до 21 октября» */
+@media (max-width: 640px) {
+    .verify-strip__more { display: none; }
+    .verify-strip__line { padding-left: var(--sp-3); gap: 0 var(--sp-1); }
+    .verify-strip__long { display: none; }
+    .verify-strip__short { display: inline; }
+    .verify-strip { font-size: 13px; }
+    .verify-strip__link { padding: 0 6px; }
+    /* узкий крестик, но зона нажатия прежняя — по высоте 44 px, по ширине добирается отступами */
+    .verify-strip__close { min-width: 40px; padding: 0; }
+}
+@media (max-width: 420px) {
+    .verify-strip__when { display: none; }
+}
 
 /* Администрирование → Регистрация */
 .reg-stats {

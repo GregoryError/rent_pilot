@@ -206,7 +206,7 @@
         </div>
 
         <!-- Почта не подтверждена: сворачиваемая плашка (в потоке страницы — тур и подсказки она не перекрывает) -->
-        <details th:replace="~{fragments/verify :: banner}"></details>
+        <div th:replace="~{fragments/verify :: banner}"></div>
 
         <!-- Сопровождение после мастера: площадка подключилась, пришли первые брони. Показывается один раз -->
         <div class="notice" role="status" th:each="n : ${onboardingNotices}">

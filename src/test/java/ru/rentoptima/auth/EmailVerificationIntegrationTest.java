@@ -71,7 +71,7 @@ class EmailVerificationIntegrationTest {
     static GreenMailExtension mail = new GreenMailExtension(SMTP);
 
     private static final Pattern LINK = Pattern.compile("https?://[^\\s\"<]+/verify\\?token=([A-Za-z0-9_-]{43})");
-    private static final String BANNER = "Подтвердите почту, чтобы не потерять доступ";
+    private static final String BANNER = "id=\"verify-banner\"";
     private static final String SOON = "Страница бронирования скоро заработает";
     private static final String PASSWORD = "Reg-password-1";
 
@@ -179,8 +179,14 @@ class EmailVerificationIntegrationTest {
                 String.class, h.userId());
         assertThat(stored).isEqualTo(AuthTokenService.hash(token(letter)));
 
-        assertThat(body(h.session(), "/account/password")).contains(BANNER);
+        // полоса в одну строку: «Отправить ещё раз», «Изменить адрес», ✕ — скрыть до завтра
+        assertThat(body(h.session(), "/account/password")).contains(BANNER)
+                .contains("class=\"verify-strip\"", "Отправить ещё раз", "Изменить адрес", "id=\"vb-close\"");
         assertThat(body(h.session(), "/onboarding")).doesNotContain(BANNER);
+        // меньше суток до закрытия кабинета — скрыть полосу нельзя
+        jdbc.update("UPDATE users SET verify_deadline = now() + interval '12 hours' WHERE id = ?", h.userId());
+        assertThat(body(h.session(), "/account/password")).contains("verify-strip--urgent").doesNotContain("id=\"vb-close\"");
+        jdbc.update("UPDATE users SET verify_deadline = now() + interval '7 days' WHERE id = ?", h.userId());
         // ответ на «Отправить письмо ещё раз» в мастере виден на его странице
         MockHttpSession s = h.session();
         var flash = mvc.perform(post("/account/verify/resend").with(csrf()).session(s).param("back", "/onboarding?step=page"))
