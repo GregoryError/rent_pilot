@@ -662,6 +662,7 @@ public class CompetitorService {
                     .mapToDouble(p -> p.getPrice().doubleValue())
                     .average().orElse(0);
 
+            if (prevAvg <= 0) continue;   // не с чем сравнивать — без «+Infinity%»
             if (currAvg > prevAvg * 1.10) {
                 trends.add(String.format(
                         "%s: конкуренты повышают цены (+%.0f%% vs %s)",

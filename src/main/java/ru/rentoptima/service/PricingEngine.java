@@ -366,7 +366,7 @@ public class PricingEngine {
         }
 
         List<BookingStatsService.GapInfo> gaps =
-                statsService.detectGaps(tenantId, from, to);
+                statsService.detectGaps(tenantId, property.getId(), from, to);
 
         Set<LocalDate> gapDates = new HashSet<>();
         for (var gap : gaps) {

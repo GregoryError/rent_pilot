@@ -36,7 +36,6 @@ public class ExpenseController {
         model.addAttribute("expenses", expenseService.getExpenses(tenantId, from, to));
         model.addAttribute("categories", expenseService.getCategories(tenantId));
         model.addAttribute("total", expenseService.getTotalExpenses(tenantId, from, to));
-        model.addAttribute("month", now.getMonth().toString());
 
         return "pages/expenses/index";
     }

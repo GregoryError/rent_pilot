@@ -52,7 +52,7 @@ public class CalendarController {
         if (property != null) {
             List<Booking> bookings = bookingRepo.findActiveInRangeForTenant(tenantId, from, to);
             Map<LocalDate, String> holidays = prodCalendar.getHolidaysInRange(from, to);
-            List<BookingStatsService.GapInfo> gaps = statsService.detectGaps(tenantId, from, to);
+            List<BookingStatsService.GapInfo> gaps = statsService.detectGaps(tenantId, property.getId(), from, to);
             Set<LocalDate> gapDates = new HashSet<>();
             for (var gap : gaps) {
                 LocalDate d = gap.from();

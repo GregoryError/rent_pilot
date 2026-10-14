@@ -446,6 +446,14 @@ select.form-input {
     color: var(--text-primary);
 }
 
+/* Неактивная кнопка должна выглядеть неактивной: иначе нажатие «ничего не делает» */
+.btn:disabled,
+.btn[aria-disabled="true"] {
+    opacity: .45;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
 /* --- Tables --- */
 .table-wrap {
     overflow-x: auto;

@@ -67,6 +67,10 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT SUM(b.nights) FROM Booking b WHERE b.tenant.id = :tenantId AND b.status = 'BOOKED' AND b.checkIn BETWEEN :from AND :to")
     Long sumNightsInRange(Long tenantId, LocalDate from, LocalDate to);
 
+    /** Заезд самой ранней действующей брони — с какого момента у тенанта есть история. */
+    @Query("SELECT MIN(b.checkIn) FROM Booking b WHERE b.tenant.id = :tenantId AND b.status = 'BOOKED'")
+    LocalDate findFirstCheckIn(Long tenantId);
+
     @Query("SELECT COUNT(b) FROM Booking b WHERE b.tenant.id = :tenantId AND b.status = 'BOOKED' AND b.checkIn BETWEEN :from AND :to")
     long countBookingsInRange(Long tenantId, LocalDate from, LocalDate to);
 

@@ -66,7 +66,12 @@ public class DashboardController {
         LocalDate monthStart = targetMonth.atDay(1);
         LocalDate monthEnd = targetMonth.atEndOfMonth();
 
-
+        model.addAttribute("activePage", "dashboard");
+        model.addAttribute("properties", properties);
+        model.addAttribute("monthLabel", BookingStatsService.monthName(targetMonth) + " " + targetMonth.getYear());
+        // Квартиры нет — считать нечего: ни метрик, ни алертов, ни рекомендаций, одно пустое состояние
+        model.addAttribute("hasProperties", !properties.isEmpty());
+        if (properties.isEmpty()) return "pages/dashboard/index";
 
         // Current month KPIs
         var kpi = statsService.getKpi(tenantId, monthStart, monthEnd);
@@ -80,15 +85,13 @@ public class DashboardController {
         // Блок 4.6: hero-метрики, шахматка месяца, график выручки, статусы каналов
         MonthForecast forecast = forecastService.forecast(tenantId, targetMonth, now);
         model.addAttribute("grid", gridService.build(tenantId, monthStart, targetMonth.lengthOfMonth()));
-        model.addAttribute("hero", hero(forecast));
+        model.addAttribute("hero", hero(forecast, targetMonth, now));
         model.addAttribute("revenueBars", revenueBars(forecast.daily(), now));
         model.addAttribute("revenueMax", money(maxDaily(forecast.daily())));
         model.addAttribute("hasRevenue", maxDaily(forecast.daily()).signum() > 0);
         model.addAttribute("optimization", optimizationView(forecast.optimization()));
         model.addAttribute("channelChips", channelChips(tenantId));
 
-        model.addAttribute("activePage", "dashboard");
-        model.addAttribute("properties", properties);
         model.addAttribute("settings", settingsMap);
         model.addAttribute("autopilotMode", settingsMap.getOrDefault("autopilot_mode", "OFF"));
         model.addAttribute("kpi", kpi);
@@ -114,9 +117,6 @@ public class DashboardController {
         model.addAttribute("currentMonth", targetMonth.toString());
         model.addAttribute("prevMonth", targetMonth.minusMonths(1).toString());
         model.addAttribute("nextMonth", targetMonth.plusMonths(1).toString());
-        model.addAttribute("monthLabel", targetMonth.getMonth()
-                .getDisplayName(java.time.format.TextStyle.FULL, new java.util.Locale("ru"))
-                + " " + targetMonth.getYear());
 
         java.math.BigDecimal otherExpenses = expenseService.getExpensesExcludingCleaning(tenantId, monthStart, monthEnd);
         java.math.BigDecimal netIncome = kpi.revenue()
@@ -129,14 +129,15 @@ public class DashboardController {
         return "pages/dashboard/index";
     }
 
-    private static Hero hero(MonthForecast f) {
+    private static Hero hero(MonthForecast f, java.time.YearMonth month, LocalDate today) {
         boolean hasEstimate = f.estimated().signum() > 0;
         String revenueNote = hasEstimate
                 ? "по броням " + money(f.actual()) + " + оценка " + money(f.estimated())
                 : "по суммам броней";
         String occupancyNote = f.busyNights() + " из " + f.capacityNights() + " ночей";
-        String potentialNote = f.freeFutureNights() > 0
-                ? "свободно ночей: " + f.freeFutureNights() + ", по вашим ценам"
+        String potentialNote = f.capacityNights() == 0 ? "нет квартир в шахматке"
+                : month.atEndOfMonth().isBefore(today) ? "месяц прошёл"
+                : f.freeFutureNights() > 0 ? "свободно ночей: " + f.freeFutureNights() + ", по вашим ценам"
                 : "свободных ночей не осталось";
         return new Hero(money(f.total()), hasEstimate, revenueNote,
                 trimZero(f.occupancyPct()) + "%", occupancyNote,

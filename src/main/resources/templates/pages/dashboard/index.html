@@ -11,7 +11,8 @@
     <div class="dash-header">
         <div>
             <h1 class="page-title">Главная</h1>
-            <p class="page-subtitle">
+            <p class="page-subtitle" th:if="${!hasProperties}">Сводка по вашим квартирам</p>
+            <p class="page-subtitle" th:if="${hasProperties}">
                 Прогноз и занятость за месяц
                 <button type="button" id="grid-conflicts" class="tag tag--red grid-conflicts"
                         th:if="${grid.conflictCount > 0}"
@@ -19,12 +20,12 @@
                         th:text="'Конфликты: ' + ${grid.conflictCount} + ' дн.'">Конфликты: 2 дн.</button>
             </p>
         </div>
-        <div class="dash-month">
+        <div class="dash-month" th:if="${hasProperties}">
             <a th:href="@{/dashboard(m=${prevMonth})}" class="btn btn-ghost" title="Предыдущий месяц">←</a>
             <span class="dash-month__label" th:text="${monthLabel}">Октябрь 2026</span>
             <a th:href="@{/dashboard(m=${nextMonth})}" class="btn btn-ghost" title="Следующий месяц">→</a>
         </div>
-        <div th:switch="${autopilotMode}">
+        <div th:if="${hasProperties}" th:switch="${autopilotMode}">
             <span th:case="'OFF'" class="autopilot-badge autopilot-badge--off"><span
                     class="autopilot-badge__dot"></span> Автопилот выкл</span>
             <span th:case="'SOFT'" class="autopilot-badge autopilot-badge--soft"><span
@@ -34,6 +35,12 @@
         </div>
     </div>
 
+    <!-- Квартиры нет: считать нечего — одно пустое состояние и кнопка в мастер -->
+    <div class="card" th:if="${!hasProperties}">
+        <div th:replace="~{fragments/onboarding :: empty('home', '/onboarding?step=property')}"></div>
+    </div>
+
+    <th:block th:if="${hasProperties}">
     <!-- Hero-метрики месяца -->
     <div class="hero-row">
         <div class="hero">
@@ -265,8 +272,13 @@
             <span th:if="${pace.status() == 'BEHIND'}" class="tag tag--red">Отставание</span>
             <span th:if="${pace.status() == 'NORMAL'}" class="tag tag--amber">В норме</span>
             <span th:if="${pace.status() == 'AHEAD'}" class="tag tag--green">Опережение</span>
+            <span th:if="${pace.status() == 'NO_DATA'}" class="tag tag--muted">Мало данных</span>
         </div>
-        <p class="text-sm">
+        <p class="text-sm muted" th:if="${pace.status() == 'NO_DATA'}">
+            Сравнение появится, когда наберётся три полных месяца броней: до этого обычную занятость
+            не из чего посчитать.
+        </p>
+        <p class="text-sm" th:unless="${pace.status() == 'NO_DATA'}">
             <span th:text="${pace.month()}"></span>:
             текущая загрузка <strong th:text="${pace.currentOccupancy()} + '%'"></strong>,
             историческая норма <strong th:text="${pace.historicalAvg()} + '%'"></strong>
@@ -373,11 +385,7 @@ async function cancelOverride(btn) {
         <div class="card__header">
             <div class="card__title">Объекты</div>
         </div>
-        <div th:if="${#lists.isEmpty(properties)}" class="muted text-sm">
-            Нет объектов. <a th:href="@{/settings}">Добавьте в настройках</a>, затем <a th:href="@{/import}">импортируйте
-            бронирования</a>.
-        </div>
-        <div class="table-wrap" th:unless="${#lists.isEmpty(properties)}">
+        <div class="table-wrap">
             <table>
                 <thead>
                 <tr>
@@ -396,6 +404,7 @@ async function cancelOverride(btn) {
             </table>
         </div>
     </div>
+    </th:block>
 </div>
 
 <th:block layout:fragment="scripts">

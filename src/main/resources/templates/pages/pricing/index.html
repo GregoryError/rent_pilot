@@ -11,6 +11,12 @@
         <p class="page-subtitle">Рекомендации движка, мониторинг конкурентов</p>
     </div>
 
+    <!-- Квартиры нет: пустое состояние и кнопка в мастер -->
+    <div class="card" th:if="${!hasProperties}">
+        <div th:replace="~{fragments/onboarding :: empty('pricing', '/onboarding?step=property')}"></div>
+    </div>
+
+    <th:block th:if="${hasProperties}">
     <!-- KPI -->
     <div class="kpi-row">
         <div class="kpi">
@@ -35,9 +41,13 @@
     <div class="card">
         <div class="card__header">
             <div class="card__title">Рекомендации движка — следующие 60 дней</div>
-            <span class="text-sm muted">Обновляется каждый час</span>
+            <span class="text-sm muted">Считаются при открытии страницы</span>
         </div>
-        <div class="table-wrap">
+        <p class="muted text-sm" th:if="${#lists.isEmpty(recommendations)}">
+            Рекомендовать нечего: все ближайшие 60 дней уже заняты бронями. Новые подсказки появятся,
+            когда освободятся даты.
+        </p>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(recommendations)}">
             <table>
                 <thead>
                     <tr>
@@ -54,7 +64,6 @@
                 </thead>
                 <tbody>
                     <tr th:each="rec : ${recommendations}"
-                        th:if="${rec.status().name() != 'BOOKED'}"
                         th:classappend="${rec.status().name() == 'GAP' ? 'style=background:rgba(248,113,113,0.05)' : ''}">
                         <td class="mono" th:text="${rec.date()}"></td>
                         <td class="text-sm muted" th:text="${#temporals.format(rec.date(), 'EEE', new java.util.Locale('ru'))}"></td>
@@ -171,6 +180,7 @@
             </table>
         </div>
     </div>
+    </th:block>
 
 </div>
 </body>

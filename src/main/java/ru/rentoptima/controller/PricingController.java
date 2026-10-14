@@ -30,19 +30,22 @@ public class PricingController {
     @GetMapping
     public String pricing(Model model) {
         Long tenantId = AuthContext.tenantId();
+        var properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
+        model.addAttribute("activePage", "pricing");
+        // Квартиры нет — ни цен, ни рекомендаций: пустое состояние с кнопкой в мастер
+        model.addAttribute("hasProperties", !properties.isEmpty());
+        if (properties.isEmpty()) return "pages/pricing/index";
+
         var settingsMap = settings.getSettingsMap(tenantId);
         var listings = competitorService.getListings(tenantId);
         var latestPrices = competitorService.getLatestPrices(tenantId);
         var avgPrice = competitorService.getAverageCompetitorPrice(tenantId);
-        var properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
 
-        // Pricing recommendations for first property
-        List<PricingEngine.PricingRecommendation> recommendations = List.of();
-        if (!properties.isEmpty()) {
-            recommendations = pricingEngine.getRecommendations(tenantId, properties.get(0).getId());
-        }
+        // Рекомендации — по первому объекту; занятые дни не показываем: менять там нечего
+        List<PricingEngine.PricingRecommendation> recommendations = pricingEngine
+                .getRecommendations(tenantId, properties.get(0).getId()).stream()
+                .filter(r -> r.status() != PricingEngine.DayStatus.BOOKED).toList();
 
-        model.addAttribute("activePage", "pricing");
         model.addAttribute("settings", settingsMap);
         model.addAttribute("listings", listings);
         model.addAttribute("latestPrices", latestPrices);
