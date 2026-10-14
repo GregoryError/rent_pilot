@@ -18,7 +18,7 @@
         <div class="card__header" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <div class="card__title">Уведомления в Telegram</div>
-                <div class="text-sm muted">Пересечения броней и сбои синхронизации каналов</div>
+                <div class="text-sm muted">Пересечения броней и сбои синхронизации площадок</div>
             </div>
             <div>
                 <span th:if="${tgConfigured}" class="tag tag--green">Подключено</span>
@@ -79,7 +79,7 @@
             <div class="text-sm muted">Последние 20 записей. Ведётся и без подключённого Telegram.</div>
         </div>
         <p class="muted text-sm" th:if="${#lists.isEmpty(alerts)}" style="margin: var(--sp-3) 0 0 0;">
-            Пока пусто: пересечений и сбоев каналов не было.
+            Пока пусто: пересечений и сбоев площадок не было.
         </p>
         <div class="table-wrap" th:unless="${#lists.isEmpty(alerts)}">
             <table>

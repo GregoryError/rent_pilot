@@ -64,6 +64,7 @@ public class PricingController {
         model.addAttribute("boundsWarning", boundsWarning(settingsMap, weekday, weekend));
 
         model.addAttribute("settings", settingsMap);
+        model.addAttribute("platformNames", PLATFORM_NAMES);
         model.addAttribute("listings", listings);
         model.addAttribute("latestPrices", latestPrices);
         model.addAttribute("avgCompetitorPrice", avgPrice);
@@ -115,6 +116,11 @@ public class PricingController {
         }
         return "redirect:/pricing";
     }
+
+    /** Площадки конкурентов по-русски: в базе хранится код (avito, sutochno…). */
+    static final Map<String, String> PLATFORM_NAMES = Map.of(
+            "avito", "Авито", "sutochno", "Суточно", "cian", "Циан", "ostrovok", "Островок",
+            "yandex", "Яндекс Путешествия", "other", "Другая");
 
     private static String rub(BigDecimal v) {
         return v == null ? "—" : v.setScale(0, RoundingMode.HALF_UP).toPlainString() + " ₽";

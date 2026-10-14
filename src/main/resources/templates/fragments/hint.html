@@ -1,0 +1,9 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--/* Подсказка к метрике простыми словами: «?» рядом с названием, текст по наведению или нажатию.
+     Использование: <span th:replace="~{fragments/hint :: hint('Что это значит')}"></span> */-->
+<button th:fragment="hint(text)" type="button" class="hint" aria-label="Что это значит">?<span
+        class="hint__text" role="tooltip" th:text="${text}">Пояснение</span></button>
+</body>
+</html>

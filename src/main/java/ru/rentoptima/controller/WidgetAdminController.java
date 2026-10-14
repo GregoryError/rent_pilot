@@ -105,7 +105,7 @@ public class WidgetAdminController {
         List<WidgetRow> rows = new ArrayList<>();
         for (BookingWidget w : widgetRepo.findByTenantIdAndActiveTrueOrderByCreatedAtAsc(tenantId)) {
             rows.add(new WidgetRow(w.getId(), w.getTitle(),
-                    unitLabels.getOrDefault(w.getUnitTypeId(), "категория удалена"),
+                    unitLabels.getOrDefault(w.getUnitTypeId(), "квартира удалена"),
                     baseUrl + "/b/" + w.getSlug(), "widget-link-" + w.getId()));
         }
         List<UnitOption> options = new ArrayList<>();
@@ -685,13 +685,8 @@ public class WidgetAdminController {
         for (Property p : propertyRepo.findByTenantIdAndActiveTrue(tenantId)) {
             propertyNames.put(p.getId(), p.getName());
         }
-        Map<Long, String> labels = new java.util.LinkedHashMap<>();
-        for (UnitType ut : unitTypeRepo.findByTenantIdAndActiveTrue(tenantId)) {
-            String property = propertyNames.get(ut.getPropertyId());
-            if (property == null) continue;
-            labels.put(ut.getId(), property + " / " + ut.getName());
-        }
-        return labels;
+        return ru.rentoptima.service.UnitVocabulary.labels(propertyNames,
+                unitTypeRepo.findByTenantIdAndActiveTrue(tenantId));
     }
 
     /** Только https-ссылки, по одной в строке: http-картинку браузер на https-странице не покажет. */

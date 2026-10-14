@@ -27,7 +27,9 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -168,5 +170,59 @@ class FirstRunIntegrationTest {
 
     private static int base(List<PricingEngine.PricingRecommendation> recs, LocalDate d) {
         return recs.stream().filter(r -> r.date().equals(d)).findFirst().orElseThrow().currentPrice().intValue();
+    }
+
+    @Test
+    @DisplayName("дашборд и /pricing по-русски: без estimated, Net RevPAR, Booking Pace, OFF, Net/ночь, URL")
+    void russianMetrics() throws Exception {
+        TenantUserDetails u = account();
+        apartment(u);
+        String dashboard = page(u, "/dashboard");
+        assertThat(dashboard).doesNotContain("estimated").doesNotContain("RevPAR").doesNotContain("Booking Pace");
+        assertThat(dashboard).contains("Доход на ночь в календаре").contains("Темп бронирований")
+                .contains("class=\"hint\"").contains("оценка");
+        String pricing = page(u, "/pricing");
+        assertThat(pricing).doesNotContain(">OFF<").doesNotContain("Net/ночь").doesNotContain(">URL<")
+                .doesNotContain("Gap (окно");
+        assertThat(pricing).contains("Выключен").contains("Чистыми за ночь");
+    }
+
+    @Test
+    @DisplayName("одна квартира: нет слова «категория», выбор квартиры в формах подставляется сам; цена меняется в «Объектах»")
+    void simpleModeHidesCategories() throws Exception {
+        TenantUserDetails u = account();
+        apartment(u);
+        String channels = page(u, "/settings/channels");
+        assertThat(channels).doesNotContainPattern("[Кк]атегори").doesNotContainPattern("[Кк]анал");
+        assertThat(channels).containsPattern("type=\"hidden\" name=\"unitTypeId\"");
+        String widgets = page(u, "/settings/widgets");
+        assertThat(widgets).doesNotContainPattern("[Кк]атегори");
+        String properties = page(u, "/settings/properties");
+        assertThat(properties).contains("Цена за ночь").doesNotContain("Категории номеров").contains("/edit\"");
+        assertThat(page(u, "/calendar/grid")).contains(">Квартира<").doesNotContain("Объект / категория");
+
+        // форма «Изменить» под ценой: имя и количество уходят скрытыми полями
+        var unit = jdbc.queryForMap("SELECT id, property_id, name FROM unit_types WHERE tenant_id = ?", u.getTenantId());
+        mvc.perform(post("/settings/properties/" + unit.get("property_id") + "/unit-types/" + unit.get("id") + "/edit")
+                        .with(user(u)).with(csrf()).param("name", (String) unit.get("name")).param("unitCount", "1")
+                        .param("basePrice", "5200").param("weekendPrice", "6100"))
+                .andExpect(status().is3xxRedirection());
+        assertThat(jdbc.queryForMap("SELECT base_price, weekend_price, unit_count FROM unit_types WHERE id = ?", unit.get("id")))
+                .containsEntry("unit_count", 1);
+        assertThat(jdbc.queryForObject("SELECT base_price FROM unit_types WHERE id = ?", BigDecimal.class, unit.get("id")))
+                .isEqualByComparingTo("5200");
+        assertThat(page(u, "/settings/properties")).contains("5 200 ₽").contains("6 100 ₽");
+    }
+
+    @Test
+    @DisplayName("две категории — понятие «категория» возвращается, выбор в формах тоже")
+    void categoriesShownWhenSeveral() throws Exception {
+        TenantUserDetails u = account();
+        Long property = propertyCreator.createProperty(u.getTenantId(), "Мини-отель", null, "Казань");
+        propertyCreator.createUnitType(u.getTenantId(), property, "Стандарт", 3, BigDecimal.valueOf(3000), null);
+        propertyCreator.createUnitType(u.getTenantId(), property, "Люкс", 1, BigDecimal.valueOf(6000), null);
+        String channels = page(u, "/settings/channels");
+        assertThat(channels).contains("Квартира или категория номеров").contains("Мини-отель / Люкс");
+        assertThat(page(u, "/settings/properties")).contains("Категории номеров");
     }
 }

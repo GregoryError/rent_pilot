@@ -92,7 +92,7 @@ public class IntegrationsController {
             }
             settings.setValue(tenantId, TelegramService.KEY_CHAT_ID, chat.get().id());
             rememberBaseUrl(tenantId, request);
-            telegram.send(tenantId, "OptiRent подключён. Сюда будут приходить уведомления о пересечениях броней и сбоях каналов.");
+            telegram.send(tenantId, "OptiRent подключён. Сюда будут приходить уведомления о пересечениях броней и сбоях площадок.");
             redirect.addFlashAttribute("success", "Чат найден: " + chat.get().title() + ". Проверочное сообщение отправлено.");
         } catch (Exception e) {
             redirect.addFlashAttribute("error", "Не удалось найти чат: " + e.getMessage());
@@ -123,7 +123,7 @@ public class IntegrationsController {
                     .filter(a -> a.getAlertType() != AlertEvent.AlertType.OVERLAP)
                     .count();
             redirect.addFlashAttribute("success", open == 0
-                    ? "Проверка выполнена: пересечений и сбоев каналов нет"
+                    ? "Проверка выполнена: пересечений и сбоев площадок нет"
                     : "Проверка выполнена. Открытых проблем: " + open);
         } catch (Exception e) {
             log.warn("Manual alert check failed for tenant {}: {}", tenantId, e.getMessage());
@@ -164,7 +164,7 @@ public class IntegrationsController {
         }
         return new AlertView(
                 a.getFirstSeenAt().format(ALERT_TIME),
-                conflict ? "Пересечение" : "Сбой канала",
+                conflict ? "Пересечение" : "Сбой площадки",
                 a.getMessage(), status, statusCss);
     }
 

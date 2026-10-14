@@ -46,35 +46,36 @@
         <div class="hero">
             <div class="hero__label">
                 Прогноз выручки
-                <span class="est-badge" th:if="${hero.revenueEstimated}"
-                      title="Часть суммы — оценка: занятые ночи без суммы посчитаны по плановой цене">estimated</span>
+                <span th:replace="~{fragments/hint :: hint('Сумма броней с заездом в этом месяце. Занятые ночи без суммы посчитаны по цене квартиры — это оценка.')}"></span>
+                <span class="est-badge" th:if="${hero.revenueEstimated}">оценка</span>
             </div>
             <div class="hero__value" th:text="${hero.revenue}">84 000 ₽</div>
             <div class="hero__note" th:text="${hero.revenueNote}">по броням 60 000 ₽ + оценка 24 000 ₽</div>
         </div>
         <div class="hero">
-            <div class="hero__label">Занятость</div>
+            <div class="hero__label">Занятость <span th:replace="~{fragments/hint :: hint('Сколько ночей месяца занято — от всех ночей всех квартир, с бронями и блокировками площадок.')}"></span></div>
             <div class="hero__value" th:text="${hero.occupancy}">72%</div>
             <div class="hero__note" th:text="${hero.occupancyNote}">22 из 31 ночей</div>
         </div>
         <div class="hero">
-            <div class="hero__label">Броней</div>
+            <div class="hero__label">Броней <span th:replace="~{fragments/hint :: hint('Брони с заездом в этом месяце.')}"></span></div>
             <div class="hero__value" th:text="${hero.stays}">7</div>
             <div class="hero__note">с заездом в этом месяце</div>
         </div>
         <div class="hero">
             <div class="hero__label">
                 Потенциал
-                <span class="est-badge" title="Оценка: свободные ночи по вашим текущим ценам">estimated</span>
+                <span th:replace="~{fragments/hint :: hint('Сколько принесут ещё свободные ночи этого месяца, если продать их по вашим ценам.')}"></span>
+                <span class="est-badge">оценка</span>
             </div>
             <div class="hero__value" th:text="${hero.potential}">28 000 ₽</div>
             <div class="hero__note" th:text="${hero.potentialNote}">свободно ночей: 9, по вашим ценам</div>
         </div>
     </div>
 
-    <!-- Статусы каналов -->
+    <!-- Статусы площадок -->
     <div class="channel-strip" th:if="${!#lists.isEmpty(channelChips)}">
-        <span>Каналы:</span>
+        <span>Площадки:</span>
         <span th:each="ch : ${channelChips}" th:class="${ch.cssClasses}">
             <span class="channel-chip__dot"></span>
             <span class="channel-chip__name" th:text="${ch.name}">Суточно</span>
@@ -107,7 +108,8 @@
             <div class="card__header">
                 <div class="card__title">
                     Выручка по дням
-                    <span class="est-badge" title="Будущие дни и ночи без суммы — оценка">estimated</span>
+                    <span th:replace="~{fragments/hint :: hint('Будущие дни и ночи без суммы посчитаны по цене квартиры — это оценка.')}"></span>
+                    <span class="est-badge">оценка</span>
                 </div>
                 <span class="rev-chart__max" th:if="${hasRevenue}" th:text="'макс. ' + ${revenueMax}">макс. 4 200 ₽</span>
             </div>
@@ -141,7 +143,8 @@
             <div class="card__header">
                 <div class="card__title">
                     Потенциал оптимизации
-                    <span class="est-badge" title="Расчёт системы, не гарантия">estimated</span>
+                    <span th:replace="~{fragments/hint :: hint('Сравнение ваших цен на свободные ночи с рекомендованными. Расчёт системы, не гарантия.')}"></span>
+                    <span class="est-badge">оценка</span>
                 </div>
             </div>
             <p class="muted text-sm" th:if="${optimization == null}">
@@ -187,7 +190,7 @@
                     <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
                 </svg>
             </div>
-            <div class="kpi__label">Доход</div>
+            <div class="kpi__label">Доход <span th:replace="~{fragments/hint :: hint('Сумма броней с заездом в этом месяце — там, где сумма указана.')}"></span></div>
             <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.revenue(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">
                 —
             </div>
@@ -199,7 +202,7 @@
                     <path d="M20 12V8H6a2 2 0 010-4h12v4M4 6v12a2 2 0 002 2h14v-4M18 12a2 2 0 000 4h4v-4z"/>
                 </svg>
             </div>
-            <div class="kpi__label">Чистый доход</div>
+            <div class="kpi__label">Чистый доход <span th:replace="~{fragments/hint :: hint('Доход минус уборки и другие расходы этого месяца.')}"></span></div>
             <div class="kpi__value" th:text="${#numbers.formatDecimal(netIncome, 1, 'COMMA', 0, 'POINT')} + ' ₽'">—
             </div>
             <div class="kpi__delta muted" style="font-size:var(--text-xs)">Доход минус расходы</div>
@@ -211,7 +214,7 @@
                     <path d="M3 12l2-2 2 2 4-4 4 4 4-4 2 2M3 20h18"/>
                 </svg>
             </div>
-            <div class="kpi__label">Заполняемость</div>
+            <div class="kpi__label">Заполняемость <span th:replace="~{fragments/hint :: hint('Доля ночей месяца, занятых бронями, от всех ночей всех квартир. Блокировки площадок без брони сюда не входят.')}"></span></div>
             <div class="kpi__value" th:text="${kpi.occupancy()} + '%'">—</div>
         </div>
 
@@ -222,7 +225,7 @@
                     <path d="M12 6v6l4 2"/>
                 </svg>
             </div>
-            <div class="kpi__label">Ср. длительность</div>
+            <div class="kpi__label">Ср. длительность <span th:replace="~{fragments/hint :: hint('Сколько ночей в среднем длится бронь с заездом в этом месяце.')}"></span></div>
             <div class="kpi__value" th:text="${kpi.avgNights()} + ' н.'">—</div>
         </div>
 
@@ -243,11 +246,11 @@
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                 </svg>
             </div>
-            <div class="kpi__label">Net RevPAR</div>
+            <div class="kpi__label">Доход на ночь в календаре <span th:replace="~{fragments/hint :: hint('Доход минус уборки, делённый на все ночи месяца всех квартир — и занятые, и свободные. Сколько в среднем приносит каждая ночь.')}"></span></div>
             <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.netRevPar(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">
                 —
             </div>
-            <div class="kpi__delta muted" style="font-size:var(--text-xs)">Чистый доход / день</div>
+            <div class="kpi__delta muted" style="font-size:var(--text-xs)">чистыми, после уборки</div>
         </div>
 
         <div class="kpi">
@@ -256,7 +259,7 @@
                     <path d="M3 6l3 12h12l3-12M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                 </svg>
             </div>
-            <div class="kpi__label">Расход на уборку</div>
+            <div class="kpi__label">Расход на уборку <span th:replace="~{fragments/hint :: hint('Стоимость уборки из настроек, умноженная на число выездов.')}"></span></div>
             <div class="kpi__value"
                  th:text="${#numbers.formatDecimal(kpi.cleaningCost(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">—
             </div>
@@ -265,10 +268,13 @@
         </div>
     </div>
 
-    <!-- Booking Pace -->
+    <!-- Темп бронирований -->
     <div class="card" th:if="${pace != null}">
         <div class="card__header">
-            <div class="card__title">Booking Pace — следующий месяц</div>
+            <div class="card__title">
+                <span th:text="'Темп бронирований: ' + ${pace.month()}">Темп бронирований: Ноябрь</span>
+                <span th:replace="~{fragments/hint :: hint('Насколько уже занят следующий месяц по сравнению с обычной занятостью прошлых месяцев.')}"></span>
+            </div>
             <span th:if="${pace.status() == 'BEHIND'}" class="tag tag--red">Отставание</span>
             <span th:if="${pace.status() == 'NORMAL'}" class="tag tag--amber">В норме</span>
             <span th:if="${pace.status() == 'AHEAD'}" class="tag tag--green">Опережение</span>

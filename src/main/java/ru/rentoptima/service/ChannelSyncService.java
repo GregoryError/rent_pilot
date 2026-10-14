@@ -59,7 +59,7 @@ public class ChannelSyncService {
 
         ChannelAdapter adapter = registry.find(channel.getChannelType()).orElse(null);
         if (adapter == null) {
-            recordError(channel, "Тип канала " + channel.getChannelType() + " пока не поддерживается");
+            recordError(channel, "Такой тип площадки (" + channel.getChannelType() + ") пока не поддерживается");
             return Optional.empty();
         }
         if (!adapter.supportsPull()) {

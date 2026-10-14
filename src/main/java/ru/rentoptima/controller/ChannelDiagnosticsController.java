@@ -26,7 +26,7 @@ public class ChannelDiagnosticsController {
     @PostMapping("/settings/channels/diagnostics/remove-orphaned")
     public String removeOrphaned(RedirectAttributes redirect) {
         int removed = diagnostics.removeOrphanedBlocks(AuthContext.tenantId());
-        redirect.addFlashAttribute("success", "Снято блокировок удалённых каналов: " + removed);
+        redirect.addFlashAttribute("success", "Снято блокировок удалённых площадок: " + removed);
         return "redirect:/settings/channels/diagnostics";
     }
 

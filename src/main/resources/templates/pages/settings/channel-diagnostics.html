@@ -2,13 +2,13 @@
 <html xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
-<head><title>Диагностика каналов</title></head>
+<head><title>Диагностика площадок</title></head>
 <body>
 <div layout:fragment="content">
 
     <div class="page-header flex justify-between items-center">
         <div>
-            <h1 class="page-title">Диагностика каналов</h1>
+            <h1 class="page-title">Диагностика площадок</h1>
             <p class="page-subtitle">Как быстро занятость расходится между OptiRent и площадками. Данные за 30 дней.</p>
         </div>
         <div style="display: flex; gap: var(--sp-3); flex-wrap: wrap;">
@@ -21,20 +21,20 @@
     </div>
 
     <div class="card" th:if="${orphanedBlocks > 0}" style="border-left: 3px solid var(--amber);">
-        <div class="card__title">Остались блокировки удалённых каналов</div>
+        <div class="card__title">Остались блокировки удалённых площадок</div>
         <p class="text-sm" style="margin: var(--sp-3) 0 var(--sp-4) 0; color: var(--text-secondary);">
-            В шахматке <strong th:text="${orphanedBlocks}">12</strong> блокировок, импортированных с каналов,
+            В шахматке <strong th:text="${orphanedBlocks}">12</strong> блокировок, пришедших с площадок,
             которые вы уже удалили. Они больше не обновляются, но продолжают закрывать даты —
             и в шахматке, и в фидах для других площадок.
         </p>
         <form method="post" th:action="@{/settings/channels/diagnostics/remove-orphaned}" style="margin: 0;"
               onsubmit="return confirm('Снять эти блокировки? Даты станут свободными. Брони и ручные записи не затрагиваются.');">
-            <button type="submit" class="btn btn-primary">Снять блокировки удалённых каналов</button>
+            <button type="submit" class="btn btn-primary">Снять блокировки удалённых площадок</button>
         </form>
     </div>
 
     <div class="card" th:if="${#lists.isEmpty(report.channels)}">
-        <div class="card__title">Нет iCal-каналов</div>
+        <div class="card__title">Площадок пока нет</div>
         <p class="muted" style="margin: var(--sp-3) 0 0 0;">
             Подключите площадку в разделе «Площадки» — здесь появится статистика обмена.
         </p>
@@ -108,7 +108,7 @@
     <div class="card">
         <div class="card__header">
             <div class="card__title">Журнал пересечений дат</div>
-            <div class="text-sm muted">Последние 50 записей: конфликты, наложения площадок и сбои каналов.</div>
+            <div class="text-sm muted">Последние 50 записей: конфликты, наложения площадок и сбои синхронизации.</div>
         </div>
         <p class="muted text-sm" th:if="${#lists.isEmpty(report.journal)}" style="margin: var(--sp-3) 0 0 0;">
             Пересечений не было.
@@ -129,7 +129,7 @@
         <div class="form-hint" style="margin-top: var(--sp-3);">
             «Наложение без ручной записи» — на одни даты пришла занятость из двух источников.
             Обычно площадка возвращает в своём фиде то, что сама импортировала у нас. В Telegram такие записи не уходят.
-            «Очистить диагностику» не удаляет открытые конфликты и сбои каналов — они исчезнут сами, когда проблема уйдёт.
+            «Очистить диагностику» не удаляет открытые конфликты и сбои площадок — они исчезнут сами, когда проблема уйдёт.
         </div>
     </div>
 

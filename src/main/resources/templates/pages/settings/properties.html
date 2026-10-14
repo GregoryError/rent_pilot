@@ -9,7 +9,7 @@
     <div class="page-header flex justify-between items-center">
         <div>
             <h1 class="page-title">Объекты</h1>
-            <p class="page-subtitle">Управление квартирами и категориями номеров</p>
+            <p class="page-subtitle" th:text="${simpleUnits} ? 'Ваша квартира: название, адрес и цена за ночь' : 'Управление квартирами и категориями номеров'">Управление квартирами и категориями номеров</p>
         </div>
         <button class="btn btn-primary" onclick="document.getElementById('add-form').style.display='block'">+ Добавить объект</button>
     </div>
@@ -92,8 +92,9 @@
             <div style="margin-top: var(--sp-6); padding-top: var(--sp-4); border-top: 1px solid var(--border-subtle);"
                  th:with="uts=${unitTypesByProperty != null ? unitTypesByProperty.get(prop.id) : null}">
                 <div class="flex justify-between items-center" style="margin-bottom: var(--sp-3);">
-                    <div class="card__title" style="margin: 0;">Категории номеров</div>
-                    <button type="button" class="btn btn-ghost"
+                    <!--/* Одна квартира — понятия «категория» нет: только цена */-->
+                    <div class="card__title" style="margin: 0;" th:text="${simpleUnits} ? 'Цена за ночь' : 'Категории номеров'">Категории номеров</div>
+                    <button type="button" class="btn btn-ghost" th:unless="${simpleUnits}"
                             th:onclick="|document.getElementById('ut-form-${prop.id}').style.display='block'|">
                         + Категория
                     </button>
@@ -104,28 +105,41 @@
                     Пока нет категорий. Для квартиры достаточно одной «Основной» с количеством 1.
                 </div>
 
-                <div class="table-wrap" th:unless="${uts == null or #lists.isEmpty(uts)}">
+                <dl class="ut-prices" th:if="${simpleUnits and uts != null and !#lists.isEmpty(uts)}">
+                    <div>
+                        <dt>В будни</dt>
+                        <dd th:text="${uts[0].basePrice != null ? #numbers.formatInteger(uts[0].basePrice, 1, 'WHITESPACE') + ' ₽' : 'не задана'}">4 500 ₽</dd>
+                    </div>
+                    <div>
+                        <dt>Ночи с пт и с сб</dt>
+                        <dd th:text="${uts[0].weekendPrice != null ? #numbers.formatInteger(uts[0].weekendPrice, 1, 'WHITESPACE') + ' ₽' : 'как в будни'}">как в будни</dd>
+                    </div>
+                </dl>
+
+                <div class="table-wrap" th:unless="${simpleUnits or uts == null or #lists.isEmpty(uts)}">
                     <table>
                         <thead>
                             <tr>
-                                <th>Название</th>
-                                <th>Кол-во номеров</th>
-                                <th>Базовая цена</th>
-                                <th>Цена выходные</th>
-                                <th></th>
+                                <th th:unless="${simpleUnits}">Название</th>
+                                <th th:unless="${simpleUnits}">Кол-во номеров</th>
+                                <th>В будни</th>
+                                <th>Ночи с пт и с сб</th>
+                                <th th:unless="${simpleUnits}"></th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr th:each="ut : ${uts}">
-                                <td th:text="${ut.name}">Основной</td>
-                                <td th:text="${ut.unitCount}">1</td>
-                                <td th:text="${ut.basePrice != null ? ut.basePrice + ' ₽' : '—'}">—</td>
-                                <td th:text="${ut.weekendPrice != null ? ut.weekendPrice + ' ₽' : '—'}">—</td>
-                                <td class="text-right">
+                                <td th:unless="${simpleUnits}" th:text="${ut.name}">Основной</td>
+                                <td th:unless="${simpleUnits}" th:text="${ut.unitCount}">1</td>
+                                <td th:text="${ut.basePrice != null ? #numbers.formatInteger(ut.basePrice, 1, 'WHITESPACE') + ' ₽' : 'не задана'}">—</td>
+                                <td th:text="${ut.weekendPrice != null ? #numbers.formatInteger(ut.weekendPrice, 1, 'WHITESPACE') + ' ₽' : 'как в будни'}">—</td>
+                                <td class="text-right" th:unless="${simpleUnits}">
+                                    <button type="button" class="btn btn-ghost"
+                                            th:onclick="|document.getElementById('ut-edit-${ut.id}').hidden=false|">Изменить</button>
                                     <form style="display:inline;"
                                           th:action="@{'/settings/properties/' + ${prop.id} + '/unit-types/' + ${ut.id} + '/delete'}"
                                           method="post"
-                                          onsubmit="return confirm('Удалить категорию? Каналы, привязанные к ней, останутся, но перестанут синхронизироваться до перепривязки.');">
+                                          onsubmit="return confirm('Удалить категорию? Площадки, привязанные к ней, останутся, но перестанут синхронизироваться до перепривязки.');">
                                         <button type="submit" class="btn btn-ghost" style="color: var(--red);">Удалить</button>
                                     </form>
                                 </td>
@@ -133,6 +147,55 @@
                         </tbody>
                     </table>
                 </div>
+
+                <button type="button" class="btn btn-ghost ut-price-edit" th:if="${simpleUnits and uts != null and !#lists.isEmpty(uts)}"
+                        th:onclick="|document.getElementById('ut-edit-${uts[0].id}').hidden=false|">Изменить цену</button>
+
+                <!-- Изменить цену (и для мини-отеля — название и количество); цена квартиры — главная,
+                     от неё считаются шахматка, страница бронирования и рекомендации -->
+                <div th:each="ut : ${uts}" th:if="${uts != null}" th:id="'ut-edit-' + ${ut.id}" hidden
+                     class="ut-edit">
+                    <form th:action="@{'/settings/properties/' + ${prop.id} + '/unit-types/' + ${ut.id} + '/edit'}" method="post">
+                        <input type="hidden" name="name" th:value="${ut.name}" th:if="${simpleUnits}">
+                        <input type="hidden" name="unitCount" th:value="${ut.unitCount}" th:if="${simpleUnits}">
+                        <div class="ut-edit__grid">
+                            <div class="form-group" th:unless="${simpleUnits}">
+                                <label class="form-label" th:for="'ut-name-' + ${ut.id}">Название</label>
+                                <input type="text" name="name" th:id="'ut-name-' + ${ut.id}" class="form-input form-input--sm"
+                                       required maxlength="200" th:value="${ut.name}">
+                            </div>
+                            <div class="form-group" th:unless="${simpleUnits}">
+                                <label class="form-label" th:for="'ut-count-' + ${ut.id}">Кол-во</label>
+                                <input type="number" inputmode="numeric" name="unitCount" th:id="'ut-count-' + ${ut.id}"
+                                       class="form-input form-input--sm" min="1" th:value="${ut.unitCount}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" th:for="'ut-price-' + ${ut.id}">В будни, ₽ за ночь</label>
+                                <input type="number" inputmode="numeric" name="basePrice" th:id="'ut-price-' + ${ut.id}"
+                                       class="form-input form-input--sm" min="1" step="1" required
+                                       th:value="${ut.basePrice != null ? #numbers.formatInteger(ut.basePrice, 1) : ''}">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" th:for="'ut-weekend-' + ${ut.id}">Ночи с пт и с сб, ₽</label>
+                                <input type="number" inputmode="numeric" name="weekendPrice" th:id="'ut-weekend-' + ${ut.id}"
+                                       class="form-input form-input--sm" min="1" step="1"
+                                       th:value="${ut.weekendPrice != null ? #numbers.formatInteger(ut.weekendPrice, 1) : ''}">
+                                <div class="form-hint">Пусто — как в будни.</div>
+                            </div>
+                        </div>
+                        <div class="ut-edit__actions">
+                            <button type="submit" class="btn btn-primary">Сохранить</button>
+                            <button type="button" class="btn btn-ghost"
+                                    th:onclick="|document.getElementById('ut-edit-${ut.id}').hidden=true|">Отмена</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!--/* Одна квартира: «категорий» не показываем; кто сдаёт разные номера — раскроет форму сам */-->
+                <button type="button" class="link-button text-sm ut-more" th:if="${simpleUnits}"
+                        th:onclick="|document.getElementById('ut-form-${prop.id}').style.display='block'|">
+                    В этом объекте несколько разных номеров?
+                </button>
 
                 <!-- Add unit_type form (per-property, скрыта по умолчанию) -->
                 <div th:id="'ut-form-' + ${prop.id}" style="display:none; margin-top: var(--sp-4);

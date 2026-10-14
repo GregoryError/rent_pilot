@@ -139,7 +139,7 @@ public class ChannelController {
 
         log.info("Channel создан: tenant={}, type=ICAL, name='{}', unitType={}",
                 tenantId, name, unitTypeId);
-        redirect.addFlashAttribute("success", "Канал «" + name + "» подключён");
+        redirect.addFlashAttribute("success", "Площадка «" + name + "» подключена");
         return "redirect:/settings/channels";
     }
 
@@ -211,7 +211,7 @@ public class ChannelController {
         channel.setColor(color.toUpperCase());
         channel.setUpdatedAt(LocalDateTime.now());
         channelRepo.save(channel);
-        redirect.addFlashAttribute("success", "Цвет канала «" + channel.getName() + "» изменён");
+        redirect.addFlashAttribute("success", "Цвет площадки «" + channel.getName() + "» изменён");
         return "redirect:/settings/channels";
     }
 
@@ -236,8 +236,8 @@ public class ChannelController {
         // оставлять её значит держать даты закрытыми в шахматке и в фидах других каналов.
         int removed = blockRepo.deleteByChannel(c.getId());
         redirect.addFlashAttribute("success", removed == 0
-                ? "Канал удалён, синхронизация остановлена"
-                : "Канал удалён, синхронизация остановлена. Снято блокировок с этой площадки: " + removed);
+                ? "Площадка удалена, синхронизация остановлена"
+                : "Площадка удалена, синхронизация остановлена. Снято блокировок с неё: " + removed);
         return "redirect:/settings/channels";
     }
 
@@ -247,18 +247,14 @@ public class ChannelController {
     }
 
     private Map<Long, String> buildUnitTypeLabels(List<UnitType> unitTypes, List<Property> properties) {
-        Map<Long, Property> propertyById = new HashMap<>();
-        for (Property p : properties) propertyById.put(p.getId(), p);
-        Map<Long, String> labels = new HashMap<>();
+        Map<Long, String> propertyNames = new HashMap<>();
+        for (Property p : properties) propertyNames.put(p.getId(), p.getName());
+        // У объекта одна категория на одну квартиру — подпись просто «Садовая», без «/ Основной»
+        Map<Long, String> labels = new HashMap<>(ru.rentoptima.service.UnitVocabulary.labels(propertyNames, unitTypes));
         for (UnitType ut : unitTypes) {
-            Property p = propertyById.get(ut.getPropertyId());
-            StringBuilder sb = new StringBuilder();
-            if (p != null) sb.append(p.getName()).append(" / ");
-            sb.append(ut.getName());
-            if (ut.getUnitCount() != null && ut.getUnitCount() > 1) {
-                sb.append(" (×").append(ut.getUnitCount()).append(")");
-            }
-            labels.put(ut.getId(), sb.toString());
+            String label = labels.getOrDefault(ut.getId(), ut.getName());
+            if (ut.getUnitCount() != null && ut.getUnitCount() > 1) label += " (×" + ut.getUnitCount() + ")";
+            labels.put(ut.getId(), label);
         }
         return labels;
     }
@@ -292,7 +288,7 @@ public class ChannelController {
                 "background: " + color,
                 palette,
                 c.getChannelType().name(),
-                unitTypeLabels.getOrDefault(c.getUnitTypeId(), "— unit_type #" + c.getUnitTypeId() + " —"),
+                unitTypeLabels.getOrDefault(c.getUnitTypeId(), "квартира удалена"),
                 importUrl,
                 exportUrl,
                 "copy-import-" + c.getId(),

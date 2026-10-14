@@ -32,7 +32,7 @@
       <div class="grid-wrap" id="grid-wrap">
         <div class="grid" id="grid" th:style="'--cols: ' + ${#lists.size(grid.dayHeaders)}">
 
-            <div class="grid__corner">Объект / категория</div>
+            <div class="grid__corner" th:text="${simpleUnits} ? 'Квартира' : 'Объект / категория'">Объект / категория</div>
 
             <div th:each="h : ${grid.dayHeaders}" th:class="${h.cssClasses}"
                  th:data-date="${h.date}" th:data-label="${h.fullLabel}">
@@ -56,7 +56,7 @@
                      th:data-info="${c.info}"
                      th:data-date="${c.dateIso}"
                      th:data-unit-type-id="${c.unitTypeId}"
-                     th:data-unit-name="${row.unitTypeName}"
+                     th:data-unit-name="${simpleUnits} ? null : ${row.unitTypeName}"
                      th:data-property-name="${row.propertyName}"
                      th:data-price="${c.priceText}">
                     <span class="grid__cell__letter" th:if="${c.showBusyBadge}" th:text="${c.busy}">3</span>

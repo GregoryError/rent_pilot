@@ -83,13 +83,10 @@ public class AlertSchedulerService {
         }
         // Категории выключенных объектов в шахматке не видны — и алертов по ним не шлём
         Map<Long, UnitType> activeUnits = new LinkedHashMap<>();
-        Map<Long, String> unitLabels = new HashMap<>();
         for (UnitType ut : unitTypes) {
-            String property = propertyNames.get(ut.getPropertyId());
-            if (property == null) continue;
-            activeUnits.put(ut.getId(), ut);
-            unitLabels.put(ut.getId(), property + " / " + ut.getName());
+            if (propertyNames.containsKey(ut.getPropertyId())) activeUnits.put(ut.getId(), ut);
         }
+        Map<Long, String> unitLabels = new HashMap<>(UnitVocabulary.labels(propertyNames, activeUnits.values()));
 
         List<Channel> channels = channelRepo.findByTenantIdAndActiveTrue(tenantId);
         Map<Long, String> channelNames = new HashMap<>();
@@ -246,9 +243,9 @@ public class AlertSchedulerService {
         }
         if (!down.isEmpty()) {
             if (sb.length() > 0) sb.append("\n");
-            sb.append("🔌 OptiRent: канал не синхронизируется\n");
+            sb.append("🔌 OptiRent: площадка не синхронизируется\n");
             appendItems(sb, down);
-            sb.append("\nЗанятость с этой площадки не обновляется — проверьте ссылку iCal.\n");
+            sb.append("\nЗанятость с этой площадки не обновляется — проверьте ссылку с площадки.\n");
             sb.append("Площадки: ").append(baseUrl).append("/settings/channels\n");
         }
         return sb.toString().trim();
@@ -271,7 +268,7 @@ public class AlertSchedulerService {
             if (name != null) names.add("«" + name + "»");
         }
         long nights = ChronoUnit.DAYS.between(p.from(), p.toExclusive());
-        String text = (unitLabel == null ? "Категория" : unitLabel)
+        String text = (unitLabel == null ? "Квартира" : unitLabel)
                 + ": " + formatNights(p.from(), p.toExclusive())
                 + " (" + nights + " " + nightsWord(nights) + ")";
         return names.isEmpty() ? text : text + " — " + String.join(", ", names);
@@ -290,7 +287,7 @@ public class AlertSchedulerService {
     private static String recoveredText(AlertEvent a) {
         String message = a.getMessage();
         int cut = message.indexOf(": ");
-        return (cut > 0 ? message.substring(0, cut) : "Канал") + " — синхронизация восстановилась";
+        return (cut > 0 ? message.substring(0, cut) : "Площадка") + " — синхронизация восстановилась";
     }
 
     /** Ночи периода человеческим языком: «12 октября», «12–14 октября», «30 октября – 2 ноября». */

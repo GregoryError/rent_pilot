@@ -60,7 +60,7 @@ public class EchoShadowService {
                 continue;
             }
             String channel = names.computeIfAbsent(shadow.getChannelId(), id -> channelRepo.findById(id)
-                    .filter(c -> tenantId.equals(c.getTenantId())).map(Channel::getName).orElse("канал"));
+                    .filter(c -> tenantId.equals(c.getTenantId())).map(Channel::getName).orElse("площадка"));
             kept.add("на площадке «" + channel + "» есть похожая бронь " + sign);
             log.info("Shadow block {} (channel={}, uid={}) of own block {} kept: {}",
                     shadow.getId(), shadow.getChannelId(), shadow.getExternalUid(), ownBlockId, sign);

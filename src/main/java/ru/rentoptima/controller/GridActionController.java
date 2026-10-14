@@ -235,7 +235,7 @@ public class GridActionController {
                 if (b.getBlockType() != CalendarBlock.BlockType.CHANNEL_SYNC) continue;
                 boolean ignored = Boolean.TRUE.equals(b.getIgnored());
                 result.add(new ManualEntry(ignored ? "channel-ignored" : "channel", b.getId(),
-                        "С площадки: " + channelNames.getOrDefault(b.getChannelId(), "канал"),
+                        "С площадки: " + channelNames.getOrDefault(b.getChannelId(), "площадка"),
                         b.getFromDate().toString(), b.getToDate().minusDays(1).toString(),
                         ignored ? (b.getShadowOfManualId() != null
                                         ? "Копия ручной записи — скрыта, даты свободны"

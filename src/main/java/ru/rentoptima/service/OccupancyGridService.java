@@ -175,7 +175,7 @@ public class OccupancyGridService {
             }
         }
 
-        if (noChannelPainted) legendChannels.add(new LegendChannel("Без канала", "•", NO_CHANNEL_STYLE));
+        if (noChannelPainted) legendChannels.add(new LegendChannel("Без площадки", "•", NO_CHANNEL_STYLE));
 
         return new GridView(dayHeaders, rows, conflictCount, empty, hasProperties, legendChannels);
     }
@@ -243,13 +243,13 @@ public class OccupancyGridService {
             return switch (o.blockType()) {
                 case MAINTENANCE -> "ремонт";
                 case OWNER_USE -> "личное использование";
-                case HOLD -> "hold";
+                case HOLD -> "резерв";
                 default -> "ручная бронь";
             };
         }
         String channel = o.channelId() == null ? null : channelNames.get(o.channelId());
         if (channel != null) return channel;
-        return o.booking() ? "бронь с площадки" : "iCal-канал";
+        return o.booking() ? "бронь с площадки" : "закрыто на площадке";
     }
 
     private static String formatPrice(BigDecimal price) {

@@ -34,7 +34,7 @@
     <div class="card" th:if="${#lists.isEmpty(unitTypes)}">
         <div class="card__title">Сначала добавьте объект</div>
         <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
-            Страница бронирования привязывается к категории номеров объекта.
+            Страница бронирования открывается для конкретной квартиры — добавьте её, и здесь появится кнопка «Создать».
         </p>
         <a class="btn btn-primary" th:href="@{/settings/properties}">К настройкам объектов</a>
     </div>
@@ -48,7 +48,8 @@
                     <input type="text" name="title" required maxlength="255" class="form-input"
                            placeholder="Квартира на Садовой">
                 </div>
-                <div class="form-group">
+                <input type="hidden" name="unitTypeId" th:if="${simpleUnits}" th:value="${unitTypes[0].id}">
+                <div class="form-group" th:unless="${simpleUnits}">
                     <label class="form-label">Что бронируют</label>
                     <select name="unitTypeId" required class="form-input">
                         <option th:each="ut : ${unitTypes}" th:value="${ut.id}" th:text="${ut.label}">Садовая / Основной</option>

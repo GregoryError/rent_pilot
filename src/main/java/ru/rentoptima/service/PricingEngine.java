@@ -512,7 +512,7 @@ public class PricingEngine {
             if (isGap) {
                 multiplier *= 0.88;
                 minStay = 1;
-                reason = "Gap (окно " + windowLen + "н) — скидка";
+                reason = "Окно " + windowLen + " н. между бронями — скидка";
                 confidence = 88;
             }
 

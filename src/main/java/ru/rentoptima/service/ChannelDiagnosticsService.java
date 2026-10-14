@@ -67,11 +67,9 @@ public class ChannelDiagnosticsService {
         for (Property p : propertyRepo.findByTenantIdAndActiveTrue(tenantId)) {
             propertyNames.put(p.getId(), p.getName());
         }
-        Map<Long, String> unitLabels = new HashMap<>();
-        for (UnitType ut : unitTypeRepo.findByTenantIdAndActiveTrue(tenantId)) {
-            String property = propertyNames.get(ut.getPropertyId());
-            unitLabels.put(ut.getId(), property == null ? ut.getName() : property + " / " + ut.getName());
-        }
+        List<UnitType> units = unitTypeRepo.findByTenantIdAndActiveTrue(tenantId);
+        Map<Long, String> unitLabels = new HashMap<>(UnitVocabulary.labels(propertyNames, units));
+        for (UnitType ut : units) unitLabels.putIfAbsent(ut.getId(), ut.getName());
 
         List<ChannelReport> channels = new ArrayList<>();
         for (Channel c : channelRepo.findByTenantIdAndActiveTrue(tenantId)) {
@@ -135,7 +133,7 @@ public class ChannelDiagnosticsService {
         String type = switch (a.getAlertType()) {
             case CONFLICT -> "Конфликт: ручная запись + площадка";
             case OVERLAP -> "Наложение без ручной записи (эхо?)";
-            case CHANNEL_DOWN -> "Сбой канала";
+            case CHANNEL_DOWN -> "Сбой площадки";
         };
         String typeCss = switch (a.getAlertType()) {
             case CONFLICT -> "tag tag--red";

@@ -129,6 +129,6 @@ class ConflictDetectorTest {
 
         assertThat(text).contains("• Садовая / Основной: 12–14 ноября (3 ночи)");
         assertThat(text).contains("https://staging.optirent.ru/calendar/grid?from=2026-11-12&days=30");
-        assertThat(text).doesNotContain("канал не синхронизируется");
+        assertThat(text).doesNotContain("площадка не синхронизируется");
     }
 }
