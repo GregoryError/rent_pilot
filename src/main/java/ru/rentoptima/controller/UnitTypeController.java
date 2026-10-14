@@ -11,6 +11,7 @@ import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.service.PropertyCreator;
 
 import java.math.BigDecimal;
@@ -45,11 +46,7 @@ public class UnitTypeController {
                          @RequestParam(required = false) BigDecimal weekendPrice,
                          RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        Property property = propertyRepo.findById(propertyId).orElse(null);
-        if (property == null || !tenantId.equals(property.getTenantId())) {
-            redirect.addFlashAttribute("error", "Объект не найден");
-            return "redirect:/settings/properties";
-        }
+        Tenancy.own(propertyRepo.findById(propertyId), Property::getTenantId);
         UnitType ut = propertyCreator.createUnitType(tenantId, propertyId, name, unitCount, basePrice, weekendPrice);
         redirect.addFlashAttribute("success", "Категория «" + ut.getName() + "» добавлена");
         return "redirect:/settings/properties";
@@ -64,17 +61,13 @@ public class UnitTypeController {
                          @RequestParam(required = false) BigDecimal basePrice,
                          @RequestParam(required = false) BigDecimal weekendPrice,
                          RedirectAttributes redirect) {
-        Long tenantId = AuthContext.tenantId();
-        unitTypeRepo.findById(id).ifPresent(ut -> {
-            // Скоуп по tenant + property — не даём тронуть чужую категорию.
-            if (!tenantId.equals(ut.getTenantId()) || !propertyId.equals(ut.getPropertyId())) return;
-            ut.setName(name != null ? name.trim() : ut.getName());
-            ut.setUnitCount(unitCount == null || unitCount < 1 ? 1 : unitCount);
-            ut.setBasePrice(basePrice);
-            ut.setWeekendPrice(weekendPrice);
-            ut.setUpdatedAt(LocalDateTime.now());
-            unitTypeRepo.save(ut);
-        });
+        UnitType ut = ownUnitType(propertyId, id);
+        ut.setName(name != null ? name.trim() : ut.getName());
+        ut.setUnitCount(unitCount == null || unitCount < 1 ? 1 : unitCount);
+        ut.setBasePrice(basePrice);
+        ut.setWeekendPrice(weekendPrice);
+        ut.setUpdatedAt(LocalDateTime.now());
+        unitTypeRepo.save(ut);
         redirect.addFlashAttribute("success", "Категория обновлена");
         return "redirect:/settings/properties";
     }
@@ -88,14 +81,17 @@ public class UnitTypeController {
     public String delete(@PathVariable Long propertyId,
                          @PathVariable Long id,
                          RedirectAttributes redirect) {
-        Long tenantId = AuthContext.tenantId();
-        unitTypeRepo.findById(id).ifPresent(ut -> {
-            if (!tenantId.equals(ut.getTenantId()) || !propertyId.equals(ut.getPropertyId())) return;
-            ut.setActive(false);
-            ut.setUpdatedAt(LocalDateTime.now());
-            unitTypeRepo.save(ut);
-        });
+        UnitType ut = ownUnitType(propertyId, id);
+        ut.setActive(false);
+        ut.setUpdatedAt(LocalDateTime.now());
+        unitTypeRepo.save(ut);
         redirect.addFlashAttribute("success", "Категория удалена");
         return "redirect:/settings/properties";
+    }
+
+    /** Категория своего тенанта и этого объекта; иначе 404. */
+    private UnitType ownUnitType(Long propertyId, Long id) {
+        return Tenancy.own(unitTypeRepo.findById(id).filter(ut -> propertyId.equals(ut.getPropertyId())),
+                UnitType::getTenantId);
     }
 }

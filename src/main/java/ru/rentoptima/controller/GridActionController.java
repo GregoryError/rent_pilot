@@ -28,6 +28,7 @@ import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.TenantRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.service.EchoShadowService;
 import ru.rentoptima.util.PdAnonymizer;
 
@@ -95,11 +96,7 @@ public class GridActionController {
 
         Long tenantId = AuthContext.tenantId();
 
-        UnitType ut = unitTypeRepo.findById(unitTypeId).orElse(null);
-        if (ut == null || !tenantId.equals(ut.getTenantId())) {
-            redirect.addFlashAttribute("error", "Категория не найдена");
-            return "redirect:/calendar/grid";
-        }
+        UnitType ut = Tenancy.own(unitTypeRepo.findById(unitTypeId), UnitType::getTenantId);
         if (toDate.isBefore(fromDate)) {
             redirect.addFlashAttribute("error", "Дата конца раньше начала");
             return backToGrid(returnMonth, viewFrom, viewDays, fromDate);
@@ -219,8 +216,7 @@ public class GridActionController {
             @RequestParam Long unitTypeId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         Long tenantId = AuthContext.tenantId();
-        UnitType ut = unitTypeRepo.findById(unitTypeId).orElse(null);
-        if (ut == null || !tenantId.equals(ut.getTenantId())) return List.of();
+        Tenancy.own(unitTypeRepo.findById(unitTypeId), UnitType::getTenantId);
 
         LocalDate next = date.plusDays(1);
         List<Booking> bookings = new ArrayList<>(
@@ -304,9 +300,9 @@ public class GridActionController {
         List<String> keptShadows = List.of();
         List<String> echoChannels = List.of();
         if (id != null && "block".equals(parts[0])) {
-            CalendarBlock block = blockRepo.findById(id).orElse(null);
-            if (block != null && tenantId.equals(block.getTenantId()) && block.getChannelId() == null
-                    && block.getCancelledAt() == null) {
+            // чужая или несуществующая — 404; своя, но не ручная или уже удалённая — сообщение ниже
+            CalendarBlock block = Tenancy.own(blockRepo.findById(id), CalendarBlock::getTenantId);
+            if (block.getChannelId() == null && block.getCancelledAt() == null) {
                 fallback = block.getFromDate();
                 if (block.getBlockType() == CalendarBlock.BlockType.MANUAL_BOOKING) {
                     List<Booking> candidates = new ArrayList<>(bookingRepo.findManualOverlapping(
@@ -322,9 +318,8 @@ public class GridActionController {
                 deleted = true;
             }
         } else if (id != null && "booking".equals(parts[0])) {
-            Booking booking = bookingRepo.findById(id).orElse(null);
-            if (booking != null && tenantId.equals(booking.getTenant().getId())
-                    && "MANUAL".equals(booking.getDataSource())) {
+            Booking booking = Tenancy.own(bookingRepo.findById(id), b -> b.getTenant().getId());
+            if ("MANUAL".equals(booking.getDataSource())) {
                 fallback = booking.getCheckIn();
                 markDeleted(booking);
                 deleted = true;
@@ -370,9 +365,9 @@ public class GridActionController {
         } catch (NumberFormatException e) {
             // id останется null
         }
-        CalendarBlock block = id == null ? null : blockRepo.findById(id).orElse(null);
-        if (block == null || !tenantId.equals(block.getTenantId()) || block.getChannelId() == null
-                || block.getBlockType() != CalendarBlock.BlockType.CHANNEL_SYNC) {
+        if (id == null) throw Tenancy.notFound();
+        CalendarBlock block = Tenancy.own(blockRepo.findById(id), CalendarBlock::getTenantId);
+        if (block.getChannelId() == null || block.getBlockType() != CalendarBlock.BlockType.CHANNEL_SYNC) {
             redirect.addFlashAttribute("error", "Блокировка не найдена");
             return backToGrid(returnMonth, viewFrom, viewDays, fallback);
         }

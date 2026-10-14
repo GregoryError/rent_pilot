@@ -14,6 +14,7 @@ import ru.rentoptima.repository.FeedbackQuestionRepository;
 import ru.rentoptima.repository.FeedbackResponseRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.service.FeedbackAnalyticsService;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
@@ -42,10 +43,10 @@ public class FeedbackAdminController {
         List<Property> properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
         // Отзывы показываются по одному объекту; раньше это всегда был первый, и отзывы
         // остальных объектов сохранялись, но увидеть их было негде.
-        Property property = properties.stream()
-                .filter(p -> p.getId().equals(propertyId))
-                .findFirst()
-                .orElse(properties.isEmpty() ? null : properties.get(0));
+        Property property = propertyId == null ? (properties.isEmpty() ? null : properties.get(0))
+                // чужой или удалённый объект в адресе — 404
+                : properties.stream().filter(p -> p.getId().equals(propertyId)).findFirst()
+                        .orElseThrow(Tenancy::notFound);
 
         if (property == null) {
             model.addAttribute("property", null);
@@ -129,11 +130,11 @@ public class FeedbackAdminController {
     @PostMapping("/{id}/toggle-housekeeper")
     public String toggleHousekeeper(@PathVariable Long id) {
         Long tenantId = AuthContext.tenantId();
-        FeedbackResponse r = feedbackRepo.findById(id).orElseThrow();
-        // Отзыв должен относиться к объекту текущего tenant'а
-        boolean own = propertyRepo.findByTenantIdAndActiveTrue(tenantId).stream()
-                .anyMatch(p -> p.getId().equals(r.getPropertyId()));
-        if (!own) return "redirect:/feedback-admin";
+        // Отзыв должен относиться к объекту текущего tenant'а; чужой или несуществующий — 404
+        FeedbackResponse r = feedbackRepo.findById(id)
+                .filter(x -> propertyRepo.findByTenantIdAndActiveTrue(tenantId).stream()
+                        .anyMatch(p -> p.getId().equals(x.getPropertyId())))
+                .orElseThrow(Tenancy::notFound);
         String back = "redirect:/feedback-admin?property=" + r.getPropertyId();
         r.setShowToHousekeeper(!Boolean.TRUE.equals(r.getShowToHousekeeper()));
         feedbackRepo.save(r);

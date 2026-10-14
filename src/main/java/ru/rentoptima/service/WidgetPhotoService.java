@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -98,6 +99,11 @@ public class WidgetPhotoService {
     }
 
     @Transactional
+    /** Фото этой страницы своего тенанта. */
+    public Optional<WidgetPhoto> find(Long tenantId, Long widgetId, Long photoId) {
+        return repo.findByIdAndWidgetIdAndTenantId(photoId, widgetId, tenantId);
+    }
+
     public boolean delete(Long tenantId, Long widgetId, Long photoId) {
         WidgetPhoto photo = repo.findByIdAndWidgetIdAndTenantId(photoId, widgetId, tenantId).orElse(null);
         if (photo == null) return false;

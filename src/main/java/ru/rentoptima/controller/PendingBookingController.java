@@ -13,6 +13,7 @@ import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.BookingWidgetRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.service.EchoShadowService;
 import ru.rentoptima.service.WidgetBookingService;
 import ru.rentoptima.service.WidgetBookingService.Outcome;
@@ -80,6 +81,7 @@ public class PendingBookingController {
 
     @PostMapping("/{id}/confirm")
     public String confirm(@PathVariable Long id, RedirectAttributes redirect) {
+        ownBooking(id);
         Outcome result = widgets.confirm(AuthContext.tenantId(), id);
         if (result.ok()) {
             notifier.confirmed(result.booking());
@@ -92,6 +94,7 @@ public class PendingBookingController {
 
     @PostMapping("/{id}/decline")
     public String decline(@PathVariable Long id, RedirectAttributes redirect) {
+        ownBooking(id);
         Outcome result = widgets.decline(AuthContext.tenantId(), id);
         if (result.ok()) {
             notifier.declined(result.booking());
@@ -105,6 +108,7 @@ public class PendingBookingController {
     /** Отмена уже подтверждённой брони со страницы бронирования. */
     @PostMapping("/{id}/cancel")
     public String cancel(@PathVariable Long id, RedirectAttributes redirect) {
+        ownBooking(id);
         Outcome result = widgets.cancel(AuthContext.tenantId(), id);
         if (result.ok()) {
             notifier.cancelled(result.booking());
@@ -113,6 +117,11 @@ public class PendingBookingController {
             redirect.addFlashAttribute("error", "Бронь не найдена или уже отменена");
         }
         return "redirect:/bookings/pending";
+    }
+
+    /** Чужая или несуществующая бронь — 404; своя, но уже обработанная — сообщение на странице. */
+    private void ownBooking(Long id) {
+        Tenancy.own(bookingRepo.findById(id), b -> b.getTenant().getId());
     }
 
     /**

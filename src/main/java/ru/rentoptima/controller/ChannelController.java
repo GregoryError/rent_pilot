@@ -24,6 +24,7 @@ import ru.rentoptima.onboarding.ChannelLinkService;
 import ru.rentoptima.onboarding.OnboardingService;
 import ru.rentoptima.onboarding.PlatformGuides;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.seo.SiteSettings;
 import ru.rentoptima.service.ChannelPalette;
 import ru.rentoptima.service.ChannelRateLimiter;
@@ -105,11 +106,7 @@ public class ChannelController {
                          RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
 
-        UnitType ut = unitTypeRepo.findById(unitTypeId).orElse(null);
-        if (ut == null || !tenantId.equals(ut.getTenantId())) {
-            redirect.addFlashAttribute("error", "Категория не найдена");
-            return "redirect:/settings/channels";
-        }
+        Tenancy.own(unitTypeRepo.findById(unitTypeId), UnitType::getTenantId);
 
         try {
             UrlSafetyGuard.normalizeAndCheckShape(importUrl);
@@ -181,12 +178,7 @@ public class ChannelController {
 
     @PostMapping("/{id}/sync")
     public String syncNow(@PathVariable Long id, RedirectAttributes redirect) {
-        Long tenantId = AuthContext.tenantId();
-        Channel channel = channelRepo.findById(id).orElse(null);
-        if (channel == null || !tenantId.equals(channel.getTenantId())) {
-            redirect.addFlashAttribute("error", "Канал не найден");
-            return "redirect:/settings/channels";
-        }
+        ownChannel(id);
         if (!rateLimiter.tryAcquire(id)) {
             long wait = rateLimiter.secondsUntilReady(id);
             redirect.addFlashAttribute("error",
@@ -201,25 +193,17 @@ public class ChannelController {
     @PostMapping("/{id}/toggle")
     @Transactional
     public String toggle(@PathVariable Long id, RedirectAttributes redirect) {
-        Long tenantId = AuthContext.tenantId();
-        channelRepo.findById(id).ifPresent(c -> {
-            if (!tenantId.equals(c.getTenantId())) return;
-            c.setSyncEnabled(!Boolean.TRUE.equals(c.getSyncEnabled()));
-            c.setUpdatedAt(LocalDateTime.now());
-            channelRepo.save(c);
-        });
+        Channel c = ownChannel(id);
+        c.setSyncEnabled(!Boolean.TRUE.equals(c.getSyncEnabled()));
+        c.setUpdatedAt(LocalDateTime.now());
+        channelRepo.save(c);
         redirect.addFlashAttribute("success", "Настройка синхронизации изменена");
         return "redirect:/settings/channels";
     }
 
     @PostMapping("/{id}/color")
     public String color(@PathVariable Long id, @RequestParam String color, RedirectAttributes redirect) {
-        Long tenantId = AuthContext.tenantId();
-        Channel channel = channelRepo.findById(id).orElse(null);
-        if (channel == null || !tenantId.equals(channel.getTenantId())) {
-            redirect.addFlashAttribute("error", "Канал не найден");
-            return "redirect:/settings/channels";
-        }
+        Channel channel = ownChannel(id);
         if (!ChannelPalette.contains(color)) {
             redirect.addFlashAttribute("error", "Выберите цвет из палитры");
             return "redirect:/settings/channels";
@@ -233,12 +217,7 @@ public class ChannelController {
 
     @PostMapping("/{id}/regenerate-secret")
     public String regenerate(@PathVariable Long id, RedirectAttributes redirect) {
-        Long tenantId = AuthContext.tenantId();
-        Channel channel = channelRepo.findById(id).orElse(null);
-        if (channel == null || !tenantId.equals(channel.getTenantId())) {
-            redirect.addFlashAttribute("error", "Канал не найден");
-            return "redirect:/settings/channels";
-        }
+        ownChannel(id);
         syncService.regenerateExportSecret(id);
         redirect.addFlashAttribute("success",
                 "Новый секрет выдан. Старый URL больше не работает — обновите настройку на площадке.");
@@ -248,12 +227,7 @@ public class ChannelController {
     @PostMapping("/{id}/delete")
     @Transactional
     public String delete(@PathVariable Long id, RedirectAttributes redirect) {
-        Long tenantId = AuthContext.tenantId();
-        Channel c = channelRepo.findById(id).orElse(null);
-        if (c == null || !tenantId.equals(c.getTenantId())) {
-            redirect.addFlashAttribute("error", "Канал не найден");
-            return "redirect:/settings/channels";
-        }
+        Channel c = ownChannel(id);
         c.setActive(false);
         c.setSyncEnabled(false);
         c.setUpdatedAt(LocalDateTime.now());
@@ -265,6 +239,11 @@ public class ChannelController {
                 ? "Канал удалён, синхронизация остановлена"
                 : "Канал удалён, синхронизация остановлена. Снято блокировок с этой площадки: " + removed);
         return "redirect:/settings/channels";
+    }
+
+    /** Площадка текущего тенанта; чужая или несуществующая — 404. */
+    private Channel ownChannel(Long id) {
+        return Tenancy.own(channelRepo.findById(id), Channel::getTenantId);
     }
 
     private Map<Long, String> buildUnitTypeLabels(List<UnitType> unitTypes, List<Property> properties) {

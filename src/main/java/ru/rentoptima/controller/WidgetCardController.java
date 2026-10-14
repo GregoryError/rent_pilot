@@ -23,6 +23,7 @@ import ru.rentoptima.entity.WidgetCard;
 import ru.rentoptima.entity.WidgetQrLink;
 import ru.rentoptima.repository.BookingWidgetRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.service.QrSvg;
 import ru.rentoptima.service.WidgetCardService;
 import ru.rentoptima.service.WidgetCardService.CardForm;
@@ -51,7 +52,6 @@ public class WidgetCardController {
     @GetMapping
     public String page(@PathVariable Long id, Model model, HttpServletRequest request, RedirectAttributes redirect) {
         BookingWidget w = widget(id);
-        if (w == null) return notFound(redirect);
         fill(model, w, request);
         model.addAttribute("activePage", "widgets");
         model.addAttribute("defaultUntil", LocalDate.now().plusMonths(12).toString());
@@ -62,7 +62,6 @@ public class WidgetCardController {
     @GetMapping("/print")
     public String print(@PathVariable Long id, Model model, HttpServletRequest request, RedirectAttributes redirect) {
         BookingWidget w = widget(id);
-        if (w == null) return notFound(redirect);
         fill(model, w, request);
         return "pages/settings/widget-card-print";
     }
@@ -93,7 +92,6 @@ public class WidgetCardController {
                        @RequestParam(defaultValue = "false") boolean print,
                        RedirectAttributes redirect) {
         BookingWidget w = widget(id);
-        if (w == null) return notFound(redirect);
         JsonNode textsNode = JsonNodeFactory.instance.objectNode();
         try {
             if (texts != null && texts.length() <= 10_000) textsNode = json.readTree(texts);
@@ -117,7 +115,6 @@ public class WidgetCardController {
                               @RequestParam(required = false) Integer maxUses,
                               RedirectAttributes redirect) {
         BookingWidget w = widget(id);
-        if (w == null) return notFound(redirect);
         try {
             LocalDate until = validUntil == null || validUntil.isBlank() ? null : LocalDate.parse(validUntil);
             var promo = cards.createPromo(w, code, "PERCENT".equals(discountType), discountValue, until, maxUses);
@@ -133,7 +130,6 @@ public class WidgetCardController {
     @PostMapping("/regenerate")
     public String regenerate(@PathVariable Long id, RedirectAttributes redirect) {
         BookingWidget w = widget(id);
-        if (w == null) return notFound(redirect);
         cards.regenerate(w);
         redirect.addFlashAttribute("success", "Ссылка перевыпущена. Уже напечатанные карточки открывают страницу"
                 + " бронирования, но промокод больше не подставляют — напечатайте новые");
@@ -149,7 +145,7 @@ public class WidgetCardController {
     public ResponseEntity<String> wifiQr(@PathVariable Long id,
                                          @RequestParam String ssid,
                                          @RequestParam(required = false) String password) {
-        if (widget(id) == null) return ResponseEntity.notFound().build();
+        widget(id);
         if (ssid.isBlank() || ssid.length() > 32 || (password != null && password.length() > 63)) {
             return ResponseEntity.badRequest().build();
         }
@@ -162,7 +158,6 @@ public class WidgetCardController {
                                            @RequestParam(defaultValue = "card") String kind,
                                            HttpServletRequest request) {
         BookingWidget w = widget(id);
-        if (w == null) return ResponseEntity.notFound().build();
         String baseUrl = baseUrl(request);
         String svg;
         if ("wifi".equals(kind)) {
@@ -181,13 +176,9 @@ public class WidgetCardController {
                 .body(("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" + svg).getBytes(StandardCharsets.UTF_8));
     }
 
+    /** Страница бронирования своего тенанта; чужая, удалённая или несуществующая — 404. */
     private BookingWidget widget(Long id) {
-        return widgetRepo.findByIdAndTenantIdAndActiveTrue(id, AuthContext.tenantId()).orElse(null);
-    }
-
-    private static String notFound(RedirectAttributes redirect) {
-        redirect.addFlashAttribute("error", "Страница бронирования не найдена");
-        return "redirect:/settings/widgets";
+        return Tenancy.found(widgetRepo.findByIdAndTenantIdAndActiveTrue(id, AuthContext.tenantId()));
     }
 
     private static String baseUrl(HttpServletRequest request) {

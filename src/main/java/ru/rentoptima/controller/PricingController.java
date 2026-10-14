@@ -8,6 +8,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.service.CompetitorService;
 import ru.rentoptima.service.SettingsService;
 
@@ -77,7 +78,7 @@ public class PricingController {
 
     @PostMapping("/competitors/{id}/delete")
     public String deleteCompetitor(@PathVariable Long id, RedirectAttributes redirect) {
-        competitorService.deleteListing(id);
+        if (!competitorService.deleteListing(AuthContext.tenantId(), id)) throw Tenancy.notFound();
         redirect.addFlashAttribute("success", "Конкурент удалён");
         return "redirect:/pricing";
     }
@@ -85,15 +86,12 @@ public class PricingController {
     @PostMapping("/competitors/{id}/scrape")
     public String scrapeCompetitor(@PathVariable Long id, RedirectAttributes redirect) {
         var listing = competitorService.getListings(AuthContext.tenantId()).stream()
-                .filter(l -> l.getId().equals(id)).findFirst();
-
-        if (listing.isPresent()) {
-            var result = competitorService.scrapeOne(listing.get());
-            if (result.success()) {
-                redirect.addFlashAttribute("success", "Цена получена: " + result.price() + " ₽");
-            } else {
-                redirect.addFlashAttribute("success", "Не удалось получить цену: " + result.error());
-            }
+                .filter(l -> l.getId().equals(id)).findFirst().orElseThrow(Tenancy::notFound);
+        var result = competitorService.scrapeOne(listing);
+        if (result.success()) {
+            redirect.addFlashAttribute("success", "Цена получена: " + result.price() + " ₽");
+        } else {
+            redirect.addFlashAttribute("success", "Не удалось получить цену: " + result.error());
         }
         return "redirect:/pricing";
     }

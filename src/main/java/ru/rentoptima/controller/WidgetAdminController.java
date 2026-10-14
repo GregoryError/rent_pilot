@@ -30,6 +30,7 @@ import ru.rentoptima.repository.PromoCodeRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.seo.IndexNowService;
 import ru.rentoptima.service.WidgetCreator;
 import ru.rentoptima.config.WidgetCorsConfig;
@@ -122,11 +123,7 @@ public class WidgetAdminController {
                          @RequestParam Long unitTypeId,
                          RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        UnitType ut = unitTypeRepo.findById(unitTypeId).orElse(null);
-        if (ut == null || !tenantId.equals(ut.getTenantId())) {
-            redirect.addFlashAttribute("error", "Категория не найдена");
-            return "redirect:/settings/widgets";
-        }
+        Tenancy.own(unitTypeRepo.findById(unitTypeId), UnitType::getTenantId);
         String cleanTitle = clean(title, 255);
         if (cleanTitle == null) {
             redirect.addFlashAttribute("error", "Укажите название");
@@ -143,11 +140,7 @@ public class WidgetAdminController {
     public String view(@PathVariable Long id, Model model, HttpServletRequest request,
                        RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
-        if (w == null) {
-            redirect.addFlashAttribute("error", "Страница бронирования не найдена");
-            return "redirect:/settings/widgets";
-        }
+        BookingWidget w = ownWidget(id);
         String baseUrl = baseUrl(request);
 
         model.addAttribute("activePage", "widgets");
@@ -190,11 +183,7 @@ public class WidgetAdminController {
     public String stats(@PathVariable Long id, @RequestParam(required = false, defaultValue = "30") int days,
                         Model model, RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
-        if (w == null) {
-            redirect.addFlashAttribute("error", "Страница бронирования не найдена");
-            return "redirect:/settings/widgets";
-        }
+        BookingWidget w = ownWidget(id);
         int period = days == 7 || days == 90 ? days : 30;
         LocalDate to = LocalDate.now();
         LocalDate from = to.minusDays(period - 1L);
@@ -304,11 +293,7 @@ public class WidgetAdminController {
     public String design(@PathVariable Long id, Model model, HttpServletRequest request,
                          RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
-        if (w == null) {
-            redirect.addFlashAttribute("error", "Страница бронирования не найдена");
-            return "redirect:/settings/widgets";
-        }
+        BookingWidget w = ownWidget(id);
         String baseUrl = baseUrl(request);
         // Какие блоки есть чем заполнить: пустые конструктор помечает, чтобы хозяин не искал их в превью
         List<String> empty = new ArrayList<>();
@@ -363,8 +348,7 @@ public class WidgetAdminController {
     /** Страница для фрейма превью: только виджет. Открывается лишь с нашего же домена. */
     @GetMapping("/{id}/frame")
     public String designFrame(@PathVariable Long id, Model model, jakarta.servlet.http.HttpServletResponse response) {
-        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, AuthContext.tenantId()).orElse(null);
-        if (w == null) return "redirect:/settings/widgets";
+        BookingWidget w = ownWidget(id);
         response.setHeader("X-Frame-Options", "SAMEORIGIN");
         model.addAttribute("w", w);
         return "pages/settings/widget-design-frame";
@@ -376,8 +360,7 @@ public class WidgetAdminController {
                              @RequestParam(required = false, defaultValue = "light") String theme,
                              RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
-        if (w == null) return "redirect:/settings/widgets";
+        BookingWidget w = ownWidget(id);
         ObjectNode normalized;
         try {
             if (config.length() > 20_000) throw new IllegalArgumentException("слишком длинно");
@@ -435,11 +418,7 @@ public class WidgetAdminController {
                          @RequestParam(required = false, defaultValue = "false") boolean searchIndexed,
                          RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
-        if (w == null) {
-            redirect.addFlashAttribute("error", "Страница бронирования не найдена");
-            return "redirect:/settings/widgets";
-        }
+        BookingWidget w = ownWidget(id);
         String cleanTitle = clean(title, 255);
         LocalTime in;
         LocalTime out;
@@ -539,8 +518,7 @@ public class WidgetAdminController {
                                @RequestParam("files") List<MultipartFile> files,
                                RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
-        if (w == null) return "redirect:/settings/widgets";
+        BookingWidget w = ownWidget(id);
 
         int added = 0;
         List<String> errors = new ArrayList<>();
@@ -562,16 +540,15 @@ public class WidgetAdminController {
     }
 
     @PostMapping("/{id}/photos/{photoId}/delete")
-    public String deletePhoto(@PathVariable Long id, @PathVariable Long photoId, RedirectAttributes redirect) {
-        if (!photos.delete(AuthContext.tenantId(), id, photoId)) {
-            redirect.addFlashAttribute("error", "Фото не найдено");
-        }
+    public String deletePhoto(@PathVariable Long id, @PathVariable Long photoId) {
+        if (!photos.delete(AuthContext.tenantId(), id, photoId)) throw Tenancy.notFound();
         return "redirect:/settings/widgets/" + id + "#photos";
     }
 
     @PostMapping("/{id}/photos/{photoId}/move")
     public String movePhoto(@PathVariable Long id, @PathVariable Long photoId,
                             @RequestParam String dir) {
+        Tenancy.found(photos.find(AuthContext.tenantId(), id, photoId));
         photos.move(AuthContext.tenantId(), id, photoId, "up".equals(dir));
         return "redirect:/settings/widgets/" + id + "#photos";
     }
@@ -595,8 +572,7 @@ public class WidgetAdminController {
                               @RequestParam(required = false) Integer maxUses,
                               RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
-        if (w == null) return "redirect:/settings/widgets";
+        BookingWidget w = ownWidget(id);
 
         String normalized = PromoCode.normalize(code);
         boolean percent = PromoCode.TYPE_PERCENT.equals(discountType);
@@ -639,12 +615,8 @@ public class WidgetAdminController {
     public String togglePromo(@PathVariable Long id, @PathVariable Long promoId,
                               RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        PromoCode p = promoRepo.findByIdAndTenantId(promoId, tenantId)
-                .filter(x -> x.getWidgetId().equals(id)).orElse(null);
-        if (p == null) {
-            redirect.addFlashAttribute("error", "Промокод не найден");
-            return "redirect:/settings/widgets/" + id;
-        }
+        PromoCode p = Tenancy.found(promoRepo.findByIdAndTenantId(promoId, tenantId)
+                .filter(x -> x.getWidgetId().equals(id)));
         p.setActive(!Boolean.TRUE.equals(p.getActive()));
         promoRepo.save(p);
         redirect.addFlashAttribute("success", Boolean.TRUE.equals(p.getActive())
@@ -680,8 +652,7 @@ public class WidgetAdminController {
     @PostMapping("/{id}/regenerate")
     public String regenerate(@PathVariable Long id, RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
-        if (w == null) return "redirect:/settings/widgets";
+        BookingWidget w = ownWidget(id);
         w.setSecret(generateSecret());
         w.setUpdatedAt(LocalDateTime.now());
         widgetRepo.save(w);
@@ -695,14 +666,18 @@ public class WidgetAdminController {
     @Transactional
     public String delete(@PathVariable Long id, RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        BookingWidget w = widgetRepo.findByIdAndTenantIdAndActiveTrue(id, tenantId).orElse(null);
-        if (w == null) return "redirect:/settings/widgets";
+        BookingWidget w = ownWidget(id);
         w.setActive(false);
         w.setUpdatedAt(LocalDateTime.now());
         widgetRepo.save(w);
         indexNow.submit("/b/" + w.getSlug());
         redirect.addFlashAttribute("success", "Страница бронирования удалена");
         return "redirect:/settings/widgets";
+    }
+
+    /** Действующая страница бронирования своего тенанта; чужая, удалённая или несуществующая — 404. */
+    private BookingWidget ownWidget(Long id) {
+        return Tenancy.found(widgetRepo.findByIdAndTenantIdAndActiveTrue(id, AuthContext.tenantId()));
     }
 
     private Map<Long, String> unitLabels(Long tenantId) {

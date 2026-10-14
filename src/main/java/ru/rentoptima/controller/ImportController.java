@@ -7,7 +7,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.rentoptima.repository.PropertyRepository;
+import ru.rentoptima.entity.Property;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.service.ImportService;
 
 @Controller
@@ -31,6 +33,7 @@ public class ImportController {
                                 @RequestParam Long propertyId,
                                 RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
+        Tenancy.own(propertyRepo.findById(propertyId), Property::getTenantId);
         var result = importService.importBookingsXls(tenantId, propertyId, file);
 
         String msg = String.format("Импорт: %d создано, %d пропущено, %d ошибок",
@@ -45,6 +48,7 @@ public class ImportController {
     @PostMapping("/clear")
     public String clearData(@RequestParam Long propertyId, RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
+        Tenancy.own(propertyRepo.findById(propertyId), Property::getTenantId);
         var result = importService.clearImportedData(tenantId, propertyId);
         redirect.addFlashAttribute("success",
                 String.format("Очищено: %d бронирований, %d авто-расходов", result.deletedBookings(), result.deletedExpenses()));

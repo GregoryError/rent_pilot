@@ -466,6 +466,7 @@ public class OnboardingService {
 
     /** Площадки, отложенные «на потом», — для чек-листа и финального экрана. */
     public void markLater(OnboardingState s, Long channelId) {
+        ownChannel(s, channelId);
         ObjectNode data = s.dataCopy();
         ArrayNode later = data.withArray("later");
         for (JsonNode n : later) if (n.asLong() == channelId) return;

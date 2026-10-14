@@ -12,6 +12,7 @@ import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.service.PropertyCreator;
 
 import java.sql.Timestamp;
@@ -89,9 +90,8 @@ public class PropertyController {
                  WHERE id = ? AND tenant_id = ?
                 """,
                 name, address, city, now, id, tenantId);
-        if (rows == 0) {
-            log.warn("Property update: 0 строк обновлено (id={}, tenant={})", id, tenantId);
-        }
+        // чужой или несуществующий объект — 404 (условие tenant_id в самом UPDATE)
+        if (rows == 0) throw Tenancy.notFound();
         redirect.addFlashAttribute("success", "Объект обновлён");
         return "redirect:/settings/properties";
     }
@@ -101,12 +101,13 @@ public class PropertyController {
     public String delete(@PathVariable Long id, RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
-        jdbc.update("""
+        int rows = jdbc.update("""
                 UPDATE properties
                    SET active = FALSE, updated_at = ?
                  WHERE id = ? AND tenant_id = ?
                 """,
                 now, id, tenantId);
+        if (rows == 0) throw Tenancy.notFound();
         redirect.addFlashAttribute("success", "Объект удалён");
         return "redirect:/settings/properties";
     }

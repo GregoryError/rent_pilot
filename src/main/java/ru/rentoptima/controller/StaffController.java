@@ -15,6 +15,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -63,11 +64,7 @@ public class StaffController {
         Long tenantId = AuthContext.tenantId();
         Property property = propertyRepo.findByTenantIdAndActiveTrue(tenantId).stream()
                 .filter(p -> p.getId().equals(propertyId))
-                .findFirst().orElse(null);
-        if (property == null) {
-            redirect.addFlashAttribute("error", "Объект не найден");
-            return "redirect:/staff";
-        }
+                .findFirst().orElseThrow(Tenancy::notFound);
         String value = pin == null ? "" : pin.trim();
         if (value.length() < MIN_PIN_LENGTH) {
             redirect.addFlashAttribute("error", "PIN должен быть от " + MIN_PIN_LENGTH + " символов");

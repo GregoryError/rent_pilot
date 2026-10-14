@@ -503,8 +503,9 @@ class WidgetBookingIntegrationTest {
         other.setPasswordHash("x");
         other.setDisplayName("Чужой");
         other.setRole(User.Role.OWNER);
+        // чужая страница — как несуществующая (TenantIsolationIntegrationTest)
         mvc.perform(get(page).with(user(new TenantUserDetails(other))))
-                .andExpect(status().is3xxRedirection());
+                .andExpect(status().isNotFound());
 
         // Заявки: ожидающая и подтверждённая с кнопкой отмены
         LocalDate from = LocalDate.now().plusDays(120);
@@ -828,8 +829,8 @@ class WidgetBookingIntegrationTest {
         other.setRole(User.Role.OWNER);
         TenantUserDetails alien = new TenantUserDetails(other);
         String before = linkCode("CARD");
-        mvc.perform(get(page).with(user(alien))).andExpect(status().is3xxRedirection());
-        mvc.perform(get(page + "/print").with(user(alien))).andExpect(status().is3xxRedirection());
+        mvc.perform(get(page).with(user(alien))).andExpect(status().isNotFound());
+        mvc.perform(get(page + "/print").with(user(alien))).andExpect(status().isNotFound());
         mvc.perform(get(page + "/qr.svg").with(user(alien))).andExpect(status().isNotFound());
         mvc.perform(post(page + "/wifi-qr").with(user(alien)).with(csrf()).param("ssid", "Net")).andExpect(status().isNotFound());
         mvc.perform(post(page).with(user(alien)).with(csrf()).param("format", "CARD").param("wifiSsid", "Hacked"));

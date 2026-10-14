@@ -123,6 +123,8 @@ model.addAttribute("statusColor",
 
 Каждая важная таблица имеет `tenant_id`. **Все репозитории и сервисы фильтруют по `AuthContext.tenantId()`**. Нельзя делать `findAll()` без фильтра — утечка данных между tenants.
 
+Объект по id из адреса или формы — только через `security/Tenancy` (`own` / `found` / `notFound`): чужой объект отвечает **404, как несуществующий**, не 403 и не редирект. Это касается и id внутри формы (`unitTypeId`, `propertyId`, `categoryId`…), а не только пути. Новый такой эндпоинт — строка в таблице `patches/INTEGRATION_FIRST_RUN.md` (раздел 0) и случай в `TenantIsolationIntegrationTest`.
+
 ### PdAnonymizer
 
 Имена гостей автоматически анонимизируются до инициала. Мы не оператор ПД, не берём согласия (кроме отдельных случаев типа отзывов — там checkbox обязателен).

@@ -38,7 +38,9 @@ public class ImportService {
         int created = 0, skipped = 0, errors = 0;
         List<String> errorMessages = new ArrayList<>();
 
-        Property property = propertyRepo.findById(propertyId).orElse(null);
+        // Брони пишутся в тенант объекта — объект обязан быть своим
+        Property property = propertyRepo.findById(propertyId)
+                .filter(p -> tenantId.equals(p.getTenantId())).orElse(null);
         if (property == null) {
             return new ImportResult(0, 0, 1, List.of("Объект не найден"));
         }
