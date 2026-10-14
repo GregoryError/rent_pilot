@@ -32,11 +32,11 @@
     </div>
 
     <div class="card" th:if="${#lists.isEmpty(unitTypes)}">
-        <div class="card__title">Сначала добавьте объект</div>
+        <div class="card__title">Сначала добавьте квартиру</div>
         <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
             Страница бронирования открывается для конкретной квартиры — добавьте её, и здесь появится кнопка «Создать».
         </p>
-        <a class="btn btn-primary" th:href="@{/settings/properties}">К настройкам объектов</a>
+        <a class="btn btn-primary" th:href="@{/onboarding(step='property')}">Добавить квартиру</a>
     </div>
 
     <div class="card" th:unless="${#lists.isEmpty(unitTypes)}">

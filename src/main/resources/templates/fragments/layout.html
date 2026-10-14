@@ -48,83 +48,106 @@
            class="steps-badge steps-badge--side">Первые шаги <b th:text="${firstSteps.left}">3</b></a>
 
         <nav class="sidebar__nav">
-            <div class="nav-section">Аналитика</div>
+            <!--/* Пока нет квартиры — только Главная, «Добавить квартиру» и Помощь. С квартирой —
+                 основные разделы, остальное в сворачиваемой группе «Ещё». Страницы не удалены:
+                 все адреса открываются как раньше. */-->
             <a th:href="@{/dashboard}"
                th:classappend="${activePage == 'dashboard'} ? 'nav-item--active'"
                class="nav-item">
                 <span>◉</span> Главная
             </a>
 
-            <div class="nav-section">Управление</div>
-            <a th:href="@{/calendar}"
-               th:classappend="${activePage == 'calendar'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>▦</span> Календарь
-            </a>
-            <a th:href="@{/calendar/grid}"
-               th:classappend="${activePage == 'grid'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>▤</span> Шахматка
-            </a>
-            <a th:href="@{/bookings/pending}"
-               th:classappend="${activePage == 'pending'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>✉</span> Заявки
-            </a>
-            <a th:href="@{/settings/widgets}" data-tour="page"
-               th:classappend="${activePage == 'widgets'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>⌂</span> Страница брони
-            </a>
-            <a th:href="@{/settings/channels}" data-tour="platforms"
-               th:classappend="${activePage == 'channels'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>⇄</span> Площадки
-            </a>
-            <a th:href="@{/pricing}"
-               th:classappend="${activePage == 'pricing'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>◈</span> Ценообразование
-            </a>
-            <a th:href="@{/expenses}"
-               th:classappend="${activePage == 'expenses'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>◇</span> Расходы
+            <a th:unless="${hasProperties}" th:href="@{/onboarding(step='property')}"
+               class="nav-item nav-item--accent">
+                <span>+</span> Добавить квартиру
             </a>
 
-            <div class="nav-section">Данные</div>
-            <a th:href="@{/feedback-admin}"
-               th:classappend="${activePage == 'feedback'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>◎</span> Отзывы
-            </a>
-            <a th:href="@{/staff}"
-               th:classappend="${activePage == 'staff'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>☺</span> Сотрудники
-            </a>
-            <a th:href="@{/chat}"
-               th:classappend="${activePage == 'chat'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>◬</span> AI Чат
-            </a>
+            <th:block th:if="${hasProperties}">
+                <a th:href="@{/calendar/grid}"
+                   th:classappend="${activePage == 'grid'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>▤</span> Шахматка
+                </a>
+                <a th:href="@{/settings/channels}" data-tour="platforms"
+                   th:classappend="${activePage == 'channels'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>⇄</span> Площадки
+                </a>
+                <a th:href="@{/pricing}"
+                   th:classappend="${activePage == 'pricing'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>◈</span> Цены
+                </a>
+                <a th:href="@{/settings/widgets}" data-tour="page"
+                   th:classappend="${activePage == 'widgets'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>⌂</span> Страница бронирования
+                </a>
+                <a th:href="@{/bookings/pending}"
+                   th:classappend="${activePage == 'pending'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>✉</span> Заявки с сайта
+                </a>
+                <a th:href="@{/settings}"
+                   th:classappend="${activePage == 'settings'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>⚙</span> Настройки
+                </a>
 
-            <div class="nav-section">Система</div>
-            <a th:href="@{/import}"
-               th:classappend="${activePage == 'import'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>↑</span> Импорт
-            </a>
-            <a th:href="@{/settings}"
-               th:classappend="${activePage == 'settings'} ? 'nav-item--active'"
-               class="nav-item">
-                <span>⚙</span> Настройки
-            </a>
+                <!--/* «Ещё»: открыта, если сейчас открыт один из её разделов; иначе — как оставил
+                     пользователь (запоминается в браузере, nav-more в localStorage) */-->
+                <details class="nav-more" id="nav-more"
+                         th:open="${#lists.contains({'calendar','expenses','feedback','staff','chat','transfer'}, activePage)}">
+                    <summary class="nav-more__toggle">Ещё</summary>
+                    <a th:href="@{/calendar}"
+                       th:classappend="${activePage == 'calendar'} ? 'nav-item--active'"
+                       class="nav-item">
+                        <span>▦</span> Календарь цен
+                    </a>
+                    <a th:href="@{/expenses}"
+                       th:classappend="${activePage == 'expenses'} ? 'nav-item--active'"
+                       class="nav-item">
+                        <span>◇</span> Расходы
+                    </a>
+                    <a th:href="@{/feedback-admin}"
+                       th:classappend="${activePage == 'feedback'} ? 'nav-item--active'"
+                       class="nav-item">
+                        <span>◎</span> Отзывы
+                    </a>
+                    <a th:href="@{/staff}"
+                       th:classappend="${activePage == 'staff'} ? 'nav-item--active'"
+                       class="nav-item">
+                        <span>☺</span> Сотрудники
+                    </a>
+                    <a th:href="@{/chat}"
+                       th:classappend="${activePage == 'chat'} ? 'nav-item--active'"
+                       class="nav-item">
+                        <span>◬</span> AI-чат
+                    </a>
+                    <a th:href="@{/settings/transfer}"
+                       th:classappend="${activePage == 'transfer'} ? 'nav-item--active'"
+                       class="nav-item">
+                        <span>↑</span> Перенос данных
+                    </a>
+                </details>
+                <script>
+                    (function () {
+                        var d = document.getElementById('nav-more');
+                        if (!d) return;
+                        try {
+                            if (!d.open && localStorage.getItem('nav-more') === 'open') d.open = true;
+                        } catch (e) { /* хранилище недоступно — группа свёрнута */ }
+                        d.addEventListener('toggle', function () {
+                            try { localStorage.setItem('nav-more', d.open ? 'open' : 'closed'); } catch (e) {}
+                        });
+                    })();
+                </script>
+            </th:block>
 
             <!-- Помощь: тур по кабинету и инструкции по площадкам -->
             <div data-tour="help">
                 <div class="nav-section">Помощь</div>
-                <form th:action="@{/onboarding/tour/start}" method="post" class="nav-form">
+                <form th:if="${hasProperties}" th:action="@{/onboarding/tour/start}" method="post" class="nav-form">
                     <button type="submit" class="nav-item nav-item--button"><span>✎</span> Знакомство</button>
                 </form>
                 <a th:href="@{/instrukcii}" target="_blank" rel="noopener" class="nav-item">

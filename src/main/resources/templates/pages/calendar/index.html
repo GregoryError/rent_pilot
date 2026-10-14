@@ -170,7 +170,8 @@
     </div>
 
     <div th:if="${property == null}" class="card" style="text-align:center; padding: var(--sp-10);">
-        <div class="muted">Добавьте объект в <a th:href="@{/settings/properties}">настройках</a></div>
+        <p class="muted">Цены по дням появятся вместе с квартирой.</p>
+        <a class="btn btn-primary" th:href="@{/onboarding(step='property')}">Добавить квартиру</a>
     </div>
 
     <th:block th:if="${property != null}">

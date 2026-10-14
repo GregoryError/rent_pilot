@@ -87,6 +87,13 @@ class OnboardingIntegrationTest {
     @Autowired OnboardingNotifier notifier;
     @Autowired OnboardingStats stats;
     @Autowired ru.rentoptima.service.WidgetFormToken formTokens;
+    @Autowired ru.rentoptima.service.PropertyCreator propertyCreator;
+
+    /** Квартира у пользователя, созданного до онбординга. */
+    private void apartment(TenantUserDetails u) {
+        Long property = propertyCreator.createProperty(u.getTenantId(), "Квартира", null, "Приморск");
+        propertyCreator.createUnitType(u.getTenantId(), property, "Основной", 1, java.math.BigDecimal.valueOf(3000), null);
+    }
 
     /** Новый пользователь, как после регистрации: со строкой состояния онбординга. */
     private TenantUserDetails newcomer() {
@@ -150,9 +157,11 @@ class OnboardingIntegrationTest {
         // с остальных страниц его никто не уводит
         mvc.perform(get("/settings/channels").with(user(fresh))).andExpect(status().isOk());
 
-        // Пользователь, созданный до онбординга (строки состояния нет): всё как раньше
+        // Пользователь, созданный до онбординга (строки состояния нет): всё как раньше;
+        // без квартиры шахматки нет — «Главная» с пустым состоянием
         TenantUserDetails old = account();
-        mvc.perform(get("/calendar/grid").with(user(old))).andExpect(status().isOk());
+        mvc.perform(get("/calendar/grid").with(user(old))).andExpect(redirectedUrl("/dashboard"));
+        mvc.perform(get("/dashboard").with(user(old))).andExpect(status().isOk());
         mvc.perform(get("/onboarding").with(user(old))).andExpect(redirectedUrl("/calendar/grid"));
         mvc.perform(get("/welcome").with(user(old))).andExpect(redirectedUrl("/calendar/grid"));
         // …пока сам не попросит
@@ -324,6 +333,7 @@ class OnboardingIntegrationTest {
     @DisplayName("меню: раздел называется «Площадки», адрес прежний")
     void renamedSection() throws Exception {
         TenantUserDetails u = account();
+        apartment(u);   // без квартиры «Площадок» в меню нет
         assertThat(page(u, "/settings/channels")).contains("<h1 class=\"page-title\">Площадки</h1>", "Площадки — OptiRent")
                 .contains("href=\"/settings/channels\"");
     }
@@ -368,6 +378,7 @@ class OnboardingIntegrationTest {
 
         // Старый пользователь: тура нет, пока не нажмёт «Знакомство»; мастер ему при этом не открывается
         TenantUserDetails old = account();
+        apartment(old);   // «Знакомство» — в шахматке, она есть только с квартирой
         assertThat(page(old, "/calendar/grid")).doesNotContain("onboarding-config").contains("Знакомство");
         mvc.perform(post("/onboarding/tour/start").with(user(old)).with(csrf())).andExpect(redirectedUrl("/calendar/grid"));
         assertThat(page(old, "/calendar/grid")).contains("onboarding-config");
@@ -398,7 +409,7 @@ class OnboardingIntegrationTest {
         wizardDone(u);
 
         String grid = page(u, "/calendar/grid");
-        assertThat(grid).contains("id=\"first-steps\"", "Первые шаги", "1 из 6", "Добавить объект",
+        assertThat(grid).contains("id=\"first-steps\"", "Первые шаги", "1 из 6", "Добавить квартиру",
                 "Подключить первую площадку", "Площадка забрала вашу ссылку", "Увидеть первую бронь в шахматке",
                 "Создать страницу бронирования", "Распечатать карточку для гостей",
                 "Отметится само, когда площадка в первый раз заберёт ссылку.", "href=\"/onboarding?step=platforms\"")
@@ -456,7 +467,7 @@ class OnboardingIntegrationTest {
         TenantUserDetails old = account();
         mvc.perform(post("/onboarding/tour/start").with(user(old)).with(csrf()));
         mvc.perform(post("/onboarding/tour").with(user(old)).with(csrf()).param("event", "done"));
-        assertThat(page(old, "/calendar/grid")).doesNotContain("id=\"first-steps\"", "steps-badge", "onboarding-config");
+        assertThat(page(old, "/dashboard")).doesNotContain("id=\"first-steps\"", "steps-badge", "onboarding-config");
     }
 
     @Test
@@ -493,10 +504,10 @@ class OnboardingIntegrationTest {
 
         // старый пользователь подсказок не получает, даже нажав «Знакомство»
         TenantUserDetails old = account();
-        assertThat(page(old, "/calendar/grid")).doesNotContain("onboarding-config");
+        assertThat(page(old, "/dashboard")).doesNotContain("onboarding-config");
         mvc.perform(post("/onboarding/tour/start").with(user(old)).with(csrf()));
         mvc.perform(post("/onboarding/tour").with(user(old)).with(csrf()).param("event", "close"));
-        assertThat(page(old, "/calendar/grid")).doesNotContain("onboarding-config", "\"hints\"");
+        assertThat(page(old, "/dashboard")).doesNotContain("onboarding-config", "\"hints\"");
         assertThat(page(old, "/settings/channels")).doesNotContain("onboarding-config");
     }
 
@@ -504,8 +515,10 @@ class OnboardingIntegrationTest {
     @DisplayName("пустые страницы: что здесь будет и одна кнопка; старому пользователю кнопка тоже открывает шаг")
     void emptyStates() throws Exception {
         TenantUserDetails old = account();
-        assertThat(page(old, "/calendar/grid")).contains("empty-state", "Здесь будет шахматка",
-                "Шахматка — календарь всех ваших броней", "href=\"/onboarding?step=property\"");
+        // без квартиры шахматки нет: «Главная» с одним пустым состоянием и кнопкой в мастер
+        mvc.perform(get("/calendar/grid").with(user(old))).andExpect(redirectedUrl("/dashboard"));
+        assertThat(page(old, "/dashboard")).contains("empty-state", "Здесь будет сводка по квартире",
+                "href=\"/onboarding?step=property\"");
         assertThat(page(old, "/settings/channels")).contains("Площадок пока нет", "href=\"/onboarding?step=platforms\"")
                 .doesNotContain("Сначала добавьте категорию номеров");
         assertThat(page(old, "/bookings/pending")).contains("Заявок пока нет", "href=\"/settings/widgets\"");
@@ -513,8 +526,8 @@ class OnboardingIntegrationTest {
         // кнопка с пустой страницы ведёт к шагу мастера — он открывается и тому, кто создан до онбординга,
         // но мастер, чек-лист и подсказки после этого ему не навязываются
         assertThat(page(old, "/onboarding?step=platforms")).contains("Расскажите о квартире", "Вернуться в кабинет");
-        mvc.perform(get("/calendar/grid").with(user(old))).andExpect(status().isOk());
-        assertThat(page(old, "/calendar/grid")).doesNotContain("id=\"first-steps\"", "onboarding-config");
+        mvc.perform(get("/dashboard").with(user(old))).andExpect(status().isOk());
+        assertThat(page(old, "/dashboard")).doesNotContain("id=\"first-steps\"", "onboarding-config");
         mvc.perform(get("/onboarding").with(user(account()))).andExpect(redirectedUrl("/calendar/grid"));
     }
 

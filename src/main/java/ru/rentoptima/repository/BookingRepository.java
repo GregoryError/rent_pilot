@@ -77,9 +77,15 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT AVG(b.nights) FROM Booking b WHERE b.tenant.id = :tenantId AND b.status = 'BOOKED' AND b.checkIn BETWEEN :from AND :to")
     Double avgNightsInRange(Long tenantId, LocalDate from, LocalDate to);
 
+    /**
+     * Удаляет историю, перенесённую из RealtyCalendar (файлом — data_source пуст у старых
+     * переносов — или прежней прямой интеграцией, 'RC'). Ручные брони, заявки с сайта и брони с
+     * площадок не трогает: раньше «Очистить данные» удаляла все брони объекта.
+     */
     @Modifying
-    @Query("DELETE FROM Booking b WHERE b.tenant.id = :tenantId AND b.property.id = :propertyId")
-    int deleteByTenantIdAndPropertyId(Long tenantId, Long propertyId);
+    @Query("DELETE FROM Booking b WHERE b.tenant.id = :tenantId AND b.property.id = :propertyId"
+            + " AND (b.dataSource IS NULL OR b.dataSource = 'RC')")
+    int deleteTransferredByTenantIdAndPropertyId(Long tenantId, Long propertyId);
 
     List<Booking> findByTenantIdAndStatusAndCheckInBetween(
             Long tenantId, String status, LocalDate from, LocalDate to);

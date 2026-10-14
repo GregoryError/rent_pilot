@@ -272,9 +272,9 @@ class TenantIsolationIntegrationTest {
         notFound(post("/feedback-admin/" + o.feedback() + "/toggle-housekeeper"));
         notFound(post("/pricing/competitors/" + o.competitor() + "/delete"));
         notFound(post("/pricing/competitors/" + o.competitor() + "/scrape"));
-        notFound(multipart("/import").file(new MockMultipartFile("file", "a.xlsx", "application/octet-stream", new byte[]{1}))
+        notFound(multipart("/settings/transfer").file(new MockMultipartFile("file", "a.xlsx", "application/octet-stream", new byte[]{1}))
                 .param("propertyId", o.property().toString()));
-        notFound(post("/import/clear").param("propertyId", o.property().toString()));
+        notFound(post("/settings/transfer/clear").param("propertyId", o.property().toString()));
         notFound(post("/api/overrides/" + o.override() + "/cancel"));
         assertThat(snapshot()).isEqualTo(before);
     }

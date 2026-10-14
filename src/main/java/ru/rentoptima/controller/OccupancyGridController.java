@@ -35,6 +35,7 @@ public class OccupancyGridController {
     private static final int PAST_DAYS = 30;
 
     private final OccupancyGridService gridService;
+    private final ru.rentoptima.service.UnitVocabulary vocabulary;
 
     @GetMapping
     public String grid(@RequestParam(required = false) String from,
@@ -42,6 +43,9 @@ public class OccupancyGridController {
                        @RequestParam(required = false) String to,
                        Model model) {
         Long tenantId = AuthContext.tenantId();
+        // Квартиры нет — шахматки нет и в меню: после входа и по логотипу — на «Главную» с
+        // одним пустым состоянием (мастер, если он не пройден, перехватывает раньше)
+        if (!vocabulary.hasProperties(tenantId)) return "redirect:/dashboard";
 
         LocalDate today = LocalDate.now();
         LocalDate explicitStart = parseDate(from, null);

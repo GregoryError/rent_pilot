@@ -12,11 +12,11 @@
     </div>
 
     <div class="card" th:if="${#lists.isEmpty(items)}">
-        <div class="card__title">Пока нет объектов</div>
+        <div class="card__title">Пока нет квартиры</div>
         <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
-            Ссылка для горничной создаётся вместе с объектом.
+            Ссылка для горничной появится вместе с квартирой.
         </p>
-        <a class="btn btn-primary" th:href="@{/settings/properties}">К настройкам объектов</a>
+        <a class="btn btn-primary" th:href="@{/onboarding(step='property')}">Добавить квартиру</a>
     </div>
 
     <div th:each="it : ${items}" class="card">

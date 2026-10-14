@@ -30,6 +30,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -224,5 +225,75 @@ class FirstRunIntegrationTest {
         String channels = page(u, "/settings/channels");
         assertThat(channels).contains("Квартира или категория номеров").contains("Мини-отель / Люкс");
         assertThat(page(u, "/settings/properties")).contains("Категории номеров");
+    }
+
+    @Test
+    @DisplayName("меню без квартиры: Главная, Добавить квартиру, Помощь; шахматка уводит на Главную")
+    void shortMenuWithoutApartment() throws Exception {
+        TenantUserDetails u = account();
+        String html = page(u, "/dashboard");
+        String nav = html.substring(html.indexOf("sidebar__nav"), html.indexOf("sidebar__footer"));
+        assertThat(nav).contains("Главная").contains("Добавить квартиру").contains("Помощь")
+                .contains("Инструкции").doesNotContain("Шахматка").doesNotContain("Настройки")
+                .doesNotContain("Расходы").doesNotContain("Импорт").doesNotContain("Знакомство");
+        mvc.perform(get("/calendar/grid").with(user(u))).andExpect(redirectedUrl("/dashboard"));
+    }
+
+    @Test
+    @DisplayName("меню с квартирой: основные разделы, остальное в «Ещё»; «Импорта» нет")
+    void fullMenuWithApartment() throws Exception {
+        TenantUserDetails u = account();
+        apartment(u);
+        String html = page(u, "/calendar/grid");
+        String nav = html.substring(html.indexOf("sidebar__nav"), html.indexOf("sidebar__footer"));
+        assertThat(nav).contains("Шахматка", "Площадки", "Цены", "Страница бронирования", "Заявки с сайта", "Настройки")
+                .doesNotContain("Добавить квартиру").doesNotContain("Импорт");
+        String more = nav.substring(nav.indexOf("id=\"nav-more\""), nav.indexOf("</details>"));
+        assertThat(more).contains("Календарь цен", "Расходы", "Отзывы", "Сотрудники", "AI-чат", "Перенос данных");
+        assertThat(nav).doesNotContain("id=\"nav-more\" open");
+        // открыт раздел из «Ещё» — группа раскрыта
+        String expenses = page(u, "/expenses");
+        assertThat(expenses).containsPattern("<details class=\"nav-more\" id=\"nav-more\" open");
+    }
+
+    @Test
+    @DisplayName("перенос истории: /import → 301; страница про RealtyCalendar без вебхуков; очистка не трогает ручные брони")
+    void transferPage() throws Exception {
+        TenantUserDetails u = account();
+        apartment(u);
+        mvc.perform(get("/import").with(user(u))).andExpect(status().isMovedPermanently())
+                .andExpect(redirectedUrl("/settings/transfer"));
+        String html = page(u, "/settings/transfer");
+        assertThat(html).contains("Перенести историю из RealtyCalendar").doesNotContainPattern("[Вв]ебхук");
+
+        Long property = jdbc.queryForObject("SELECT id FROM properties WHERE tenant_id = ?", Long.class, u.getTenantId());
+        java.time.LocalDate d = java.time.LocalDate.now().minusDays(40);
+        for (String source : new String[]{null, "RC", "MANUAL", "WIDGET"}) {
+            jdbc.update("INSERT INTO bookings(tenant_id, property_id, check_in, check_out, nights, status, data_source)"
+                    + " VALUES (?, ?, ?, ?, 1, 'BOOKED', ?)", u.getTenantId(), property, d, d.plusDays(1), source);
+            d = d.plusDays(2);
+        }
+        mvc.perform(post("/settings/transfer/clear").with(user(u)).with(csrf()).param("propertyId", property.toString()))
+                .andExpect(redirectedUrl("/settings/transfer"));
+        assertThat(jdbc.queryForList("SELECT data_source FROM bookings WHERE property_id = ? ORDER BY data_source",
+                String.class, property)).containsExactly("MANUAL", "WIDGET");
+    }
+
+    @Test
+    @DisplayName("настройки: в «Основных» уборка и комиссия, остальное в свёрнутых «Продвинутых»")
+    void settingsAdvancedCollapsed() throws Exception {
+        TenantUserDetails u = account();
+        jdbc.update("INSERT INTO system_settings(tenant_id, key, value) VALUES (?, 'cleaning_cost', '1500'),"
+                + " (?, 'open_ahead_days', '75'), (?, 'city', '')", u.getTenantId(), u.getTenantId(), u.getTenantId());
+        apartment(u);
+        String html = page(u, "/settings");
+        int advanced = html.indexOf("id=\"settings-advanced\"");
+        assertThat(advanced).isPositive();
+        assertThat(html.substring(0, advanced)).contains("name=\"cleaning_cost\"").doesNotContain("name=\"open_ahead_days\"")
+                .doesNotContain("name=\"weekday_base_price\"");
+        assertThat(html).containsPattern("<details class=\"card settings-advanced\" id=\"settings-advanced\">")
+                .contains("Значения по умолчанию подходят большинству")
+                .contains("Значения по умолчанию для новых квартир").contains("/settings/transfer");
+        assertThat(html.substring(advanced)).contains("name=\"open_ahead_days\"").contains("name=\"weekday_base_price\"");
     }
 }

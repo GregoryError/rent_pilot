@@ -44,6 +44,13 @@ public class UnitVocabulary {
         return labels;
     }
 
+    /** Есть хоть один действующий объект. */
+    public boolean hasProperties(Long tenantId) {
+        if (tenantId == null) return false;
+        return Boolean.TRUE.equals(jdbc.queryForObject(
+                "SELECT EXISTS (SELECT 1 FROM properties WHERE tenant_id = ? AND active)", Boolean.class, tenantId));
+    }
+
     public boolean simple(Long tenantId) {
         if (tenantId == null) return false;
         return Boolean.TRUE.equals(jdbc.queryForObject("""

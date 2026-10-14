@@ -27,7 +27,12 @@ public class SettingsController {
     public String settings(Model model) {
         Long tenantId = AuthContext.tenantId();
         model.addAttribute("activePage", "settings");
-        model.addAttribute("settings", settingsService.getAllForTenant(tenantId));
+        var all = settingsService.getAllForTenant(tenantId);
+        model.addAttribute("settings", all);
+        // по ключу: шаблон выводит поля группами в заданном порядке («Основные», «Продвинутые»)
+        Map<String, Object> byKey = new LinkedHashMap<>();
+        all.forEach(x -> byKey.put(x.getKey(), x));
+        model.addAttribute("byKey", byKey);
         model.addAttribute("fields", FIELDS);
         return "pages/settings/index";
     }

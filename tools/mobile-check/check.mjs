@@ -30,7 +30,7 @@ const NARROW = 900;
 const ADMIN = [
   '/calendar/grid', '/calendar', '/dashboard', '/bookings/pending',
   '/settings/widgets', '/settings/channels', '/settings/channels/diagnostics',
-  '/pricing', '/expenses', '/feedback-admin', '/feedback', '/staff', '/chat', '/import',
+  '/pricing', '/expenses', '/feedback-admin', '/feedback', '/staff', '/chat', '/settings/transfer',
   '/settings', '/settings/integrations', '/settings/properties', '/welcome',
   '/admin/legal-pages', '/admin/legal-pages/privacy/edit', '/admin/onboarding', '/admin/registration',
   '/account/password',
