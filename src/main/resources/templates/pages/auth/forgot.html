@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Восстановление пароля — OptiRent</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <a th:href="@{/}" class="login-title login-brand">
+                <svg th:replace="~{fragments/logo :: mark(32)}"></svg>
+                <span>OptiRent</span>
+            </a>
+            <h1 class="login-subtitle">Восстановление пароля</h1>
+
+            <th:block th:if="${sent != null}">
+                <div class="login-ok" role="status" th:if="${sent == 'email'}">
+                    Если такой адрес зарегистрирован, мы отправили на него ссылку для нового пароля.
+                    Она действует 60 минут. Письма нет несколько минут — проверьте папку «Спам».
+                </div>
+                <div class="login-ok" role="status" th:if="${sent == 'telegram'}">
+                    Если такой адрес зарегистрирован и к аккаунту подключён Telegram, мы отправили ссылку
+                    для нового пароля в чат вашего бота. Она действует 60 минут.
+                </div>
+                <div class="login-links">
+                    <a th:href="@{/login}">Вернуться ко входу</a> · <a th:href="@{/forgot}">Отправить ещё раз</a>
+                </div>
+            </th:block>
+
+            <th:block th:if="${sent == null}">
+                <p class="login-note" th:if="${emailAvailable}">
+                    Укажите адрес, с которым вы входите. Пришлём ссылку, по которой можно задать новый пароль.
+                </p>
+                <div class="login-error" th:unless="${emailAvailable}">
+                    Восстановление по почте временно недоступно.
+                    Если к аккаунту подключён Telegram, ссылку можно получить туда.
+                </div>
+
+                <form th:action="@{/forgot}" method="post">
+                    <div class="form-group">
+                        <label class="form-label" for="email">Email</label>
+                        <input type="email" id="email" name="email" inputmode="email" class="form-input"
+                               autocomplete="email" autocapitalize="none" spellcheck="false" required autofocus>
+                    </div>
+                    <div class="login-actions">
+                        <button type="submit" name="via" value="email" class="btn btn-primary"
+                                th:if="${emailAvailable}">Прислать ссылку на почту</button>
+                        <button type="submit" name="via" value="telegram"
+                                th:class="${emailAvailable} ? 'btn btn-ghost' : 'btn btn-primary'">Прислать ссылку в Telegram</button>
+                    </div>
+                    <p class="form-hint">Ссылка в Telegram придёт в чат бота уведомлений, если он подключён в разделе «Интеграции».</p>
+                </form>
+
+                <div class="login-links">
+                    Вспомнили пароль? <a th:href="@{/login}">Войти</a>
+                </div>
+            </th:block>
+        </div>
+    </div>
+</body>
+</html>

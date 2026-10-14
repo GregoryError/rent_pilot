@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Новый пароль — OptiRent</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="referrer" content="no-referrer">
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <a th:href="@{/}" class="login-title login-brand">
+                <svg th:replace="~{fragments/logo :: mark(32)}"></svg>
+                <span>OptiRent</span>
+            </a>
+            <h1 class="login-subtitle">Новый пароль</h1>
+
+            <th:block th:unless="${valid}">
+                <div class="login-error" role="alert">Ссылка устарела или уже использована. Запросите новую.</div>
+                <div class="login-actions">
+                    <a th:href="@{/forgot}" class="btn btn-primary">Получить новую ссылку</a>
+                </div>
+                <div class="login-links"><a th:href="@{/login}">Вернуться ко входу</a></div>
+            </th:block>
+
+            <form th:if="${valid}" th:action="@{/reset}" method="post">
+                <div th:if="${error}" class="login-error" role="alert" th:text="${error}"></div>
+                <input type="hidden" name="token" th:value="${token}">
+                <div class="form-group">
+                    <label class="form-label" for="password">Новый пароль</label>
+                    <input type="password" id="password" name="password" class="form-input" required
+                           th:attr="minlength=${minLength}" autocomplete="new-password" aria-describedby="pw-rules" autofocus>
+                </div>
+                <p class="pw-rules" id="pw-rules" th:text="${rules}"></p>
+                <div class="form-group">
+                    <label class="form-label" for="confirmPassword">Новый пароль ещё раз</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" class="form-input" required
+                           th:attr="minlength=${minLength}" autocomplete="new-password">
+                </div>
+                <div class="login-actions">
+                    <button type="submit" class="btn btn-primary">Сохранить пароль</button>
+                </div>
+                <p class="form-hint">После сохранения все остальные входы в аккаунт будут завершены.</p>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

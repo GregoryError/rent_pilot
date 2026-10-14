@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -23,6 +24,7 @@ public class RegistrationController {
     private final RegistrationService registrationService;
     private final AppUserDetailsService userDetailsService;
     private final OnboardingService onboarding;
+    private final SessionRegistry sessionRegistry;
 
     @GetMapping("/register")
     public String registerPage() {
@@ -53,8 +55,10 @@ public class RegistrationController {
             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                     userDetails, null, userDetails.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(auth);
-            request.getSession(true).setAttribute(
-                    "SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
+            jakarta.servlet.http.HttpSession session = request.getSession(true);
+            session.setAttribute("SPRING_SECURITY_CONTEXT", SecurityContextHolder.getContext());
+            // в реестр — чтобы смена пароля могла завершить и эту сессию
+            sessionRegistry.registerNewSession(session.getId(), userDetails);
 
             // Новичка встречает мастер первой настройки
             onboarding.begin(user.getId(), user.getTenant().getId());

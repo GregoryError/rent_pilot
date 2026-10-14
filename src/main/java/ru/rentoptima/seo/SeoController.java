@@ -29,7 +29,7 @@ public class SeoController {
     /** Всё, что за входом, служебное и с данными гостей. Правило — префикс адреса. */
     static final List<String> DISALLOW = List.of(
             "/api/", "/q/", "/f/", "/b/*/embed", "/widget/", "/feedback", "/ical/", "/housekeeper/",
-            "/login", "/register", "/logout", "/welcome", "/error",
+            "/login", "/register", "/logout", "/welcome", "/error", "/forgot", "/reset", "/account/",
             "/dashboard", "/calendar", "/bookings/", "/settings", "/pricing", "/expenses",
             "/staff", "/chat", "/import", "/admin/");
 

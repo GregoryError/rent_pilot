@@ -129,6 +129,11 @@
                 <a th:href="@{/instrukcii}" target="_blank" rel="noopener" class="nav-item">
                     <span>?</span> Инструкции
                 </a>
+                <a th:href="@{/account/password}"
+                   th:classappend="${activePage == 'account-password'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>⚿</span> Сменить пароль
+                </a>
             </div>
 
             <!-- Admin only -->

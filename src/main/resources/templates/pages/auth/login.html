@@ -22,6 +22,12 @@
             <div th:if="${param.error}" class="login-error">
                 Неверный логин или пароль
             </div>
+            <div th:if="${param.reset}" class="login-ok" role="status">
+                Пароль изменён. Войдите с новым паролем.
+            </div>
+            <div th:if="${param.expired}" class="login-note" role="status">
+                Вы вышли из аккаунта: пароль был изменён. Войдите снова.
+            </div>
 
             <form th:action="@{/login}" method="post">
                 <div class="form-group">
@@ -39,8 +45,11 @@
                     Войти
                 </button>
             </form>
-            <div style="text-align: center; margin-top: 1.25rem; font-size: var(--text-sm); color: var(--text-secondary);">
-                Нет аккаунта? <a th:href="@{/register}" style="color: var(--accent);">Создать</a>
+            <div class="login-links">
+                <a th:href="@{/forgot}">Забыли пароль?</a>
+            </div>
+            <div class="login-links">
+                Нет аккаунта? <a th:href="@{/register}">Создать</a>
             </div>
         </div>
     </div>
