@@ -17,15 +17,25 @@
     </div>
 
     <th:block th:if="${hasProperties}">
-    <!-- KPI -->
+    <div class="card pricing-note" th:if="${needsPrice}">
+        У квартиры не задана цена за ночь — рекомендовать не от чего.
+        <a th:href="@{/settings/properties}">Задать цену квартиры</a>
+    </div>
+    <div class="card pricing-note pricing-note--warn" th:if="${boundsWarning != null}">
+        <span th:text="${boundsWarning}">Цена квартиры выше максимальной цены в настройках</span>
+        <a th:href="@{/settings}">Открыть настройки</a>
+    </div>
+
+    <!-- KPI: цена — квартиры, её задают мастер и «Объекты»; рекомендации считаются от неё -->
     <div class="kpi-row">
         <div class="kpi">
-            <div class="kpi__label">Будни (база)</div>
-            <div class="kpi__value" th:text="${settings['weekday_base_price']} + ' ₽'"></div>
+            <div class="kpi__label">Цена квартиры в будни</div>
+            <div class="kpi__value" th:text="${weekdayPrice}"></div>
+            <div class="kpi__hint" th:if="${severalUnits}" th:text="'по категории «' + ${pricedUnitName} + '»'"></div>
         </div>
         <div class="kpi">
-            <div class="kpi__label">Выходные (база)</div>
-            <div class="kpi__value" th:text="${settings['weekend_base_price']} + ' ₽'"></div>
+            <div class="kpi__label">Выходные (ночи с пт и с сб)</div>
+            <div class="kpi__value" th:text="${weekendPrice}"></div>
         </div>
         <div class="kpi">
             <div class="kpi__label">Ср. цена конкурентов</div>

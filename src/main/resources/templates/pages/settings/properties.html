@@ -26,7 +26,7 @@
                 </div>
                 <div class="form-group">
                     <label class="form-label">Город</label>
-                    <input type="text" name="city" class="form-input" value="Выборг">
+                    <input type="text" name="city" class="form-input" th:placeholder="${defaults.city}">
                     <div class="form-hint">Нужен для поиска конкурентов и подсказок по ценам.</div>
                 </div>
                 <div class="form-group" style="grid-column: 1 / -1;">
@@ -151,13 +151,15 @@
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Цена, ₽</label>
-                                <input type="number" inputmode="decimal" name="basePrice" class="form-input form-input--sm" step="0.01">
+                                <input type="number" inputmode="decimal" name="basePrice" class="form-input form-input--sm" step="0.01"
+                                       th:placeholder="${defaults.weekdayPrice}">
                                 <div class="form-hint">Цена за ночь в будни, если на дату не задана своя.</div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Выходные, ₽</label>
-                                <input type="number" inputmode="decimal" name="weekendPrice" class="form-input form-input--sm" step="0.01">
-                                <div class="form-hint">Цена за ночь в выходные.</div>
+                                <input type="number" inputmode="decimal" name="weekendPrice" class="form-input form-input--sm" step="0.01"
+                                       th:placeholder="${defaults.weekendPrice}">
+                                <div class="form-hint">Цена за ночь с пятницы и с субботы. Пусто — как в будни.</div>
                             </div>
                         </div>
                         <div style="display: flex; gap: var(--sp-3);">

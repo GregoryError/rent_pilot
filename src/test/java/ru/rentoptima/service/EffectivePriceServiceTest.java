@@ -15,6 +15,7 @@ class EffectivePriceServiceTest {
     private static final LocalDate MONDAY = LocalDate.of(2026, 10, 5);
     private static final LocalDate SATURDAY = LocalDate.of(2026, 10, 10);
     private static final LocalDate SUNDAY = LocalDate.of(2026, 10, 11);
+    private static final LocalDate FRIDAY = LocalDate.of(2026, 10, 9);
 
     private UnitType unitType(BigDecimal base, BigDecimal weekend) {
         UnitType ut = new UnitType();
@@ -35,13 +36,15 @@ class EffectivePriceServiceTest {
     }
 
     @Test
-    @DisplayName("в выходной используется weekend_price, если задан")
-    void weekendPriceUsedOnSaturdaySunday() {
+    @DisplayName("ночи с пятницы и с субботы — weekend_price; ночь с воскресенья — будни")
+    void weekendPriceUsedOnFridaySaturdayNights() {
         UnitType ut = unitType(new BigDecimal("3000"), new BigDecimal("4000"));
+        assertThat(EffectivePriceService.resolve(ut, FRIDAY, null))
+                .isEqualByComparingTo("4000");
         assertThat(EffectivePriceService.resolve(ut, SATURDAY, null))
                 .isEqualByComparingTo("4000");
         assertThat(EffectivePriceService.resolve(ut, SUNDAY, null))
-                .isEqualByComparingTo("4000");
+                .isEqualByComparingTo("3000");
     }
 
     @Test
@@ -56,9 +59,9 @@ class EffectivePriceServiceTest {
     @DisplayName("если weekend_price не задан — в выходной fallback на base")
     void fallbackToBaseWhenNoWeekendPrice() {
         UnitType ut = unitType(new BigDecimal("3000"), null);
-        assertThat(EffectivePriceService.resolve(ut, SATURDAY, null))
+        assertThat(EffectivePriceService.resolve(ut, FRIDAY, null))
                 .isEqualByComparingTo("3000");
-        assertThat(EffectivePriceService.resolve(ut, SUNDAY, null))
+        assertThat(EffectivePriceService.resolve(ut, SATURDAY, null))
                 .isEqualByComparingTo("3000");
     }
 
@@ -71,12 +74,13 @@ class EffectivePriceServiceTest {
     }
 
     @Test
-    @DisplayName("isWeekend корректно опознаёт субботу и воскресенье")
+    @DisplayName("isWeekend: ночи с пятницы и с субботы")
     void weekendDetection() {
         assertThat(EffectivePriceService.isWeekend(MONDAY)).isFalse();
-        assertThat(EffectivePriceService.isWeekend(LocalDate.of(2026, 10, 9))).isFalse();  // пятница
+        assertThat(EffectivePriceService.isWeekend(LocalDate.of(2026, 10, 8))).isFalse();  // четверг
+        assertThat(EffectivePriceService.isWeekend(FRIDAY)).isTrue();
         assertThat(EffectivePriceService.isWeekend(SATURDAY)).isTrue();
-        assertThat(EffectivePriceService.isWeekend(SUNDAY)).isTrue();
+        assertThat(EffectivePriceService.isWeekend(SUNDAY)).isFalse();
     }
 
     @Test

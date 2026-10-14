@@ -99,10 +99,13 @@ public class RegistrationService {
     private void seedDefaultSettings(Long tenantId) {
         settings.setValue(tenantId, "city", "");
         settings.setValue(tenantId, "timezone", "Europe/Moscow");
-        settings.setValue(tenantId, "weekday_base_price", "3000");
-        settings.setValue(tenantId, "weekend_base_price", "4000");
-        settings.setValue(tenantId, "min_price_floor", "2000");
-        settings.setValue(tenantId, "max_price_ceiling", "8000");
+        // Цена — у квартиры (мастер). Эти четыре ключа заводятся пустыми, чтобы их можно было
+        // заполнить в настройках: цены по умолчанию — только подсказка для новых квартир,
+        // пустые пределы — 50–250% цены квартиры (PricingEngine.bounds).
+        settings.setValue(tenantId, "weekday_base_price", "");
+        settings.setValue(tenantId, "weekend_base_price", "");
+        settings.setValue(tenantId, "min_price_floor", "");
+        settings.setValue(tenantId, "max_price_ceiling", "");
         settings.setValue(tenantId, "cleaning_cost", "1500");
         settings.setValue(tenantId, "platform_markup_pct", "18");
         settings.setValue(tenantId, "open_ahead_days", "75");

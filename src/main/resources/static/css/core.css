@@ -318,6 +318,7 @@ a:hover { text-decoration: underline; }
 
 .kpi__delta--up { color: var(--green); }
 .kpi__delta--down { color: var(--red); }
+.kpi__hint { margin-top: var(--sp-1); font-size: var(--text-xs); color: var(--text-muted); }
 
 /* --- Cards --- */
 .card {
@@ -445,6 +446,18 @@ select.form-input {
     background: var(--bg-hover);
     color: var(--text-primary);
 }
+
+/* Пояснение над ценами на /pricing: нет цены квартиры, пределы настроек мешают рекомендациям */
+.pricing-note {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-4);
+    align-items: baseline;
+    margin-bottom: var(--sp-5);
+    border-left: 3px solid var(--accent);
+    font-size: var(--text-sm);
+}
+.pricing-note--warn { border-left-color: var(--amber); }
 
 /* Неактивная кнопка должна выглядеть неактивной: иначе нажатие «ничего не делает» */
 .btn:disabled,

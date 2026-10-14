@@ -5,9 +5,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.Property;
+import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.PricingDecisionRepository;
 import ru.rentoptima.repository.PropertyRepository;
+import ru.rentoptima.repository.UnitTypeRepository;
+import ru.rentoptima.service.EffectivePriceService.DateUnitKey;
 import ru.rentoptima.service.CompetitorService.CompetitorAnalysis;
 import ru.rentoptima.util.PdAnonymizer;
 import ru.rentoptima.service.OverrideResolver;
@@ -17,10 +20,12 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 
@@ -42,6 +47,52 @@ public class PricingEngine {
     private final PricingLearningService learningService;
     private final PricingDecisionRepository decisionRepo;
     private final OverrideResolver overrideResolver;
+    private final UnitTypeRepository unitTypeRepo;
+    private final EffectivePriceService effectivePrice;
+
+    /** Без заданных в настройках пределов рекомендация держится в этих долях от цены квартиры на день. */
+    static final double DEFAULT_FLOOR_SHARE = 0.5;
+    static final double DEFAULT_CEIL_SHARE = 2.5;
+
+    /**
+     * Квартира, по которой считаются рекомендации объекта: первая действующая категория.
+     * Цена дня — её цена, как в шахматке и на странице бронирования ({@link EffectivePriceService}).
+     */
+    public Optional<UnitType> pricedUnit(Long propertyId) {
+        return unitTypeRepo.findByPropertyIdAndActiveTrue(propertyId).stream()
+                .min(Comparator.comparing(UnitType::getId));
+    }
+
+    /** У объекта больше одной действующей категории — рекомендации считаются по первой. */
+    public boolean severalUnits(Long propertyId) {
+        return unitTypeRepo.findByPropertyIdAndActiveTrue(propertyId).size() > 1;
+    }
+
+    /**
+     * Пределы рекомендации для дня с ценой {@code base}: из настроек «Минимальная / максимальная
+     * цена», а если они не заданы (пусто) — 50% и 250% цены квартиры.
+     */
+    static int[] bounds(Map<String, String> s, int base) {
+        Integer floor = positive(s.get("min_price_floor"));
+        Integer ceil = positive(s.get("max_price_ceiling"));
+        int f = floor != null ? floor : (int) Math.round(base * DEFAULT_FLOOR_SHARE);
+        int c = ceil != null ? ceil : (int) Math.round(base * DEFAULT_CEIL_SHARE);
+        if (f > c) {   // противоречивые настройки — пределы от цены квартиры
+            f = (int) Math.round(base * DEFAULT_FLOOR_SHARE);
+            c = (int) Math.round(base * DEFAULT_CEIL_SHARE);
+        }
+        return new int[]{f, c};
+    }
+
+    private static Integer positive(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            int v = Integer.parseInt(value.trim());
+            return v > 0 ? v : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
     /**
      * Автопилот запускается каждый час.
@@ -213,7 +264,8 @@ public class PricingEngine {
                 finalPrice = applyCompetitorGravity(
                         finalPrice,
                         competitorAnalysis.avgPriceByDate().get(rec.date()),
-                        tenantId);
+                        tenantId,
+                        rec.currentPrice().intValue());
             }
 
             // Rating-based multiplier
@@ -264,7 +316,7 @@ public class PricingEngine {
                         adjustments.get(rec.date()),
                         (int) java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), rec.date()),
                         rec.windowLen(),
-                        rec.date().getDayOfWeek().getValue() >= 5,
+                        EffectivePriceService.isWeekend(rec.date()),
                         prodCalendar.isHoliday(rec.date()),
                         bookingPaceFinal,
                         competitorAnalysis != null && competitorAnalysis.avgPriceByDate().containsKey(rec.date())
@@ -286,7 +338,8 @@ public class PricingEngine {
     private BigDecimal applyCompetitorGravity(
             BigDecimal ourPrice,
             BigDecimal competitorAvg,
-            Long tenantId
+            Long tenantId,
+            int base
     ) {
         double ours = ourPrice.doubleValue();
         double market = competitorAvg.doubleValue();
@@ -299,10 +352,9 @@ public class PricingEngine {
 
         double adjusted = ours + (market - ours) * 0.30;
 
-        int floor = settings.getIntValue(tenantId, "min_price_floor", 2500);
-        int ceil = settings.getIntValue(tenantId, "max_price_ceiling", 10000);
+        int[] b = bounds(settings.getSettingsMap(tenantId), base);
         int result = (int) Math.round(adjusted);
-        result = Math.max(floor, Math.min(ceil, result));
+        result = Math.max(b[0], Math.min(b[1], result));
 
         log.info("Competitor gravity: {}₽ → {}₽ (market avg {}₽, deviation {}%)",
                 ourPrice, result, competitorAvg, Math.round(deviation * 1000) / 10.0);
@@ -323,10 +375,13 @@ public class PricingEngine {
 
         Map<String, String> s = settings.getSettingsMap(tenantId);
 
-        int weekdayBase = parseInt(s, "weekday_base_price", 3200);
-        int weekendBase = parseInt(s, "weekend_base_price", 4200);
-        int floorPrice = parseInt(s, "min_price_floor", 2500);
-        int ceilPrice = parseInt(s, "max_price_ceiling", 6000);
+        // Цена дня — цена квартиры (плановая на дату → выходные → будни), а не настройки тенанта.
+        // Нет квартиры или у неё нет цены — рекомендовать не от чего.
+        UnitType unit = pricedUnit(property.getId()).orElse(null);
+        if (unit == null) return List.of();
+        Map<DateUnitKey, BigDecimal> dayPrices = effectivePrice.resolveBatch(List.of(unit.getId()), from, to);
+        if (dayPrices.isEmpty()) return List.of();
+
         int maxMinStay = parseInt(s, "max_min_stay", 10);
         int cleaningCost = parseInt(s, "cleaning_cost", 1400);
 
@@ -402,11 +457,12 @@ public class PricingEngine {
                 }
             }
 
-            boolean isWeekend = d.getDayOfWeek().getValue() >= 5;
+            BigDecimal dayPrice = dayPrices.get(new DateUnitKey(unit.getId(), d));
+            if (dayPrice == null) continue;
+            int basePrice = dayPrice.setScale(0, RoundingMode.HALF_UP).intValue();
+            int[] limits = bounds(s, basePrice);
             boolean isHoliday = prodCalendar.isHoliday(d);
             boolean isGap = gapDates.contains(d) || windowLen <= 2;
-
-            int basePrice = (isWeekend || isHoliday) ? weekendBase : weekdayBase;
 
             double multiplier;
             int minStay;
@@ -476,7 +532,7 @@ public class PricingEngine {
             minStay = Math.max(1, Math.min(minStay, windowLen));
 
             int price = (int) Math.round(basePrice * multiplier);
-            price = Math.max(floorPrice, Math.min(ceilPrice, price));
+            price = Math.max(limits[0], Math.min(limits[1], price));
 
             BigDecimal netPerNight = BigDecimal.valueOf(price)
                     .subtract(BigDecimal.valueOf(cleaningCost));
@@ -520,11 +576,10 @@ public class PricingEngine {
     ) {
         if (!adjustments.containsKey(rec.date())) return rec.recommendedPrice();
         double multiplier = adjustments.get(rec.date());
-        int floor = settings.getIntValue(tenantId, "min_price_floor", 2500);
-        int ceil = settings.getIntValue(tenantId, "max_price_ceiling", 10000);
+        int[] b = bounds(settings.getSettingsMap(tenantId), rec.currentPrice().intValue());
         int adjusted = (int) Math.round(
                 rec.recommendedPrice().doubleValue() * multiplier);
-        adjusted = Math.max(floor, Math.min(ceil, adjusted));
+        adjusted = Math.max(b[0], Math.min(b[1], adjusted));
         log.debug("AI adjusted {} from {} to {} (×{})",
                 rec.date(), rec.recommendedPrice(), adjusted, multiplier);
         return BigDecimal.valueOf(adjusted);

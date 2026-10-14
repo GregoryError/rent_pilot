@@ -43,6 +43,7 @@ public class PropertyController {
     private final UnitTypeRepository unitTypeRepo;
     private final JdbcTemplate jdbc;
     private final PropertyCreator propertyCreator;
+    private final ru.rentoptima.service.ApartmentDefaults apartmentDefaults;
 
     @GetMapping
     public String list(Model model, jakarta.servlet.http.HttpServletRequest request) {
@@ -56,6 +57,7 @@ public class PropertyController {
         model.addAttribute("activePage", "settings");
         model.addAttribute("properties", propertyRepo.findByTenantIdAndActiveTrue(tenantId));
         model.addAttribute("unitTypesByProperty", unitTypesByProperty);
+        model.addAttribute("defaults", apartmentDefaults.forTenant(tenantId));
         return "pages/settings/properties";
     }
 
@@ -69,7 +71,8 @@ public class PropertyController {
         if (tenantId == null) {
             throw new IllegalStateException("tenantId в сессии не установлен");
         }
-        String cityValue = (city != null && !city.isBlank()) ? city : "Выборг";
+        // Город не указан — значение по умолчанию для новых квартир из настроек (может быть пустым)
+        String cityValue = (city != null && !city.isBlank()) ? city.trim() : apartmentDefaults.forTenant(tenantId).city();
         propertyCreator.createProperty(tenantId, name, address, cityValue);
         redirect.addFlashAttribute("success", "Объект «" + name + "» добавлен");
         return "redirect:/settings/properties";

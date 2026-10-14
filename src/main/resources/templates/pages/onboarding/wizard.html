@@ -89,13 +89,15 @@
             <div class="form-group">
                 <label class="form-label" for="wz-city" th:text="${t['property.city']}">Город</label>
                 <input type="text" id="wz-city" name="city" class="form-input" required maxlength="100"
-                       autocomplete="address-level2" th:value="${form != null ? form.city : ''}">
+                       autocomplete="address-level2" th:value="${form != null ? form.city : ''}"
+                       th:placeholder="${defaults != null ? defaults.city : null}">
             </div>
             <div class="wz-row">
                 <div class="form-group">
                     <label class="form-label" for="wz-price" th:text="${t['property.price']}">Цена за ночь</label>
                     <input type="number" id="wz-price" name="basePrice" class="form-input" required min="1" step="1"
-                           inputmode="numeric" th:value="${form != null ? form.basePrice : ''}">
+                           inputmode="numeric" th:value="${form != null ? form.basePrice : ''}"
+                           th:placeholder="${defaults != null ? defaults.weekdayPrice : null}">
                     <div class="form-hint" th:text="${t['property.price.hint']}"></div>
                 </div>
                 <div class="form-group">

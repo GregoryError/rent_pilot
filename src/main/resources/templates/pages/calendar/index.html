@@ -221,7 +221,7 @@
 
                 <!-- FREE (future only) -->
                 <th:block th:if="${day.status() == 'free' && !day.past()}">
-                    <div class="cal-prices">
+                    <div class="cal-prices" th:if="${day.basePrice() != null}">
                         <span class="cal-price-base" th:text="${day.basePrice()} + ' ₽'"></span>
                         <span class="cal-price-platform" th:text="${day.platformPrice()} + ' ₽'"></span>
                     </div>

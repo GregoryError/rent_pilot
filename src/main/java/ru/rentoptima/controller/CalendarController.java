@@ -12,9 +12,14 @@ import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.BookingStatsService;
+import ru.rentoptima.service.EffectivePriceService;
+import ru.rentoptima.service.EffectivePriceService.DateUnitKey;
+import ru.rentoptima.service.PricingEngine;
 import ru.rentoptima.service.ProductionCalendarService;
 import ru.rentoptima.service.SettingsService;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.*;
@@ -29,6 +34,8 @@ public class CalendarController {
     private final BookingStatsService statsService;
     private final ProductionCalendarService prodCalendar;
     private final SettingsService settings;
+    private final PricingEngine pricingEngine;
+    private final EffectivePriceService effectivePrice;
 
     @GetMapping
     public String calendar(@RequestParam(required = false) Integer year,
@@ -62,8 +69,10 @@ public class CalendarController {
                 }
             }
 
-            int weekdayPrice = settings.getIntValue(tenantId, "weekday_base_price", 3200);
-            int weekendPrice = settings.getIntValue(tenantId, "weekend_base_price", 4200);
+            // Цена дня — цена квартиры, как в шахматке и автопилоте (не настройки тенанта)
+            Long unitId = pricingEngine.pricedUnit(property.getId()).map(u -> u.getId()).orElse(null);
+            Map<DateUnitKey, BigDecimal> prices = unitId == null ? Map.of()
+                    : effectivePrice.resolveBatch(List.of(unitId), from, to);
 
             double platformMarkup = 0;
             try {
@@ -79,15 +88,16 @@ public class CalendarController {
                         .filter(b -> !date.isBefore(b.getCheckIn()) && date.isBefore(b.getCheckOut()))
                         .findFirst().orElse(null);
 
-                boolean isWeekend = d.getDayOfWeek().getValue() >= 5; // Fri=5, Sat=6
+                boolean isWeekend = EffectivePriceService.isWeekend(d);   // ночи с пт и с сб
                 boolean isHoliday = holidays.containsKey(d);
                 boolean isGap = gapDates.contains(d);
                 boolean isToday = d.equals(now);
                 boolean isPast = d.isBefore(now);
-                int basePrice = (isWeekend || isHoliday) ? weekendPrice : weekdayPrice;
-                int displayPrice = basePrice;
+                BigDecimal dayPrice = unitId == null ? null : prices.get(new DateUnitKey(unitId, d));
+                Integer displayPrice = dayPrice == null ? null : dayPrice.setScale(0, RoundingMode.HALF_UP).intValue();
                 int displayMinStay = 1;
-                int platformPrice = (int) Math.round(displayPrice * (1 + platformMarkup));
+                Integer platformPrice = displayPrice == null ? null
+                        : (int) Math.round(displayPrice * (1 + platformMarkup));
 
                 String status;
                 String guestName = null;
@@ -149,7 +159,7 @@ public class CalendarController {
     public record CalendarDay(
             LocalDate date, int dayOfMonth, int dayOfWeek,
             String status, String guestName, String source,
-            int basePrice, int platformPrice, int minStay,
+            Integer basePrice, Integer platformPrice, int minStay,
             boolean weekend, boolean holiday, boolean gap, boolean today, boolean past,
             boolean checkIn, boolean checkOut, String holidayName
     ) {}

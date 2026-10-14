@@ -70,6 +70,7 @@ public class OnboardingController {
     private final PublicRateLimiter rateLimiter;
     private final SiteSettings site;
     private final EmailVerificationService verification;
+    private final ru.rentoptima.service.ApartmentDefaults apartmentDefaults;
 
     @GetMapping
     public String wizard(@RequestParam(required = false) String step, Model model, HttpServletRequest request) {
@@ -102,8 +103,12 @@ public class OnboardingController {
         String baseUrl = ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
         Optional<UnitType> unit = onboarding.unitType(s);
         switch (view) {
-            case STEP_PROPERTY -> unit.ifPresent(u -> model.addAttribute("existingText", OnboardingTexts.format(
-                    "property.existing", propertyRepo.findById(u.getPropertyId()).map(Property::getName).orElse(u.getName()))));
+            case STEP_PROPERTY -> {
+                unit.ifPresent(u -> model.addAttribute("existingText", OnboardingTexts.format(
+                        "property.existing", propertyRepo.findById(u.getPropertyId()).map(Property::getName).orElse(u.getName()))));
+                // «Значения по умолчанию для новых квартир» — только подсказкой в пустом поле
+                model.addAttribute("defaults", apartmentDefaults.forTenant(s.getTenantId()));
+            }
             case STEP_PLATFORMS -> model.addAttribute("tiles", tiles(s));
             case STEP_LINKS -> model.addAttribute("cards", cards(s, baseUrl));
             case STEP_PAGE -> {

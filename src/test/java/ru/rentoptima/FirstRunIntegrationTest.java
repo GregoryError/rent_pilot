@@ -14,10 +14,15 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import ru.rentoptima.entity.Tenant;
 import ru.rentoptima.entity.User;
 import ru.rentoptima.security.TenantUserDetails;
+import ru.rentoptima.service.PricingEngine;
 import ru.rentoptima.service.PropertyCreator;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -42,6 +47,7 @@ class FirstRunIntegrationTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired PropertyCreator propertyCreator;
+    @Autowired PricingEngine pricingEngine;
 
     private TenantUserDetails account() {
         String tag = UUID.randomUUID().toString().substring(0, 8);
@@ -108,5 +114,59 @@ class FirstRunIntegrationTest {
         String html = page(account(), "/settings/channels");
         assertThat(html).contains("href=\"/onboarding?step=platforms\"");
         assertThat(html).doesNotContain("id=\"btn-add-channel\"").doesNotContain("Подключить канал");
+    }
+
+    @Test
+    @DisplayName("рекомендации считаются от цены квартиры, а не от настроек 3000/4000; выходные — ночи с пт и с сб")
+    void recommendationsUseApartmentPrice() throws Exception {
+        TenantUserDetails u = account();   // в настройках 3000 / 4000, как у старых аккаунтов
+        Long property = propertyCreator.createProperty(u.getTenantId(), "Студия", null, "Выборг");
+        propertyCreator.createUnitType(u.getTenantId(), property, "Основной", 1,
+                BigDecimal.valueOf(4500), BigDecimal.valueOf(6000));
+        var p = jdbc.queryForObject("SELECT id FROM properties WHERE id = ?", Long.class, property);
+        List<PricingEngine.PricingRecommendation> recs = pricingEngine.getRecommendations(u.getTenantId(), p);
+        LocalDate friday = LocalDate.now().plusDays(1).with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY));
+        assertThat(base(recs, friday)).isEqualTo(6000);
+        assertThat(base(recs, friday.plusDays(1))).isEqualTo(6000);   // суббота
+        assertThat(base(recs, friday.plusDays(2))).isEqualTo(4500);   // воскресенье — ночь будней
+        assertThat(base(recs, friday.plusDays(3))).isEqualTo(4500);
+        assertThat(recs).noneMatch(r -> r.currentPrice().intValue() == 3000 || r.currentPrice().intValue() == 4000);
+
+        String html = page(u, "/pricing");
+        assertThat(html).contains("4500 ₽").contains("6000 ₽").doesNotContain(">3000 ₽<");
+    }
+
+    @Test
+    @DisplayName("пределы из старых настроек ниже цены квартиры — предупреждение на /pricing; пустые — 50–250% цены")
+    void boundsWarningAndRelativeBounds() throws Exception {
+        TenantUserDetails u = account();
+        jdbc.update("INSERT INTO system_settings(tenant_id, key, value) VALUES (?, 'min_price_floor', '2000'),"
+                + " (?, 'max_price_ceiling', '8000')", u.getTenantId(), u.getTenantId());
+        Long property = propertyCreator.createProperty(u.getTenantId(), "Лофт", null, "Москва");
+        propertyCreator.createUnitType(u.getTenantId(), property, "Основной", 1, BigDecimal.valueOf(12000), null);
+        assertThat(page(u, "/pricing")).contains("выше максимальной цены в настройках");
+        assertThat(pricingEngine.getRecommendations(u.getTenantId(), property))
+                .allMatch(r -> r.recommendedPrice().intValue() <= 8000);
+
+        jdbc.update("UPDATE system_settings SET value = '' WHERE tenant_id = ? AND key IN ('min_price_floor', 'max_price_ceiling')",
+                u.getTenantId());
+        assertThat(page(u, "/pricing")).doesNotContain("выше максимальной цены в настройках");
+        assertThat(pricingEngine.getRecommendations(u.getTenantId(), property))
+                .allMatch(r -> r.recommendedPrice().intValue() >= 6000 && r.recommendedPrice().intValue() <= 30000)
+                .anyMatch(r -> r.recommendedPrice().intValue() > 8000);
+    }
+
+    @Test
+    @DisplayName("у квартиры нет цены — рекомендаций нет и /pricing просит задать цену")
+    void apartmentWithoutPrice() throws Exception {
+        TenantUserDetails u = account();
+        Long property = propertyCreator.createProperty(u.getTenantId(), "Без цены", null, "Тверь");
+        propertyCreator.createUnitType(u.getTenantId(), property, "Основной", 1, null, null);
+        assertThat(pricingEngine.getRecommendations(u.getTenantId(), property)).isEmpty();
+        assertThat(page(u, "/pricing")).contains("не задана цена за ночь");
+    }
+
+    private static int base(List<PricingEngine.PricingRecommendation> recs, LocalDate d) {
+        return recs.stream().filter(r -> r.date().equals(d)).findFirst().orElseThrow().currentPrice().intValue();
     }
 }

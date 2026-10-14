@@ -20,7 +20,7 @@ import java.util.Map;
  * Приоритет:
  * <ol>
  *   <li>planned_prices (явный override от оператора на конкретную дату)</li>
- *   <li>unit_type.weekend_price (если дата — суббота/воскресенье и значение задано)</li>
+ *   <li>unit_type.weekend_price (если это ночь с пятницы или с субботы и значение задано)</li>
  *   <li>unit_type.base_price</li>
  * </ol>
  * Если ни один источник не даёт значение — возвращает null. Шахматка на такой
@@ -95,9 +95,14 @@ public class EffectivePriceService {
         return ut.getBasePrice();
     }
 
-    static boolean isWeekend(LocalDate date) {
+    /**
+     * Ночь выходных: дата — день заезда, ночь с пятницы на субботу и с субботы на воскресенье.
+     * Одно правило для шахматки, виджета, дашборда и автопилота. До фазы 2 первого запуска
+     * здесь были сб и вс — см. patches/INTEGRATION_FIRST_RUN.md.
+     */
+    public static boolean isWeekend(LocalDate date) {
         DayOfWeek dow = date.getDayOfWeek();
-        return dow == DayOfWeek.SATURDAY || dow == DayOfWeek.SUNDAY;
+        return dow == DayOfWeek.FRIDAY || dow == DayOfWeek.SATURDAY;
     }
 
     public record DateUnitKey(Long unitTypeId, LocalDate date) {}
