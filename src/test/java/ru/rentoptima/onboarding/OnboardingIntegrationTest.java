@@ -630,4 +630,70 @@ class OnboardingIntegrationTest {
         assertThat(html).doesNotContain("@example.com", "Студия");
         mvc.perform(get("/admin/onboarding").param("days", "90").with(user(new TenantUserDetails(admin)))).andExpect(status().isOk());
     }
+
+    /** Сообщение в карточке на странице «Площадки» после отправки ссылки. */
+    private ru.rentoptima.controller.ChannelController.LinkResult channelLink(TenantUserDetails u, Long channelId,
+                                                                              String url, String... extra) throws Exception {
+        var request = post("/settings/channels/" + channelId + "/import-url").with(user(u)).with(csrf()).param("url", url);
+        for (int i = 0; i < extra.length; i += 2) request.param(extra[i], extra[i + 1]);
+        var flash = mvc.perform(request).andExpect(redirectedUrl("/settings/channels#channel-" + channelId))
+                .andReturn().getFlashMap();
+        return (ru.rentoptima.controller.ChannelController.LinkResult) flash.get("linkResult");
+    }
+
+    @Test
+    @DisplayName("площадка из мастера без ссылки: ссылку можно вставить на странице «Площадки», с теми же проверками")
+    void linkOnPlatformsPage() throws Exception {
+        TenantUserDetails u = newcomer();
+        mvc.perform(post("/onboarding/branch").with(user(u)).with(csrf()).param("branch", "A"));
+        mvc.perform(post("/onboarding/property").with(user(u)).with(csrf()).param("name", "Студия").param("city", "Приморск")
+                .param("basePrice", "4500"));
+        mvc.perform(post("/onboarding/platforms").with(user(u)).with(csrf()).param("platform", "avito", "cian"));
+        // начал подключать — и пропустил мастер
+        mvc.perform(post("/onboarding/skip").with(user(u)).with(csrf()));
+        Long avito = channel(u, "avito"), cian = channel(u, "cian");
+
+        String html = page(u, "/settings/channels");
+        assertThat(html).contains("id=\"import-" + avito + "\"", "id=\"import-" + cian + "\"",
+                        "/settings/channels/" + cian + "/import-url", "Проверить и сохранить",
+                        "href=\"/instrukcii/cian\"", "href=\"/instrukcii/avito\"", "Где её взять");
+
+        // те же ловушки, что в мастере
+        assertThat(channelLink(u, avito, "https://optirent.ru/ical/abc123.ics").message()).startsWith("Это наша ссылка");
+        assertThat(channelLink(u, avito, "привет").message()).startsWith("Это не похоже на ссылку");
+        assertThat(channelLink(u, avito, "https://example.com/my-listing").message()).startsWith("По этой ссылке нет календаря");
+        var mismatch = channelLink(u, avito, CIAN_LINK);
+        assertThat(mismatch.message()).isEqualTo("Похоже, это ссылка с площадки «Циан», а карточка — «Авито».");
+        assertThat(mismatch.mismatch()).isTrue();
+        assertThat(mismatch.url()).isEqualTo(CIAN_LINK);
+        assertThat(jdbc.queryForObject("SELECT config_json->>'import_url' FROM channels WHERE id = ?", String.class, avito)).isNull();
+
+        // своя ссылка — сохранена и сразу синхронизирована: брони в шахматке
+        var saved = channelLink(u, cian, CIAN_LINK);
+        assertThat(saved.saved()).isTrue();
+        assertThat(saved.message()).startsWith("Нашли 2 занятых периода");
+        assertThat(jdbc.queryForObject("SELECT config_json->>'import_url' FROM channels WHERE id = ?", String.class, cian))
+                .isEqualTo(CIAN_LINK);
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM calendar_blocks WHERE channel_id = ?", Integer.class, cian))
+                .isEqualTo(2);
+        // «Сохранить всё равно» для ссылки с другой площадки
+        assertThat(channelLink(u, avito, CIAN_LINK, "keep", "true").saved()).isTrue();
+
+        // у площадки со ссылкой — прежняя ссылка и «Заменить ссылку»; неудачная замена прежнюю не трогает
+        html = page(u, "/settings/channels");
+        assertThat(html).contains("Заменить ссылку").doesNotContain("id=\"import-" + cian + "\"");
+        assertThat(channelLink(u, cian, "https://calendar.example.org/missing.ics").message()).startsWith("Ссылка не открывается");
+        assertThat(jdbc.queryForObject("SELECT config_json->>'import_url' FROM channels WHERE id = ?", String.class, cian))
+                .isEqualTo(CIAN_LINK);
+
+        // площадка, заведённая обычной формой (неизвестно, какая это площадка): сверять не с чем — сохраняется
+        Long plain = jdbc.queryForObject("INSERT INTO channels(tenant_id, unit_type_id, channel_type, name, sync_enabled, export_secret)"
+                + " SELECT tenant_id, unit_type_id, 'ICAL', 'Моя площадка', true, 'plain-' || id FROM channels WHERE id = ? RETURNING id",
+                Long.class, cian);
+        assertThat(channelLink(u, plain, CIAN_LINK).saved()).isTrue();
+
+        // чужая площадка недоступна
+        mvc.perform(post("/settings/channels/" + cian + "/import-url").with(user(newcomer())).with(csrf()).param("url", CIAN_LINK))
+                .andExpect(status().isNotFound());
+    }
 }

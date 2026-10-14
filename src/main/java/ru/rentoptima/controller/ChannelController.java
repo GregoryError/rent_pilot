@@ -20,7 +20,11 @@ import ru.rentoptima.repository.CalendarBlockRepository;
 import ru.rentoptima.repository.ChannelRepository;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
+import ru.rentoptima.onboarding.ChannelLinkService;
+import ru.rentoptima.onboarding.OnboardingService;
+import ru.rentoptima.onboarding.PlatformGuides;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.seo.SiteSettings;
 import ru.rentoptima.service.ChannelPalette;
 import ru.rentoptima.service.ChannelRateLimiter;
 import ru.rentoptima.service.ChannelSyncService;
@@ -49,6 +53,9 @@ public class ChannelController {
     private final ChannelRateLimiter rateLimiter;
     private final ObjectMapper objectMapper;
     private final ru.rentoptima.onboarding.OnboardingFacts facts;
+    private final ChannelLinkService channelLinks;
+    private final ru.rentoptima.service.PublicRateLimiter linkLimiter;
+    private final SiteSettings site;
 
     @GetMapping
     public String list(Model model, HttpServletRequest request) {
@@ -79,6 +86,13 @@ public class ChannelController {
         model.addAttribute("hasUnitTypes", !unitTypes.isEmpty());
         // Площадки, ни разу не забравшие нашу ссылку, — пометка в карточке
         model.addAttribute("neverFetched", facts.neverFetched(tenantId));
+        // Инструкция «где взять ссылку» — для площадок, заведённых в мастере
+        Map<Long, String> guides = new java.util.HashMap<>();
+        for (Channel c : channels) {
+            String platform = OnboardingService.platformOf(c);
+            if (platform != null) PlatformGuides.find(platform).ifPresent(p -> guides.put(c.getId(), p.guidePath()));
+        }
+        model.addAttribute("guides", guides);
         return "pages/settings/channels";
     }
 
@@ -131,6 +145,39 @@ public class ChannelController {
         redirect.addFlashAttribute("success", "Канал «" + name + "» подключён");
         return "redirect:/settings/channels";
     }
+
+    /**
+     * Ссылка с площадки для уже заведённой площадки: та, что создана в мастере без ссылки, или
+     * замена прежней. Проверки — те же, что в мастере ({@link ChannelLinkService}).
+     */
+    @PostMapping("/{id}/import-url")
+    public String importUrl(@PathVariable Long id,
+                            @RequestParam(required = false) String url,
+                            @RequestParam(required = false, defaultValue = "false") boolean keep,
+                            HttpServletRequest request, RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        // Лимит — как в мастере: 20 проверок в минуту на пользователя (каждая — запрос к чужому серверу).
+        // Не общий 60-секундный лимит синхронизации: после ошибочной ссылки человек сразу вставляет верную.
+        if (!linkLimiter.allow("channel-link:" + AuthContext.userId(), 20, 60_000L)) {
+            redirect.addFlashAttribute("linkResult", new LinkResult(id, false,
+                    "Слишком часто — подождите минуту и попробуйте снова.", false, url));
+            return "redirect:/settings/channels#channel-" + id;
+        }
+        java.util.Set<String> ownHosts = new java.util.LinkedHashSet<>();
+        ownHosts.add(request.getServerName());
+        try {
+            ownHosts.add(java.net.URI.create(site.getBaseUrl()).getHost());
+        } catch (IllegalArgumentException e) {
+            // адрес сайта задан с ошибкой — хватит адреса запроса
+        }
+        OnboardingService.LinkOutcome outcome = channelLinks.attach(tenantId, id, url, keep, ownHosts);
+        redirect.addFlashAttribute("linkResult", new LinkResult(id, outcome.saved(), outcome.message(),
+                outcome.moveTo() != null, outcome.saved() ? null : url));
+        return "redirect:/settings/channels#channel-" + id;
+    }
+
+    /** Итог проверки ссылки в карточке площадки. {@code mismatch} — предложить «Сохранить всё равно». */
+    public record LinkResult(Long channelId, boolean saved, String message, boolean mismatch, String url) {}
 
     @PostMapping("/{id}/sync")
     public String syncNow(@PathVariable Long id, RedirectAttributes redirect) {

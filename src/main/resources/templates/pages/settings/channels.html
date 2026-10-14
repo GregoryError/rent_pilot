@@ -75,7 +75,7 @@
         нажмите на цветной квадрат слева от названия канала.
     </p>
 
-    <div th:each="c : ${channels}" class="card">
+    <div th:each="c : ${channels}" class="card" th:id="|channel-${c.id}|">
         <div class="flex justify-between items-center" style="margin-bottom: var(--sp-3);">
             <div>
                 <div style="display: flex; align-items: center; gap: var(--sp-3);">
@@ -126,6 +126,17 @@
             </div>
         </div>
 
+        <!-- Итог проверки ссылки с площадки, вставленной в этой карточке -->
+        <div th:if="${linkResult != null and linkResult.channelId == c.id}" role="status"
+             th:class="${linkResult.saved} ? 'channel-link-result channel-link-result--ok' : 'channel-link-result'">
+            <span th:text="${linkResult.message}">Нашли 7 занятых периодов до марта.</span>
+            <form th:if="${linkResult.mismatch}" method="post" th:action="@{'/settings/channels/' + ${c.id} + '/import-url'}"
+                  style="margin: var(--sp-2) 0 0;">
+                <input type="hidden" name="url" th:value="${linkResult.url}">
+                <button type="submit" name="keep" value="true" class="btn btn-ghost">Сохранить всё равно</button>
+            </form>
+        </div>
+
         <div class="form-group" th:if="${c.importUrl != null}">
             <label class="form-label">URL импорта (откуда берём занятость)</label>
             <div style="display: flex; gap: var(--sp-2);">
@@ -134,6 +145,39 @@
                        class="form-input form-input--sm" style="flex: 1;">
                 <button type="button" class="btn btn-ghost copy-btn"
                         th:data-target="${c.importUrlInputId}">Копировать</button>
+            </div>
+            <details class="channel-link-replace" th:open="${linkResult != null and linkResult.channelId == c.id and !linkResult.saved}">
+                <summary class="text-sm">Заменить ссылку</summary>
+                <form method="post" th:action="@{'/settings/channels/' + ${c.id} + '/import-url'}">
+                    <div style="display: flex; gap: var(--sp-2); margin-top: var(--sp-2);">
+                        <input type="text" name="url" inputmode="url" autocomplete="off" autocapitalize="none"
+                               autocorrect="off" spellcheck="false" placeholder="https://"
+                               th:value="${linkResult != null and linkResult.channelId == c.id} ? ${linkResult.url} : ''"
+                               aria-label="Новая ссылка с площадки"
+                               class="form-input form-input--sm" style="flex: 1; min-width: 0;">
+                        <button type="submit" class="btn btn-ghost">Проверить и сохранить</button>
+                    </div>
+                </form>
+            </details>
+        </div>
+
+        <!-- Площадка заведена без ссылки с площадки (в мастере): её можно вставить здесь -->
+        <div class="form-group" th:if="${c.importUrl == null and c.channelType == 'ICAL'}">
+            <label class="form-label" th:for="|import-${c.id}|">URL импорта (откуда берём занятость)</label>
+            <form method="post" th:action="@{'/settings/channels/' + ${c.id} + '/import-url'}">
+                <div style="display: flex; gap: var(--sp-2);">
+                    <input type="text" name="url" th:id="|import-${c.id}|" inputmode="url" autocomplete="off"
+                           autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="https://"
+                           th:value="${linkResult != null and linkResult.channelId == c.id} ? ${linkResult.url} : ''"
+                           class="form-input form-input--sm" style="flex: 1; min-width: 0;">
+                    <button type="submit" class="btn btn-primary">Проверить и сохранить</button>
+                </div>
+            </form>
+            <div class="form-hint">
+                Ссылка на календарь из кабинета площадки. Пока её нет, OptiRent не видит брони с этой
+                площадки — только отдаёт ей свою ссылку ниже.
+                <a th:href="${guides.containsKey(c.id)} ? ${guides.get(c.id)} : @{/instrukcii}" target="_blank"
+                   rel="noopener">Где её взять</a>
             </div>
         </div>
 

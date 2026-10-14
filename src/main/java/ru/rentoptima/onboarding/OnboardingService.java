@@ -63,6 +63,7 @@ public class OnboardingService {
     private final BookingWidgetRepository widgetRepo;
     private final FeedChecker feedChecker;
     private final OnboardingStats stats;
+    private final ChannelLinkService channelLinks;
 
     public Optional<OnboardingState> find(Long userId) {
         return userId == null ? Optional.empty() : states.findById(userId);
@@ -239,38 +240,10 @@ public class OnboardingService {
     @Transactional
     public LinkOutcome attachLink(OnboardingState s, Long channelId, String raw, boolean keepHere,
                                   Collection<String> ownHosts) {
-        Channel c = ownChannel(s, channelId);
-        LinkInspector.Verdict v = LinkInspector.inspect(raw, platformOf(c), ownHosts);
-        switch (v.kind()) {
-            case EMPTY: return new LinkOutcome(false, OnboardingTexts.get("link.empty.field"), null, null);
-            case INVALID: return new LinkOutcome(false, OnboardingTexts.get("link.invalid"), null, null);
-            case OWN: return new LinkOutcome(false, OnboardingTexts.get("link.own"), null, null);
-            default: break;
-        }
-        if (v.mismatch() && !keepHere) {
-            return new LinkOutcome(false,
-                    OnboardingTexts.format("link.mismatch", v.detected().name(), c.getName()), v.detected(), v.url());
-        }
-        LocalDate today = LocalDate.now();
-        FeedChecker.Result result = feedChecker.check(v.url(), today);
-        if (!result.ok()) return new LinkOutcome(false, OnboardingTexts.feedMessage(result, today), null, v.url());
-
-        ObjectNode config = c.getConfigJson() != null && c.getConfigJson().isObject()
-                ? ((ObjectNode) c.getConfigJson()).deepCopy() : JsonNodeFactory.instance.objectNode();
-        config.put(CONFIG_IMPORT_URL, v.url());
-        c.setConfigJson(config);
-        c.setSyncEnabled(true);
-        c.setUpdatedAt(LocalDateTime.now());
-        channelRepo.save(c);
-        // Первая синхронизация сразу: брони должны появиться в шахматке к концу мастера.
-        // Её сбой не отменяет привязку — ссылка проверена, планировщик повторит.
-        try {
-            syncService.syncChannel(c.getId());
-        } catch (RuntimeException e) {
-            log.warn("Онбординг: первая синхронизация channel={} не удалась: {}", c.getId(), e.getMessage());
-        }
-        stats.hit("step_link");
-        return new LinkOutcome(true, OnboardingTexts.feedMessage(result, today), null, v.url());
+        ownChannel(s, channelId);
+        LinkOutcome outcome = channelLinks.attach(s.getTenantId(), channelId, raw, keepHere, ownHosts);
+        if (outcome.saved()) stats.hit("step_link");
+        return outcome;
     }
 
     /** «Перенести в карточку Циан»: площадка заводится, если её ещё не выбрали, и ссылка привязывается к ней. */
