@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Регистрация</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Регистрация</h1>
+        <p class="page-subtitle">Подтверждение почты у новых пользователей. Только числа — без списков людей</p>
+    </div>
+
+    <div class="page-inactive-note" role="alert" th:unless="${smtp}">
+        Почта не настроена (нет SMTP_HOST или MAIL_FROM): письма не уходят, поэтому подтверждение почты
+        не действует — регистрация работает в мягком режиме без закрытия кабинета, восстановление пароля
+        возможно только через Telegram.
+    </div>
+
+    <div class="reg-stats">
+        <div class="card reg-stat">
+            <div class="reg-stat__value" th:text="${counts.total}">0</div>
+            <div class="reg-stat__label">Пользователей всего</div>
+        </div>
+        <div class="card reg-stat">
+            <div class="reg-stat__value" th:text="${counts.real}">0</div>
+            <div class="reg-stat__label">Настоящих — подтвердили почту или создали объект</div>
+        </div>
+        <div class="card reg-stat">
+            <div class="reg-stat__value" th:text="${counts.unverified}">0</div>
+            <div class="reg-stat__label">Не подтвердили почту</div>
+        </div>
+        <div class="card reg-stat">
+            <div class="reg-stat__value" th:text="${counts.disabled}">0</div>
+            <div class="reg-stat__label">Отключены</div>
+        </div>
+    </div>
+    <p class="form-hint">Администратор в числах не учитывается.</p>
+
+    <div class="card account-form reg-form">
+        <div class="card__title">Режим подтверждения почты</div>
+        <p class="text-sm muted">Сейчас действует: <b th:text="${effective}">Мягкий</b></p>
+        <form th:action="@{/admin/registration}" method="post">
+            <label class="reg-option" th:each="o : ${options}">
+                <input type="radio" name="mode" th:value="${o.value}" th:checked="${o.checked}">
+                <span>
+                    <b th:text="${o.label}">Мягкий</b>
+                    <span class="form-hint" th:text="${o.hint}"></span>
+                </span>
+            </label>
+            <div class="form-group">
+                <label class="form-label" for="threshold">Порог для автоматического режима</label>
+                <input type="number" id="threshold" name="threshold" class="form-input" min="1" max="1000000"
+                       th:value="${threshold}" inputmode="numeric">
+                <div class="form-hint">Сколько настоящих пользователей должно набраться, чтобы регистрация
+                    переключилась на строгий режим.</div>
+            </div>
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+        </form>
+    </div>
+</div>
+</body>
+</html>

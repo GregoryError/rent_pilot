@@ -56,6 +56,8 @@ public class EmailVerificationController {
         OffsetDateTime now = OffsetDateTime.now();
         model.addAttribute("email", s.get().email());
         model.addAttribute("locked", s.get().locked(now));
+        // регистрация в режиме STRICT: кабинет закрыт с самого начала — «Проверьте почту»
+        model.addAttribute("strict", s.get().strict());
         model.addAttribute("neverSent", s.get().lastSentAt() == null);
         model.addAttribute("resendWait", s.get().resendWaitSeconds(now));
         return "pages/auth/verify-email";

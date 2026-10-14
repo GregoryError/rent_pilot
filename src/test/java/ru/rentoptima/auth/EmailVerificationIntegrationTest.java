@@ -92,6 +92,9 @@ class EmailVerificationIntegrationTest {
     @Autowired PropertyCreator propertyCreator;
     @Autowired WidgetCreator widgetCreator;
     @SpyBean EmailService email;
+    @Autowired ru.rentoptima.service.WidgetFormToken formTokens;
+
+    private static int registrations;
 
     @AfterEach
     void cleanMail() throws Exception {
@@ -103,7 +106,10 @@ class EmailVerificationIntegrationTest {
     /** Регистрация через форму, как у живого человека. */
     private Host register() throws Exception {
         String address = "new-" + UUID.randomUUID().toString().substring(0, 8) + "@example.com";
+        String ip = "10.9." + (++registrations) + ".1";
         MockHttpSession session = (MockHttpSession) mvc.perform(post("/register").with(csrf())
+                        .with(r -> { r.setRemoteAddr(ip); return r; })
+                        .param("formToken", formTokens.issue("register", System.currentTimeMillis() - 10_000))
                         .param("email", address).param("tenantName", "Квартира")
                         .param("password", PASSWORD).param("confirmPassword", PASSWORD)
                         .param("agreedToTerms", "on").param("agreedToConsent", "on"))
@@ -253,7 +259,9 @@ class EmailVerificationIntegrationTest {
     void lockedAfterDeadline() throws Exception {
         Host h = register();
         BookingWidget w = page(h.tenantId());
-        jdbc.update("UPDATE users SET verify_deadline = now() - interval '1 minute' WHERE id = ?", h.userId());
+        // зарегистрировался 8 дней назад, срок 7 дней вышел минуту назад
+        jdbc.update("UPDATE users SET created_at = now() - interval '8 days',"
+                + " verify_deadline = now() - interval '1 minute' WHERE id = ?", h.userId());
 
         mvc.perform(get("/calendar/grid").session(h.session())).andExpect(redirectedUrl("/verify-email"));
         mvc.perform(get("/settings/widgets").session(h.session())).andExpect(redirectedUrl("/verify-email"));

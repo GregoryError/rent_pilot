@@ -41,7 +41,7 @@ public class EmailVerificationService {
 
     /** Состояние пользователя для плашки, экрана и страницы бронирования. */
     public record Status(Long userId, String email, boolean verified, OffsetDateTime deadline,
-                         boolean pageGated, OffsetDateTime lastSentAt) {
+                         boolean pageGated, OffsetDateTime lastSentAt, boolean strict) {
 
         /** Нужно подтвердить: адрес есть, не подтверждён. */
         public boolean pending() {
@@ -78,11 +78,13 @@ public class EmailVerificationService {
         if (userId == null || !active()) return Optional.empty();
         List<Status> found = jdbc.query("SELECT u.id, u.email, u.email_verified, u.verify_deadline,"
                         + " u.page_needs_verified_email,"
-                        + " (SELECT max(t.created_at) FROM auth_tokens t WHERE t.user_id = u.id AND t.kind = 'VERIFY') AS last_sent"
+                        + " (SELECT max(t.created_at) FROM auth_tokens t WHERE t.user_id = u.id AND t.kind = 'VERIFY') AS last_sent,"
+                        // STRICT: срок поставлен равным моменту регистрации
+                        + " coalesce(u.verify_deadline <= u.created_at + interval '1 hour', false) AS strict"
                         + " FROM users u WHERE u.id = ?",
                 (rs, i) -> new Status(rs.getLong("id"), rs.getString("email"), rs.getBoolean("email_verified"),
                         rs.getObject("verify_deadline", OffsetDateTime.class), rs.getBoolean("page_needs_verified_email"),
-                        rs.getObject("last_sent", OffsetDateTime.class)),
+                        rs.getObject("last_sent", OffsetDateTime.class), rs.getBoolean("strict")),
                 userId);
         return found.stream().findFirst();
     }
@@ -99,12 +101,13 @@ public class EmailVerificationService {
     }
 
     /**
-     * Поля нового пользователя: адрес не подтверждён, срок {@link #GRACE}, страница бронирования
-     * ждёт подтверждения. Вызывается до сохранения.
+     * Поля нового пользователя: адрес не подтверждён, срок {@link #GRACE} (в режиме STRICT —
+     * ноль), страница бронирования ждёт подтверждения. Вызывается до сохранения.
      */
-    public static void prepareNew(User user) {
+    public static void prepareNew(User user, boolean strict) {
         user.setEmailVerified(false);
-        user.setVerifyDeadline(OffsetDateTime.now().plus(GRACE));
+        // STRICT: срок уже вышел — кабинет закрыт экраном «Проверьте почту» до подтверждения
+        user.setVerifyDeadline(strict ? OffsetDateTime.now() : OffsetDateTime.now().plus(GRACE));
         user.setPageNeedsVerifiedEmail(true);
     }
 
@@ -172,6 +175,8 @@ public class EmailVerificationService {
         String address = newEmail == null ? "" : newEmail.trim().toLowerCase(Locale.ROOT);
         if (address.length() > 255 || !EMAIL.matcher(address).matches()) return "Проверьте адрес почты.";
         if (address.equals(user.getEmail())) return "Это и есть текущий адрес.";
+        String domainError = EmailDomains.check(address);
+        if (domainError != null) return domainError;
         Integer taken = jdbc.queryForObject("SELECT count(*) FROM users WHERE id <> ? AND"
                 + " (lower(email) = ? OR lower(username) = ?)", Integer.class, userId, address, address);
         if (taken != null && taken > 0) return "Этот адрес уже занят другим аккаунтом.";

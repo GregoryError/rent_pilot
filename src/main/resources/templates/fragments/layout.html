@@ -144,6 +144,11 @@
                    class="nav-item">
                     <span>◔</span> Воронка онбординга
                 </a>
+                <a th:href="@{/admin/registration}"
+                   th:classappend="${activePage == 'admin-registration'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>✉</span> Регистрация
+                </a>
                 <a th:href="@{/admin/legal-pages}"
                    th:classappend="${activePage == 'admin-legal'} ? 'nav-item--active'"
                    class="nav-item">

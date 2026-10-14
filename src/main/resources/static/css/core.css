@@ -632,6 +632,28 @@ h1.login-subtitle { font-weight: 400; text-align: center; }
 .verify-banner .verify-change form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-3); align-items: end; max-width: 640px; }
 .verify-banner .verify-change .form-group { margin: 0; }
 
+/* Администрирование → Регистрация */
+.reg-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: var(--sp-4);
+    margin-bottom: var(--sp-2);
+}
+.reg-stat__value { font-size: var(--text-xl); font-weight: var(--weight-semibold); }
+.reg-stat__label { font-size: var(--text-sm); color: var(--text-secondary); margin-top: var(--sp-1); }
+.reg-form { max-width: 640px; margin-top: var(--sp-6); }
+.reg-option {
+    display: flex;
+    gap: var(--sp-3);
+    align-items: flex-start;
+    padding: var(--sp-3) 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+}
+.reg-option input { margin-top: 4px; min-width: 20px; min-height: 20px; }
+.reg-option .form-hint { display: block; margin-top: var(--sp-1); }
+.reg-form .form-group { margin-top: var(--sp-4); }
+
 /* Страница бронирования ждёт подтверждения почты: пояснение над ссылками */
 .page-inactive-note {
     margin-bottom: var(--sp-4);

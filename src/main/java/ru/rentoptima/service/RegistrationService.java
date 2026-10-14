@@ -5,24 +5,28 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.rentoptima.auth.EmailDomains;
 import ru.rentoptima.auth.EmailVerificationService;
+import ru.rentoptima.auth.PasswordPolicy;
 import ru.rentoptima.entity.Tenant;
 import ru.rentoptima.entity.User;
 import ru.rentoptima.repository.TenantRepository;
 import ru.rentoptima.repository.UserRepository;
 
 import java.time.LocalDateTime;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class RegistrationService {
 
+    private static final Pattern EMAIL = Pattern.compile("[^@\\s]+@[^@\\s]+\\.[^@\\s]+");
+
     private final TenantRepository tenantRepo;
     private final UserRepository userRepo;
     private final PasswordEncoder passwordEncoder;
     private final SettingsService settings;
-    private final EmailService emailService;
 
     /**
      * Регистрация нового пользователя вместе с tenant.
@@ -30,12 +34,17 @@ public class RegistrationService {
      */
     @Transactional
     public User register(String email, String password, String tenantName,
-                         boolean agreedToTerms, boolean agreedToConsent) {
-        if (email == null || email.isBlank() || !email.contains("@")) {
+                         boolean agreedToTerms, boolean agreedToConsent, boolean strict) {
+        if (email == null || email.isBlank() || !EMAIL.matcher(email.trim()).matches() || email.trim().length() > 255) {
             throw new IllegalArgumentException("Некорректный email");
         }
-        if (password == null || password.length() < 8) {
-            throw new IllegalArgumentException("Пароль должен быть не менее 8 символов");
+        String passwordError = PasswordPolicy.check(password, null, email);
+        if (passwordError != null) {
+            throw new IllegalArgumentException(passwordError);
+        }
+        String domainError = EmailDomains.check(email);
+        if (domainError != null) {
+            throw new IllegalArgumentException(domainError);
         }
         if (tenantName == null || tenantName.isBlank()) {
             throw new IllegalArgumentException("Введите название компании");
@@ -49,9 +58,11 @@ public class RegistrationService {
 
         String normalizedEmail = email.trim().toLowerCase();
 
-        userRepo.findByEmail(normalizedEmail).ifPresent(existing -> {
-            throw new IllegalArgumentException("Email уже зарегистрирован");
-        });
+        // без учёта регистра и по логину тоже: вход ищет пользователя по логину
+        if (userRepo.countByLoginOrEmailIgnoreCase(normalizedEmail) > 0) {
+            throw new IllegalArgumentException("Этот адрес уже зарегистрирован. Если это вы — войдите "
+                    + "или восстановите пароль.");
+        }
 
         Tenant tenant = new Tenant();
         tenant.setName(tenantName.trim());
@@ -68,8 +79,9 @@ public class RegistrationService {
         user.setDisplayName(tenantName.trim());
         user.setRole(User.Role.OWNER);
         user.setActive(true);
-        // адрес ещё не подтверждён: плашка, срок, страница бронирования ждёт подтверждения
-        EmailVerificationService.prepareNew(user);
+        // адрес ещё не подтверждён: плашка и срок (STRICT — кабинет сразу закрыт до подтверждения),
+        // страница бронирования ждёт подтверждения
+        EmailVerificationService.prepareNew(user, strict);
 
         LocalDateTime now = LocalDateTime.now();
         user.setAgreedToPdAt(now); // legacy

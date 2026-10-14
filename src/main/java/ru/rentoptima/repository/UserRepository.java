@@ -7,7 +7,8 @@ import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
 
-    @Query("SELECT u FROM User u JOIN FETCH u.tenant WHERE u.username = :username AND u.active = true")
+    /** Вход: логин без учёта регистра (уникален без учёта регистра с V39). */
+    @Query("SELECT u FROM User u JOIN FETCH u.tenant WHERE lower(u.username) = lower(:username) AND u.active = true")
     Optional<User> findByUsernameActive(String username);
 
     java.util.Optional<ru.rentoptima.entity.User> findByEmail(String email);
@@ -15,6 +16,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     /** Активный пользователь по адресу почты без учёта регистра — для восстановления пароля. */
     @Query("SELECT u FROM User u JOIN FETCH u.tenant WHERE lower(u.email) = lower(:email) AND u.active = true")
     Optional<User> findActiveByEmail(String email);
+
+    /** Занят ли адрес — как логин или как почта, без учёта регистра. */
+    @Query("SELECT count(u) FROM User u WHERE lower(u.username) = lower(:value) OR lower(u.email) = lower(:value)")
+    long countByLoginOrEmailIgnoreCase(String value);
 
     java.util.Optional<ru.rentoptima.entity.User> findByEmailVerificationToken(String token);
 

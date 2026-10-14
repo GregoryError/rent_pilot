@@ -86,6 +86,7 @@ class OnboardingIntegrationTest {
     @Autowired OnboardingStateRepository states;
     @Autowired OnboardingNotifier notifier;
     @Autowired OnboardingStats stats;
+    @Autowired ru.rentoptima.service.WidgetFormToken formTokens;
 
     /** Новый пользователь, как после регистрации: со строкой состояния онбординга. */
     private TenantUserDetails newcomer() {
@@ -135,6 +136,7 @@ class OnboardingIntegrationTest {
     void whoGetsTheWizard() throws Exception {
         String email = "new-" + UUID.randomUUID().toString().substring(0, 8) + "@example.com";
         mvc.perform(post("/register").with(csrf()).param("email", email).param("password", "Passw0rd-1")
+                        .param("formToken", formTokens.issue("register", System.currentTimeMillis() - 10_000))
                         .param("confirmPassword", "Passw0rd-1").param("tenantName", "Новая хозяйка")
                         .param("agreedToTerms", "on").param("agreedToConsent", "on"))
                 .andExpect(redirectedUrl("/onboarding"));

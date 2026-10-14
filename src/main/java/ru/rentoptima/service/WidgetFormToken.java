@@ -11,7 +11,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 /**
- * Проверка времени заполнения формы бронирования — защита от ботов без капчи.
+ * Проверка времени заполнения формы бронирования (и регистрации) — защита от ботов без капчи.
  * <p>
  * Сервер выдаёт подписанную отметку времени вместе с расчётом стоимости (гость
  * получает его, когда выбрал даты), а при отправке формы проверяет, что с тех пор
@@ -54,7 +54,28 @@ public class WidgetFormToken {
         return check(widgetId, token, System.currentTimeMillis());
     }
 
+    /**
+     * Токен для другой формы — например, регистрации ({@code scope = "register"}). Подпись
+     * включает область, поэтому токен одной формы не подходит к другой и к виджету.
+     */
+    public String issue(String scope) {
+        return issue(scope, System.currentTimeMillis());
+    }
+
+    /** С явным временем выдачи — в тестах, чтобы не ждать {@link #MIN_FILL_MILLIS}. */
+    public String issue(String scope, long now) {
+        return now + "." + sign("form:" + scope, now);
+    }
+
+    public Check check(String scope, String token) {
+        return check("form:" + scope, token, System.currentTimeMillis());
+    }
+
     Check check(Long widgetId, String token, long now) {
+        return check(String.valueOf(widgetId), token, now);
+    }
+
+    private Check check(String subject, String token, long now) {
         if (token == null) return Check.INVALID;
         int dot = token.indexOf('.');
         if (dot <= 0) return Check.INVALID;
@@ -65,7 +86,7 @@ public class WidgetFormToken {
             return Check.INVALID;
         }
         byte[] given = token.substring(dot + 1).getBytes(StandardCharsets.UTF_8);
-        byte[] expected = sign(widgetId, issuedAt).getBytes(StandardCharsets.UTF_8);
+        byte[] expected = sign(subject, issuedAt).getBytes(StandardCharsets.UTF_8);
         if (!MessageDigest.isEqual(given, expected)) return Check.INVALID;
         long age = now - issuedAt;
         if (age < MIN_FILL_MILLIS) return Check.TOO_FAST;
@@ -74,7 +95,11 @@ public class WidgetFormToken {
     }
 
     private String sign(Long widgetId, long issuedAt) {
-        byte[] mac = hmac(key, (widgetId + ":" + issuedAt).getBytes(StandardCharsets.UTF_8));
+        return sign(String.valueOf(widgetId), issuedAt);
+    }
+
+    private String sign(String subject, long issuedAt) {
+        byte[] mac = hmac(key, (subject + ":" + issuedAt).getBytes(StandardCharsets.UTF_8));
         return Base64.getUrlEncoder().withoutPadding().encodeToString(mac);
     }
 
