@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.CalendarBlock;
+import ru.rentoptima.mail.Mail;
 import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.BookingWidgetRepository;
 import ru.rentoptima.repository.CalendarBlockRepository;
@@ -157,27 +158,28 @@ public class WidgetNotifier {
             boolean en = "en".equals(b.getLocale());
             String dates = b.getCheckIn().format(DAY) + " — " + b.getCheckOut().format(DAY);
             String subject;
-            StringBuilder text = new StringBuilder();
+            String intro;
             switch (event) {
                 case REQUESTED -> {
                     subject = en ? "Booking request received: " + w.getTitle() : "Заявка получена: " + w.getTitle();
-                    text.append(en ? "We have passed your request to the host. They will contact you to confirm it.\n\n"
-                            : "Мы передали вашу заявку хозяину. Он свяжется с вами, чтобы подтвердить бронь.\n\n");
+                    intro = en ? "We have passed your request to the host. They will contact you to confirm it."
+                            : "Мы передали вашу заявку хозяину. Он свяжется с вами, чтобы подтвердить бронь.";
                 }
                 case BOOKED -> {
                     subject = en ? "Booking confirmed: " + w.getTitle() : "Бронь подтверждена: " + w.getTitle();
-                    text.append(en ? "Your booking is confirmed.\n\n" : "Ваша бронь подтверждена.\n\n");
+                    intro = en ? "Your booking is confirmed." : "Ваша бронь подтверждена.";
                 }
                 case DECLINED -> {
                     subject = en ? "Booking request declined: " + w.getTitle() : "Заявка отклонена: " + w.getTitle();
-                    text.append(en ? "Unfortunately, the host could not accept your request.\n\n"
-                            : "К сожалению, хозяин не смог принять вашу заявку.\n\n");
+                    intro = en ? "Unfortunately, the host could not accept your request."
+                            : "К сожалению, хозяин не смог принять вашу заявку.";
                 }
                 default -> {
                     subject = en ? "Booking cancelled: " + w.getTitle() : "Бронь отменена: " + w.getTitle();
-                    text.append(en ? "The host has cancelled your booking.\n\n" : "Хозяин отменил вашу бронь.\n\n");
+                    intro = en ? "The host has cancelled your booking." : "Хозяин отменил вашу бронь.";
                 }
             }
+            StringBuilder text = new StringBuilder();
             text.append(w.getTitle()).append("\n");
             text.append(en ? "Booking no. " : "Номер брони: ").append(b.getPublicCode()).append("\n");
             text.append(en ? "Dates: " : "Даты: ").append(dates).append("\n");
@@ -192,7 +194,8 @@ public class WidgetNotifier {
                     text.append(en ? "Host phone: " : "Телефон хозяина: ").append(w.getContactPhone()).append("\n");
                 }
             }
-            email.send(b.getGuestEmail(), subject, text.toString());
+            email.send(Mail.to(b.getGuestEmail()).subject(subject).lang(en ? "en" : "ru")
+                    .paragraph(intro).paragraph(text.toString()).build());
         } catch (Exception e) {
             log.warn("Не удалось отправить письмо гостю по брони {}: {}", b.getId(), e.getMessage());
         }

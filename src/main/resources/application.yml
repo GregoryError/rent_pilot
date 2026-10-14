@@ -28,22 +28,13 @@ spring:
     prefix: classpath:/templates/
     suffix: .html
 
-  # SMTP для писем гостям о бронях с виджета. Пока SMTP_HOST и MAIL_FROM не заданы,
-  # письма молча пропускаются (EmailService).
+  # SMTP (Unisender Go). Пока SMTP_HOST и MAIL_FROM не заданы, письма молча пропускаются
+  # (EmailService). Шифрование и таймауты — в MailConfig, режим — app.mail.security.
   mail:
     host: ${SMTP_HOST:}
-    port: ${SMTP_PORT:465}
+    port: ${SMTP_PORT:587}
     username: ${SMTP_USERNAME:}
     password: ${SMTP_PASSWORD:}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          ssl:
-            enable: ${SMTP_SSL:true}
-          connectiontimeout: 5000
-          timeout: 10000
-          writetimeout: 10000
 
   servlet:
     multipart:
@@ -106,9 +97,16 @@ app:
     dir: ${APP_UPLOADS_DIR:uploads}
     cwebp: ${APP_CWEBP:cwebp}
 
-  # От кого уходят письма гостям о бронях. Пусто — письма не отправляются.
   mail:
+    # Отправитель: «OptiRent <no-reply@optirent.ru>». Пусто — письма не отправляются.
     from: ${MAIL_FROM:}
+    # Куда отвечать: на адрес отправителя письма не принимаются. Пусто — без Reply-To.
+    reply-to: ${MAIL_REPLY_TO:}
+    # starttls (порт 587) или ssl (порт 465). Пусто — по порту.
+    security: ${SMTP_SECURITY:}
+    # 1 — без ссылки отписки Unisender в письмах. Ставить, только когда поддержка Unisender
+    # включила skip_unsubscribe для аккаунта.
+    skip-unsubscribe: ${MAIL_SKIP_UNSUBSCRIBE:false}
 
 encryption:
   key: ${ENCRYPTION_KEY:}
