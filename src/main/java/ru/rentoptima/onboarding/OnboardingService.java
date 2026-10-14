@@ -132,7 +132,13 @@ public class OnboardingService {
 
     @Transactional
     public void createProperty(OnboardingState s, String name, String city, int unitCount, BigDecimal price) {
-        Long propertyId = propertyCreator.createProperty(s.getTenantId(), name, null, city);
+        createProperty(s, name, city, unitCount, price, ru.rentoptima.housing.HousingKind.APARTMENT);
+    }
+
+    /** @param kind что сдаёт хозяин — от этого зависят слова в интерфейсе (V40) */
+    public void createProperty(OnboardingState s, String name, String city, int unitCount, BigDecimal price,
+                               ru.rentoptima.housing.HousingKind kind) {
+        Long propertyId = propertyCreator.createProperty(s.getTenantId(), name, null, city, kind);
         // Категория в мастере одна; название объекта хозяин уже дал, категории своё не нужно
         UnitType ut = propertyCreator.createUnitType(s.getTenantId(), propertyId, "Основной", unitCount, price, null);
         ObjectNode data = s.dataCopy();

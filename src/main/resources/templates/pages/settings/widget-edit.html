@@ -138,7 +138,7 @@
             <div class="form-group">
                 <label><input type="checkbox" name="showPrice" value="true" th:checked="${w.showPrice}">
                     Показывать гостю стоимость</label>
-                <div class="form-hint">Цена берётся из шахматки: цена на конкретную дату, если вы её задали, иначе цена квартиры.</div>
+                <div class="form-hint" th:text="${housing.fill('Цена берётся из шахматки: цена на конкретную дату, если вы её задали, иначе цена %gen%.')}">Цена берётся из шахматки.</div>
             </div>
             <div class="form-group" style="margin-bottom: 0;">
                 <label><input type="checkbox" name="showPoweredBy" value="true" th:checked="${w.showPoweredBy}">

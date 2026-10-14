@@ -23,9 +23,13 @@ public class OnboardingChecklist {
     public static final String COLLAPSED = "stepsCollapsed";
     public static final String CELEBRATED = "stepsCelebrated";
 
-    /** @param guideHref ссылка на инструкцию площадки — у напоминания «за сутки не забрала ссылку» */
-    public record Item(String id, String title, boolean done, String href, String note, String cssClass,
-                       String guideHref) {}
+    /**
+     * @param href      куда ведёт кнопка; null — кнопки нет
+     * @param action    подпись кнопки («Сделать», «Как проверить»)
+     * @param guideHref ссылка на инструкцию площадки — у напоминания «за сутки не забрала ссылку»
+     */
+    public record Item(String id, String title, boolean done, String href, String action, String note,
+                       String cssClass, String guideHref) {}
 
     /**
      * @param celebrate все пункты выполнены и поздравление ещё не показывали: блок выводится
@@ -36,37 +40,52 @@ public class OnboardingChecklist {
 
     private final OnboardingFacts facts;
     private final OnboardingService onboarding;
+    private final ru.rentoptima.housing.HousingVocabulary housingVocabulary;
 
     /** Чек-лист для показа; null — показывать нечего (скрыт, пройден, пользователь создан до онбординга). */
     public View view(OnboardingState s) {
         if (OnboardingService.legacy(s) || s.wizardActive() || flag(s, HIDDEN) || flag(s, CELEBRATED)) return null;
         Facts f = facts.of(s.getTenantId());
+        ru.rentoptima.housing.Housing housing = housingVocabulary.forTenant(s.getTenantId());
+        String doIt = OnboardingTexts.get("first.do");
         List<Item> items = new ArrayList<>();
-        items.add(item("property", f.property(), "/onboarding?step=property", null));
-        items.add(item("platform", f.platform(), "/onboarding?step=" + (f.property() ? "platforms" : "property"), null));
-        // «Сделать» у пункта, который отмечается сам, ведёт к карточкам площадок: проверить, что ссылка вставлена
-        // Прошли сутки, а площадка ни разу не забрала ссылку — вместо «отметится само» напоминание с инструкцией
-        OnboardingFacts.Stale stale = f.fetched() ? null : facts.staleChannel(s.getTenantId());
+        items.add(new Item("property", OnboardingTexts.get("first.property", housing), f.property(),
+                "/onboarding?step=property", doIt, null, css(f.property(), false), null));
+        // Пока жилья нет, остальные пункты приглушены и без кнопки: начинать надо с первого
+        String locked = f.property() ? null : OnboardingTexts.get("first.locked", housing);
+        items.add(item("platform", f.platform(), "/onboarding?step=platforms", doIt, locked));
+        // «Площадка забрала ссылку» отмечается сама: кнопка не «Сделать», а «Как проверить» — в
+        // диагностику площадок, когда там есть что показать; иначе — короткое пояснение.
+        // Прошли сутки, а площадка ни разу не забрала ссылку — вместо пояснения напоминание с инструкцией
+        OnboardingFacts.Stale stale = f.fetched() || locked != null ? null : facts.staleChannel(s.getTenantId());
         String guide = stale == null || stale.platform() == null ? null
                 : PlatformGuides.find(stale.platform()).map(PlatformGuides.Platform::guidePath).orElse(null);
-        items.add(new Item("fetched", OnboardingTexts.get("first.fetched"), f.fetched(), "/onboarding?step=links",
-                f.fetched() ? null : stale != null ? OnboardingTexts.format("notice.stale", stale.name())
-                        : OnboardingTexts.get("first.fetched.wait"),
-                f.fetched() ? "onb-steps__item is-done" : stale != null ? "onb-steps__item is-late" : "onb-steps__item",
+        String fetchedNote = f.fetched() ? null : locked != null ? locked
+                : stale != null ? OnboardingTexts.format("notice.stale", stale.name())
+                : f.channels() ? OnboardingTexts.get("first.fetched.wait") : OnboardingTexts.get("first.fetched.explain");
+        items.add(new Item("fetched", OnboardingTexts.get("first.fetched"), f.fetched(),
+                locked == null && f.channels() ? "/settings/channels/diagnostics" : null,
+                OnboardingTexts.get("first.fetched.how"), fetchedNote,
+                f.fetched() ? css(true, false) : stale != null ? "onb-steps__item is-late" : css(false, locked != null),
                 guide));
-        items.add(item("booking", f.booking() && flag(s, SEEN_BOOKING), "/calendar/grid", null));
-        items.add(item("page", f.page(), f.property() ? "/onboarding?step=page" : "/onboarding?step=property", null));
+        items.add(item("booking", f.booking() && flag(s, SEEN_BOOKING), "/calendar/grid", doIt, locked));
+        items.add(item("page", f.page(), "/onboarding?step=page", doIt, locked));
         items.add(item("card", flag(s, CARD_PRINTED),
-                f.page() ? "/settings/widgets/" + f.widgetId() + "/card" : "/settings/widgets", null));
+                f.page() ? "/settings/widgets/" + f.widgetId() + "/card" : "/settings/widgets", doIt, locked));
         int done = (int) items.stream().filter(Item::done).count();
         onboarding.countChecklist(s, items.stream().filter(Item::done).map(Item::id).toList(), done == items.size());
         return new View(items, done, items.size(), flag(s, COLLAPSED), done == items.size(),
                 OnboardingTexts.format("first.progress", done, items.size()), items.size() - done);
     }
 
-    private static Item item(String id, boolean done, String href, String note) {
-        return new Item(id, OnboardingTexts.get("first." + id), done, href, note,
-                done ? "onb-steps__item is-done" : "onb-steps__item", null);
+    /** Пункт; {@code locked} — текст «сначала добавьте жильё»: пункт приглушён и без кнопки. */
+    private static Item item(String id, boolean done, String href, String action, String locked) {
+        return new Item(id, OnboardingTexts.get("first." + id), done, locked != null ? null : href, action,
+                done ? null : locked, css(done, locked != null && !done), null);
+    }
+
+    private static String css(boolean done, boolean locked) {
+        return done ? "onb-steps__item is-done" : locked ? "onb-steps__item is-locked" : "onb-steps__item";
     }
 
     private static boolean flag(OnboardingState s, String key) {

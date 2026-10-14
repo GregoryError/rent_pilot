@@ -121,7 +121,8 @@ public class AiChatService {
     }
 
 
-    private String buildSystemPrompt(Long tenantId) {
+    /** Подсказка AI-чату; пакетная — для теста «цена из квартиры, не из настроек». */
+    String buildSystemPrompt(Long tenantId) {
         Map<String, String> s = settings.getSettingsMap(tenantId);
         LocalDate now = LocalDate.now();
         LocalDate monthStart = now.withDayOfMonth(1);

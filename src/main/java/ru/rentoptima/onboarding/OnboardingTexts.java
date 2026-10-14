@@ -20,6 +20,9 @@ public final class OnboardingTexts {
 
     public static final Map<String, String> RU = load("ru");
 
+    private static final Map<ru.rentoptima.housing.Housing, Map<String, String>> FILLED =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
     private static final String[] MONTHS_GENITIVE = {"января", "февраля", "марта", "апреля", "мая", "июня",
             "июля", "августа", "сентября", "октября", "ноября", "декабря"};
 
@@ -29,6 +32,23 @@ public final class OnboardingTexts {
         String text = RU.get(key);
         if (text == null) throw new IllegalArgumentException("Нет текста онбординга: " + key);
         return text;
+    }
+
+    /**
+     * Все тексты со словом жилья хозяина вместо меток ({@code %acc%} и др., см.
+     * {@link ru.rentoptima.housing.Housing#fill}). Для шаблонов: {@code ${t['…']}}, {@code ${ot['…']}}.
+     */
+    public static Map<String, String> forHousing(ru.rentoptima.housing.Housing housing) {
+        return FILLED.computeIfAbsent(housing, h -> {
+            Map<String, String> out = new LinkedHashMap<>();
+            RU.forEach((k, v) -> out.put(k, h.fill(v)));
+            return Map.copyOf(out);
+        });
+    }
+
+    /** Текст со словом жилья хозяина. */
+    public static String get(String key, ru.rentoptima.housing.Housing housing) {
+        return housing.fill(get(key));
     }
 
     public static String format(String key, Object... args) {

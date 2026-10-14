@@ -12,11 +12,10 @@
     </div>
 
     <div class="card" th:if="${#lists.isEmpty(items)}">
-        <div class="card__title">Пока нет квартиры</div>
-        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
-            Ссылка для горничной появится вместе с квартирой.
-        </p>
-        <a class="btn btn-primary" th:href="@{/onboarding(step='property')}">Добавить квартиру</a>
+        <div class="card__title" th:text="${housing.fill('Пока нет %gen%')}">Пока нет жилья</div>
+        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;"
+           th:text="${housing.fill('Ссылка для горничной появится, когда вы добавите %acc%.')}">Ссылка для горничной появится.</p>
+        <a class="btn btn-primary" th:href="@{/onboarding(step='property')}" th:text="${housing.fill('Добавить %acc%')}">Добавить жильё</a>
     </div>
 
     <div th:each="it : ${items}" class="card">

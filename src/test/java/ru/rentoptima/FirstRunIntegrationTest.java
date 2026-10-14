@@ -51,6 +51,8 @@ class FirstRunIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired PropertyCreator propertyCreator;
     @Autowired PricingEngine pricingEngine;
+    @Autowired ru.rentoptima.service.WidgetCreator widgetCreator;
+    @Autowired ru.rentoptima.onboarding.OnboardingService onboardingService;
 
     private TenantUserDetails account() {
         String tag = UUID.randomUUID().toString().substring(0, 8);
@@ -87,7 +89,7 @@ class FirstRunIntegrationTest {
     @DisplayName("дашборд без квартиры: ни метрик, ни алертов, одна кнопка в мастер")
     void emptyDashboard() throws Exception {
         String html = page(account(), "/dashboard");
-        assertThat(html).contains("Здесь будет сводка по квартире").contains("/onboarding?step=property");
+        assertThat(html).contains("Здесь появится сводка").contains("Добавить жильё").contains("/onboarding?step=property");
         assertThat(html).doesNotContain("Загрузка отстаёт").doesNotContain("Требует внимания")
                 .doesNotContain("hero__value").doesNotContain("kpi-row").doesNotContain("импортируйте");
     }
@@ -104,19 +106,28 @@ class FirstRunIntegrationTest {
     }
 
     @Test
-    @DisplayName("/pricing без квартиры: пустое состояние вместо 3000/4000 и пустой таблицы")
-    void emptyPricing() throws Exception {
-        String html = page(account(), "/pricing");
-        assertThat(html).contains("Цены появятся вместе с квартирой").contains("/onboarding?step=property");
-        assertThat(html).doesNotContain("3000 ₽").doesNotContain("kpi-row").doesNotContain("следующие 60 дней");
+    @DisplayName("без жилья разделы вне короткого меню ведут в мастер на шаг жилья; «Настройки» открыты")
+    void noPropertyPagesLeadToWizard() throws Exception {
+        TenantUserDetails u = account();
+        for (String path : new String[]{"/pricing", "/settings/channels", "/settings/channels/diagnostics",
+                "/settings/widgets", "/settings/properties", "/settings/transfer", "/bookings/pending",
+                "/calendar", "/expenses", "/feedback-admin", "/staff", "/chat"}) {
+            mvc.perform(get(path).with(user(u))).andExpect(redirectedUrl("/onboarding?step=property"));
+        }
+        mvc.perform(get("/settings").with(user(u))).andExpect(status().isOk());
+        mvc.perform(get("/settings/integrations").with(user(u))).andExpect(status().isOk());
+        mvc.perform(get("/account/password").with(user(u))).andExpect(status().isOk());
     }
 
     @Test
-    @DisplayName("«Площадки» без квартиры: кнопка в шапке — ссылка в мастер, а не неактивная кнопка")
-    void connectButtonLeadsToWizard() throws Exception {
-        String html = page(account(), "/settings/channels");
-        assertThat(html).contains("href=\"/onboarding?step=platforms\"");
-        assertThat(html).doesNotContain("id=\"btn-add-channel\"").doesNotContain("Подключить канал");
+    @DisplayName("«Площадки» без площадок: в шапке нет кнопок, одна кнопка в пустом состоянии ведёт в мастер")
+    void emptyPlatformsOneButton() throws Exception {
+        TenantUserDetails u = account();
+        apartment(u);
+        String html = page(u, "/settings/channels");
+        String header = html.substring(html.indexOf("page-header"), html.indexOf("Площадок пока нет"));
+        assertThat(header).doesNotContain("Диагностика").doesNotContain("Подключить площадку");
+        assertThat(html).contains("href=\"/onboarding?step=platforms\"").doesNotContain("Подключить канал");
     }
 
     @Test
@@ -216,26 +227,32 @@ class FirstRunIntegrationTest {
     }
 
     @Test
-    @DisplayName("две категории — понятие «категория» возвращается, выбор в формах тоже")
+    @DisplayName("мини-отель с двумя типами номеров: «гостиница», «типы номеров», выбор в формах")
     void categoriesShownWhenSeveral() throws Exception {
         TenantUserDetails u = account();
-        Long property = propertyCreator.createProperty(u.getTenantId(), "Мини-отель", null, "Казань");
+        Long property = propertyCreator.createProperty(u.getTenantId(), "Мини-отель", null, "Казань",
+                ru.rentoptima.housing.HousingKind.ROOMS);
         propertyCreator.createUnitType(u.getTenantId(), property, "Стандарт", 3, BigDecimal.valueOf(3000), null);
         propertyCreator.createUnitType(u.getTenantId(), property, "Люкс", 1, BigDecimal.valueOf(6000), null);
         String channels = page(u, "/settings/channels");
-        assertThat(channels).contains("Квартира или категория номеров").contains("Мини-отель / Люкс");
-        assertThat(page(u, "/settings/properties")).contains("Категории номеров");
+        assertThat(channels).contains("Гостиница или тип номера").contains("Мини-отель / Люкс");
+        // слова «квартира» нет нигде, кроме варианта в списке «Что вы сдаёте»
+        assertThat(page(u, "/settings/properties").replaceAll("<option[^>]*>[^<]*</option>", ""))
+                .contains("Типы номеров").contains("+ Тип номера").doesNotContainPattern("[Кк]вартир");
     }
 
     @Test
-    @DisplayName("меню без квартиры: Главная, Добавить квартиру, Помощь; шахматка уводит на Главную")
+    @DisplayName("меню без жилья: Главная, Добавить жильё, Настройки, Помощь; шахматка уводит на Главную")
     void shortMenuWithoutApartment() throws Exception {
         TenantUserDetails u = account();
         String html = page(u, "/dashboard");
         String nav = html.substring(html.indexOf("sidebar__nav"), html.indexOf("sidebar__footer"));
-        assertThat(nav).contains("Главная").contains("Добавить квартиру").contains("Помощь")
-                .contains("Инструкции").doesNotContain("Шахматка").doesNotContain("Настройки")
+        assertThat(nav).contains("Главная").contains("Добавить жильё").contains("Настройки").contains("Помощь")
+                .contains("Инструкции").doesNotContain("Шахматка").doesNotContain("Сменить пароль")
                 .doesNotContain("Расходы").doesNotContain("Импорт").doesNotContain("Знакомство");
+        // «Сменить пароль» — в блоке аккаунта, рядом с темой и «Выйти»
+        String footer = html.substring(html.indexOf("sidebar__footer"));
+        assertThat(footer).contains("Сменить пароль").contains("Выйти");
         mvc.perform(get("/calendar/grid").with(user(u))).andExpect(redirectedUrl("/dashboard"));
     }
 
@@ -293,7 +310,69 @@ class FirstRunIntegrationTest {
                 .doesNotContain("name=\"weekday_base_price\"");
         assertThat(html).containsPattern("<details class=\"card settings-advanced\" id=\"settings-advanced\">")
                 .contains("Значения по умолчанию подходят большинству")
-                .contains("Значения по умолчанию для новых квартир").contains("/settings/transfer");
+                .contains("Значения по умолчанию для нового жилья").contains("/settings/transfer");
         assertThat(html.substring(advanced)).contains("name=\"open_ahead_days\"").contains("name=\"weekday_base_price\"");
+    }
+
+    @Test
+    @DisplayName("с жильём на каждой странице кабинета подсвечен пункт меню; страницы из «Ещё» раскрывают группу")
+    void everyPageHighlightsMenu() throws Exception {
+        TenantUserDetails u = account();
+        apartment(u);
+        Long unit = jdbc.queryForObject("SELECT id FROM unit_types WHERE tenant_id = ?", Long.class, u.getTenantId());
+        Long widget = widgetCreator.create(u.getTenantId(), unit, "Страница").getId();
+        String w = "/settings/widgets/" + widget;
+        java.util.Map<String, Boolean> pages = new java.util.LinkedHashMap<>();   // адрес → пункт в «Ещё»
+        for (String p : new String[]{"/dashboard", "/calendar/grid", "/settings/channels", "/settings/channels/diagnostics",
+                "/pricing", "/settings/widgets", w, w + "/stats", w + "/design", w + "/card", "/bookings/pending",
+                "/settings", "/settings/properties", "/settings/integrations"}) {
+            pages.put(p, false);
+        }
+        for (String p : new String[]{"/calendar", "/expenses", "/feedback-admin", "/feedback", "/staff", "/chat",
+                "/settings/transfer"}) {
+            pages.put(p, true);
+        }
+        for (var e : pages.entrySet()) {
+            String html = page(u, e.getKey());
+            assertThat(html).as(e.getKey()).contains("nav-item--active");
+            assertThat(html.contains("<details class=\"nav-more\" id=\"nav-more\" open")).as(e.getKey() + " — «Ещё»")
+                    .isEqualTo(e.getValue());
+        }
+        // «Сменить пароль» — в блоке аккаунта, подсвечен там
+        assertThat(page(u, "/account/password")).contains("sidebar__account-link is-active");
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "{0}")
+    @org.junit.jupiter.params.provider.EnumSource(ru.rentoptima.housing.HousingKind.class)
+    @DisplayName("тип жилья в словах кабинета: «Объекты», «Цены», меню «Ещё», «Изменить цену»")
+    void wordsByKind(ru.rentoptima.housing.HousingKind kind) throws Exception {
+        TenantUserDetails u = account();
+        Long property = propertyCreator.createProperty(u.getTenantId(), "Объект", null, "Город", kind);
+        propertyCreator.createUnitType(u.getTenantId(), property, "Основной", 1, BigDecimal.valueOf(4500), null);
+        ru.rentoptima.housing.Housing h = kind.housing;
+        // один объект на одну единицу — «простой режим»: «Ваша квартира», «Ваш дом», «Ваши апартаменты»
+        assertThat(page(u, "/settings/properties")).contains(h.fill("%Your%: название, адрес и цена за ночь"));
+        assertThat(page(u, "/pricing")).contains(h.fill("Цена %gen% в будни"));
+        assertThat(page(u, "/calendar/grid")).contains(">" + h.fill("%Nom%") + "<");
+        if (kind != ru.rentoptima.housing.HousingKind.APARTMENT) {
+            String props = page(u, "/settings/properties").replaceAll("<option[^>]*>[^<]*</option>", "");
+            assertThat(props).as(kind.name()).doesNotContainPattern("[Кк]вартир");
+        }
+    }
+
+    @Test
+    @DisplayName("тип жилья выбирается в мастере и меняется в «Объектах»")
+    void kindChosenAndChanged() throws Exception {
+        TenantUserDetails u = account();
+        onboardingService.begin(u.getUserId(), u.getTenantId());
+        mvc.perform(post("/onboarding/branch").with(user(u)).with(csrf()).param("branch", "B"));
+        assertThat(page(u, "/onboarding?step=property")).contains("Что вы сдаёте?", "value=\"HOUSE\"", "value=\"ROOMS\"");
+        mvc.perform(post("/onboarding/property").with(user(u)).with(csrf()).param("kind", "HOUSE")
+                .param("name", "Дом у озера").param("city", "Тверь").param("basePrice", "9000"));
+        Long id = jdbc.queryForObject("SELECT id FROM properties WHERE tenant_id = ?", Long.class, u.getTenantId());
+        assertThat(jdbc.queryForObject("SELECT kind FROM properties WHERE id = ?", String.class, id)).isEqualTo("HOUSE");
+        mvc.perform(post("/settings/properties/" + id + "/edit").with(user(u)).with(csrf())
+                .param("name", "Дом у озера").param("kind", "APARTMENTS")).andExpect(status().is3xxRedirection());
+        assertThat(jdbc.queryForObject("SELECT kind FROM properties WHERE id = ?", String.class, id)).isEqualTo("APARTMENTS");
     }
 }

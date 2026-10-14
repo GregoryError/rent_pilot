@@ -25,7 +25,9 @@ public class OnboardingFacts {
              OR (SELECT COUNT(*) FROM channel_feed_fetches g WHERE g.channel_id = f.channel_id) >= 3)
             """;
 
-    public record Facts(boolean property, boolean platform, boolean fetched, boolean booking, Long widgetId) {
+    /** @param channels есть хоть одна площадка (со ссылкой или без) — в диагностике есть что показать */
+    public record Facts(boolean property, boolean platform, boolean fetched, boolean booking, Long widgetId,
+                        boolean channels) {
         public boolean page() {
             return widgetId != null;
         }
@@ -44,11 +46,12 @@ public class OnboardingFacts {
                   EXISTS (SELECT 1 FROM calendar_blocks b JOIN channels c ON c.id = b.channel_id
                            WHERE b.tenant_id = ? AND c.channel_type = 'ICAL' AND b.cancelled_at IS NULL
                              AND NOT b.ignored) AS booking,
-                  (SELECT MIN(w.id) FROM booking_widgets w WHERE w.tenant_id = ? AND w.active) AS widget_id
+                  (SELECT MIN(w.id) FROM booking_widgets w WHERE w.tenant_id = ? AND w.active) AS widget_id,
+                  EXISTS (SELECT 1 FROM channels c WHERE c.tenant_id = ? AND c.active AND c.channel_type = 'ICAL') AS channels
                 """,
                 (rs, n) -> new Facts(rs.getBoolean("property"), rs.getBoolean("platform"), rs.getBoolean("fetched"),
-                        rs.getBoolean("booking"), (Long) rs.getObject("widget_id")),
-                tenantId, tenantId, tenantId, tenantId, tenantId);
+                        rs.getBoolean("booking"), (Long) rs.getObject("widget_id"), rs.getBoolean("channels")),
+                tenantId, tenantId, tenantId, tenantId, tenantId, tenantId);
     }
 
     /** Площадка, которая не забирала ссылку. */

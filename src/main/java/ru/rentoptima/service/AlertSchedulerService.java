@@ -268,7 +268,7 @@ public class AlertSchedulerService {
             if (name != null) names.add("«" + name + "»");
         }
         long nights = ChronoUnit.DAYS.between(p.from(), p.toExclusive());
-        String text = (unitLabel == null ? "Квартира" : unitLabel)
+        String text = (unitLabel == null ? "Объект" : unitLabel)
                 + ": " + formatNights(p.from(), p.toExclusive())
                 + " (" + nights + " " + nightsWord(nights) + ")";
         return names.isEmpty() ? text : text + " — " + String.join(", ", names);

@@ -110,9 +110,9 @@ public class FeedbackController {
         boolean fromCard = request.cardCode() != null && !request.cardCode().isBlank();
         Property property = fromCard ? cardProperty(request.cardCode())
                 : propertyRepo.findByFeedbackCode(request.propertyCode()).orElse(null);
-        if (property == null) return ResponseEntity.badRequest().body(Map.of("error", "Property not found"));
+        if (property == null) return ResponseEntity.badRequest().body(Map.of("error", "Анкета не найдена — откройте ссылку ещё раз"));
         if (request.sessionId() == null || request.sessionId().length() > 64) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Bad session"));
+            return ResponseEntity.badRequest().body(Map.of("error", "Анкета устарела — обновите страницу"));
         }
 
         FeedbackResponse response = feedbackRepo.findBySessionId(request.sessionId())
@@ -124,7 +124,7 @@ public class FeedbackController {
                 });
         // Чужой sessionId не даёт дописать ответ к другому объекту
         if (!property.getId().equals(response.getPropertyId())) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Bad session"));
+            return ResponseEntity.badRequest().body(Map.of("error", "Анкета устарела — обновите страницу"));
         }
         // If guest provided a name, they must have given consent
         boolean hasName = request.guestName() != null && !request.guestName().trim().isEmpty();
@@ -220,7 +220,7 @@ public class FeedbackController {
             boolean card = FeedbackResponse.SOURCE_CARD.equals(response.getSource());
             String baseUrl = ServletUriComponentsBuilder.fromContextPath(http).build().toUriString();
             StringBuilder sb = new StringBuilder(card
-                    ? "💬 OptiRent: сообщение от гостя — с карточки в квартире\n"
+                    ? "💬 OptiRent: сообщение от гостя — с карточки для гостей\n"
                     : "💬 OptiRent: новый отзыв гостя\n");
             sb.append(property.getName()).append("\n");
             if (card) {

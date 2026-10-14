@@ -11,11 +11,12 @@
             <h1 class="page-title">Площадки</h1>
             <p class="page-subtitle">Брони с площадок собираются в шахматке, ваша занятость уходит на площадки</p>
         </div>
-        <div style="display: flex; gap: var(--sp-3);">
+        <!--/* Площадок ещё нет — кнопки в шапке не нужны: одна кнопка в пустом состоянии ниже */-->
+        <div style="display: flex; gap: var(--sp-3);" th:unless="${#lists.isEmpty(channels)}">
             <a class="btn btn-ghost" th:href="@{/settings/channels/diagnostics}">Диагностика</a>
             <button class="btn btn-primary" type="button" id="btn-add-channel"
                     th:if="${hasUnitTypes}">+ Подключить площадку</button>
-            <!-- Квартиры ещё нет: площадку подключают к квартире — сначала мастер -->
+            <!--/* Жилья ещё нет: площадку подключают к жилью — сначала мастер */-->
             <a class="btn btn-primary" th:unless="${hasUnitTypes}"
                th:href="@{/onboarding(step='platforms')}">+ Подключить площадку</a>
         </div>
@@ -35,10 +36,10 @@
                     <input type="text" name="name" class="form-input" required
                            placeholder="Суточно — Садовая">
                 </div>
-                <!--/* Одна квартира — выбирать не из чего, понятия «категория» не показываем */-->
+                <!--/* Один объект на одну единицу — выбирать не из чего, понятия «категория» не показываем */-->
                 <input type="hidden" name="unitTypeId" th:if="${simpleUnits}" th:value="${unitTypes[0].id}">
                 <div class="form-group" th:unless="${simpleUnits}">
-                    <label class="form-label">Квартира или категория номеров *</label>
+                    <label class="form-label" th:text="${housing.fill('%Nom% или %cat% *')}">Жильё или категория *</label>
                     <select name="unitTypeId" class="form-input" required>
                         <option th:each="ut : ${unitTypes}"
                                 th:value="${ut.id}" th:text="${ut.label}">Садовая / Основной</option>
@@ -69,8 +70,8 @@
     <div th:if="${!hasUnitTypes and !#lists.isEmpty(channels)}" class="card">
         <div class="card__title">Сначала добавьте категорию номеров</div>
         <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
-            Площадка привязывается к категории внутри объекта. Создайте хотя бы одну
-            категорию у любой квартиры в разделе «Объекты».
+            Площадке нужно, к чему привязаться: в разделе «Объекты» добавьте хотя бы одну
+            категорию номеров к любому объекту.
         </p>
         <a class="btn btn-primary" th:href="@{/settings/properties}">К объектам</a>
     </div>

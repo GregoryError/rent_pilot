@@ -71,6 +71,7 @@ public class OnboardingController {
     private final SiteSettings site;
     private final EmailVerificationService verification;
     private final ru.rentoptima.service.ApartmentDefaults apartmentDefaults;
+    private final ru.rentoptima.housing.HousingVocabulary housingVocabulary;
 
     @GetMapping
     public String wizard(@RequestParam(required = false) String step, Model model, HttpServletRequest request) {
@@ -82,15 +83,17 @@ public class OnboardingController {
         OnboardingState s = found.orElseGet(() -> onboarding.ensureLegacy(AuthContext.userId(), AuthContext.tenantId()));
 
         String view = resolveStep(s, step);
+        // слово для жилья — по типу жилья хозяина; пока объекта нет — «жильё»
+        java.util.Map<String, String> texts = OnboardingTexts.forHousing(housingVocabulary.forTenant(s.getTenantId()));
         List<String> steps = OnboardingService.steps(s);
         List<ProgressStep> progress = new ArrayList<>();
         int current = Math.max(0, steps.indexOf(view));
         for (int i = 0; i < steps.size(); i++) {
             String css = "wz-progress__step" + (i < current || STEP_DONE.equals(view) ? " is-done" : "")
                     + (i == current && !STEP_DONE.equals(view) ? " is-current" : "");
-            progress.add(new ProgressStep(OnboardingTexts.get("steps." + steps.get(i)), css));
+            progress.add(new ProgressStep(texts.get("steps." + steps.get(i)), css));
         }
-        model.addAttribute("t", OnboardingTexts.RU);
+        model.addAttribute("t", texts);
         model.addAttribute("step", view);
         model.addAttribute("progress", progress);
         // Шкала — только пока идёт мастер; вернувшийся из чек-листа делает одно действие и уходит
@@ -106,8 +109,9 @@ public class OnboardingController {
             case STEP_PROPERTY -> {
                 unit.ifPresent(u -> model.addAttribute("existingText", OnboardingTexts.format(
                         "property.existing", propertyRepo.findById(u.getPropertyId()).map(Property::getName).orElse(u.getName()))));
-                // «Значения по умолчанию для новых квартир» — только подсказкой в пустом поле
+                // «Значения по умолчанию для нового жилья» — только подсказкой в пустом поле
                 model.addAttribute("defaults", apartmentDefaults.forTenant(s.getTenantId()));
+                model.addAttribute("kinds", ru.rentoptima.housing.HousingKind.values());
             }
             case STEP_PLATFORMS -> model.addAttribute("tiles", tiles(s));
             case STEP_LINKS -> model.addAttribute("cards", cards(s, baseUrl));
@@ -153,6 +157,7 @@ public class OnboardingController {
 
     @PostMapping("/property")
     public String property(@RequestParam(required = false) String name,
+                           @RequestParam(required = false) String kind,
                            @RequestParam(required = false) String city,
                            @RequestParam(required = false) Integer unitCount,
                            @RequestParam(required = false) BigDecimal basePrice,
@@ -170,11 +175,12 @@ public class OnboardingController {
                 ? "property.error.price" : null;
         if (error != null) {
             redirect.addFlashAttribute("formError", OnboardingTexts.get(error));
-            redirect.addFlashAttribute("form", new PropertyForm(name, city, unitCount, basePrice));
+            redirect.addFlashAttribute("form", new PropertyForm(name, city, unitCount, basePrice, kind));
             return "redirect:/onboarding?step=property";
         }
         int count = unitCount == null ? 1 : Math.max(1, Math.min(unitCount, 500));
-        onboarding.createProperty(s, cut(name.trim(), 200), cut(city.trim(), 100), count, basePrice);
+        onboarding.createProperty(s, cut(name.trim(), 200), cut(city.trim(), 100), count, basePrice,
+                ru.rentoptima.housing.HousingKind.of(kind));
         return "redirect:/onboarding";
     }
 
@@ -434,7 +440,7 @@ public class OnboardingController {
 
     public record ProgressStep(String label, String cssClass) {}
 
-    public record PropertyForm(String name, String city, Integer unitCount, BigDecimal basePrice) {}
+    public record PropertyForm(String name, String city, Integer unitCount, BigDecimal basePrice, String kind) {}
 
     public record Tile(String id, String name, String letter, String style, String logo, boolean checked,
                        String otherName) {}

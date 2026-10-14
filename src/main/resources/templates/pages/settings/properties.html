@@ -9,7 +9,7 @@
     <div class="page-header flex justify-between items-center">
         <div>
             <h1 class="page-title">Объекты</h1>
-            <p class="page-subtitle" th:text="${simpleUnits} ? 'Ваша квартира: название, адрес и цена за ночь' : 'Управление квартирами и категориями номеров'">Управление квартирами и категориями номеров</p>
+            <p class="page-subtitle" th:text="${simpleUnits} ? ${housing.fill('%Your%: название, адрес и цена за ночь')} : ${housing.fill('Объекты, %cats% и цены')}">Объекты и цены</p>
         </div>
         <button class="btn btn-primary" onclick="document.getElementById('add-form').style.display='block'">+ Добавить объект</button>
     </div>
@@ -19,6 +19,12 @@
         <div class="card__title" style="margin-bottom: var(--sp-5)">Новый объект</div>
         <form th:action="@{/settings/properties}" method="post">
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label" for="new-kind">Что вы сдаёте</label>
+                    <select id="new-kind" name="kind" class="form-input">
+                        <option th:each="k : ${kinds}" th:value="${k.code}" th:text="${k.label}">Квартира</option>
+                    </select>
+                </div>
                 <div class="form-group">
                     <label class="form-label">Название *</label>
                     <input type="text" name="name" class="form-input" placeholder="Садовая 5, кв. 38" required>
@@ -57,6 +63,14 @@
                 <summary style="cursor: pointer; font-size: var(--text-sm); color: var(--accent); margin-bottom: var(--sp-4);">Редактировать</summary>
                 <form th:action="@{'/settings/properties/' + ${prop.id} + '/edit'}" method="post">
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4);">
+                        <!--/* Тип жилья — от него слова в кабинете: «цена дома», «типы номеров» */-->
+                        <div class="form-group">
+                            <label class="form-label" th:for="'kind-' + ${prop.id}">Что вы сдаёте</label>
+                            <select th:id="'kind-' + ${prop.id}" name="kind" class="form-input form-input--sm">
+                                <option th:each="k : ${kinds}" th:value="${k.code}" th:text="${k.label}"
+                                        th:selected="${k.code == prop.kind}">Квартира</option>
+                            </select>
+                        </div>
                         <div class="form-group">
                             <label class="form-label">Название</label>
                             <input type="text" name="name" class="form-input form-input--sm" th:value="${prop.name}" required>
@@ -92,17 +106,17 @@
             <div style="margin-top: var(--sp-6); padding-top: var(--sp-4); border-top: 1px solid var(--border-subtle);"
                  th:with="uts=${unitTypesByProperty != null ? unitTypesByProperty.get(prop.id) : null}">
                 <div class="flex justify-between items-center" style="margin-bottom: var(--sp-3);">
-                    <!--/* Одна квартира — понятия «категория» нет: только цена */-->
-                    <div class="card__title" style="margin: 0;" th:text="${simpleUnits} ? 'Цена за ночь' : 'Категории номеров'">Категории номеров</div>
+                    <!--/* Один объект на одну единицу — понятия «категория» нет: только цена */-->
+                    <div class="card__title" style="margin: 0;" th:text="${simpleUnits} ? 'Цена за ночь' : ${prop.housing.fill('%Cats%')}">Категории</div>
                     <button type="button" class="btn btn-ghost" th:unless="${simpleUnits}"
                             th:onclick="|document.getElementById('ut-form-${prop.id}').style.display='block'|">
-                        + Категория
+                        <span th:text="${prop.housing.fill('+ %Cat%')}">+ Категория</span>
                     </button>
                 </div>
 
                 <div th:if="${uts == null or #lists.isEmpty(uts)}" class="muted text-sm"
                      style="padding: var(--sp-3) 0;">
-                    Пока нет категорий. Для квартиры достаточно одной «Основной» с количеством 1.
+                    Пока пусто. Если сдаёте жильё целиком, хватит одной «Основной» с количеством 1.
                 </div>
 
                 <dl class="ut-prices" th:if="${simpleUnits and uts != null and !#lists.isEmpty(uts)}">
@@ -151,8 +165,8 @@
                 <button type="button" class="btn btn-ghost ut-price-edit" th:if="${simpleUnits and uts != null and !#lists.isEmpty(uts)}"
                         th:onclick="|document.getElementById('ut-edit-${uts[0].id}').hidden=false|">Изменить цену</button>
 
-                <!-- Изменить цену (и для мини-отеля — название и количество); цена квартиры — главная,
-                     от неё считаются шахматка, страница бронирования и рекомендации -->
+                <!--/* Изменить цену (и для мини-отеля — название и количество); цена объекта — главная,
+                     от неё считаются шахматка, страница бронирования и рекомендации */-->
                 <div th:each="ut : ${uts}" th:if="${uts != null}" th:id="'ut-edit-' + ${ut.id}" hidden
                      class="ut-edit">
                     <form th:action="@{'/settings/properties/' + ${prop.id} + '/unit-types/' + ${ut.id} + '/edit'}" method="post">
@@ -191,7 +205,7 @@
                     </form>
                 </div>
 
-                <!--/* Одна квартира: «категорий» не показываем; кто сдаёт разные номера — раскроет форму сам */-->
+                <!--/* Один объект на одну единицу: «категорий» не показываем; кто сдаёт разные номера — раскроет форму сам */-->
                 <button type="button" class="link-button text-sm ut-more" th:if="${simpleUnits}"
                         th:onclick="|document.getElementById('ut-form-${prop.id}').style.display='block'|">
                     В этом объекте несколько разных номеров?
@@ -205,12 +219,12 @@
                             <div class="form-group">
                                 <label class="form-label">Название *</label>
                                 <input type="text" name="name" class="form-input form-input--sm" required placeholder="Основной">
-                                <div class="form-hint">Тип номера. Для квартиры хватит одной категории.</div>
+                                <div class="form-hint">Если сдаёте жильё целиком, хватит одной.</div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Кол-во</label>
                                 <input type="number" inputmode="numeric" name="unitCount" class="form-input form-input--sm" min="1" value="1">
-                                <div class="form-hint">Сколько одинаковых номеров. Для квартиры — 1.</div>
+                                <div class="form-hint">Сколько одинаковых. Если сдаёте целиком — 1.</div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Цена, ₽</label>

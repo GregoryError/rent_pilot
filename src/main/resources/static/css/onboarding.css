@@ -203,4 +203,6 @@
 /* напоминание в чек-листе: за сутки площадка не забрала ссылку */
 .onb-steps__item.is-late .onb-steps__check { border-color: var(--amber); }
 .onb-steps__item.is-late small { color: var(--amber); }
+/* пока нет жилья: пункт приглушён и без кнопки, начинать с первого */
+.onb-steps__item.is-locked .onb-steps__text,.onb-steps__item.is-locked .onb-steps__check{opacity:.5}
 .onb-steps__text small a { text-decoration: underline; white-space: nowrap; }

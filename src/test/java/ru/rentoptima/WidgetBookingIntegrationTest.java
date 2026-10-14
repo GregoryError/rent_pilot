@@ -77,6 +77,27 @@ class WidgetBookingIntegrationTest {
     @Autowired WidgetBookingService widgets;
     @Autowired BookingWidgetRepository widgetRepo;
     @Autowired WidgetCorsConfig cors;
+    @Autowired ru.rentoptima.service.PropertyCreator propertyCreator;
+
+    /**
+     * Хозяин другого тенанта со своим жильём: без жилья разделы кабинета уводят в мастер раньше
+     * проверки тенанта (NoPropertyRedirect), а здесь проверяется именно «чужое — 404».
+     */
+    private TenantUserDetails strangerWithHome(long userId) {
+        Long tenantId = jdbc.queryForObject("INSERT INTO tenants(name, slug) VALUES ('Чужой', ?) RETURNING id",
+                Long.class, "stranger-" + java.util.UUID.randomUUID());
+        propertyCreator.createProperty(tenantId, "Чужое жильё", null, "Город");
+        Tenant stranger = new Tenant();
+        stranger.setId(tenantId);
+        User other = new User();
+        other.setId(userId);
+        other.setTenant(stranger);
+        other.setUsername("other");
+        other.setPasswordHash("x");
+        other.setDisplayName("Чужой");
+        other.setRole(User.Role.OWNER);
+        return new TenantUserDetails(other);
+    }
 
     private String slug;
     private String icalSecret;
@@ -493,18 +514,8 @@ class WidgetBookingIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(r -> assertThat(r.getResponse().getContentAsString()).contains("LETO10", "Действует"));
 
-        // Чужой tenant страницу не видит
-        Tenant stranger = new Tenant();
-        stranger.setId(widget.getTenantId() + 1000);
-        User other = new User();
-        other.setId(2L);
-        other.setTenant(stranger);
-        other.setUsername("other");
-        other.setPasswordHash("x");
-        other.setDisplayName("Чужой");
-        other.setRole(User.Role.OWNER);
-        // чужая страница — как несуществующая (TenantIsolationIntegrationTest)
-        mvc.perform(get(page).with(user(new TenantUserDetails(other))))
+        // Чужой tenant страницу не видит: чужая страница — как несуществующая (TenantIsolationIntegrationTest)
+        mvc.perform(get(page).with(user(strangerWithHome(2L))))
                 .andExpect(status().isNotFound());
 
         // Заявки: ожидающая и подтверждённая с кнопкой отмены
@@ -818,16 +829,7 @@ class WidgetBookingIntegrationTest {
         }
 
         // Чужой tenant: ни страницы, ни сохранения, ни ссылки, ни QR
-        Tenant stranger = new Tenant();
-        stranger.setId(widget.getTenantId() + 1000);
-        User other = new User();
-        other.setId(4L);
-        other.setTenant(stranger);
-        other.setUsername("other");
-        other.setPasswordHash("x");
-        other.setDisplayName("Чужой");
-        other.setRole(User.Role.OWNER);
-        TenantUserDetails alien = new TenantUserDetails(other);
+        TenantUserDetails alien = strangerWithHome(4L);
         String before = linkCode("CARD");
         mvc.perform(get(page).with(user(alien))).andExpect(status().isNotFound());
         mvc.perform(get(page + "/print").with(user(alien))).andExpect(status().isNotFound());
@@ -917,7 +919,7 @@ class WidgetBookingIntegrationTest {
         // Хозяин видит ответы с пометкой; чужой tenant — нет
         String admin = mvc.perform(get("/feedback-admin").with(user(host()))).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8);
-        assertThat(admin).contains("с карточки в квартире", "Не работает чайник", "бронь не определена");
+        assertThat(admin).contains("с карточки для гостей", "Не работает чайник", "бронь не определена");
         Tenant stranger = new Tenant();
         stranger.setId(widget.getTenantId() + 1000);
         User other = new User();

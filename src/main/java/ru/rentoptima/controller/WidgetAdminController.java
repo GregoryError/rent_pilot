@@ -105,7 +105,7 @@ public class WidgetAdminController {
         List<WidgetRow> rows = new ArrayList<>();
         for (BookingWidget w : widgetRepo.findByTenantIdAndActiveTrueOrderByCreatedAtAsc(tenantId)) {
             rows.add(new WidgetRow(w.getId(), w.getTitle(),
-                    unitLabels.getOrDefault(w.getUnitTypeId(), "квартира удалена"),
+                    unitLabels.getOrDefault(w.getUnitTypeId(), "объект удалён"),
                     baseUrl + "/b/" + w.getSlug(), "widget-link-" + w.getId()));
         }
         List<UnitOption> options = new ArrayList<>();
@@ -260,7 +260,7 @@ public class WidgetAdminController {
     private static String sourceLabel(String source) {
         if (WidgetFunnelService.DIRECT.equals(source)) return "Прямые заходы и мессенджеры";
         if (WidgetFunnelService.OTHER.equals(source)) return "Прочие";
-        if (WidgetCardService.SOURCE_CARD.equals(source)) return "Карточка в квартире";
+        if (WidgetCardService.SOURCE_CARD.equals(source)) return "Карточка для гостей";
         if (WidgetCardService.SOURCE_MESSAGE.equals(source)) return "Сообщение гостю";
         return source;
     }

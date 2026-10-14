@@ -44,8 +44,8 @@
                                th:text="${t['notice.stale.guide']}">Открыть инструкцию</a>
                         </small>
                     </span>
-                    <a th:unless="${item.done}" th:href="${item.href}" class="btn btn-ghost onb-steps__do"
-                       th:text="${t['first.do']}">Сделать</a>
+                    <a th:if="${!item.done and item.href != null}" th:href="${item.href}" class="btn btn-ghost onb-steps__do"
+                       th:text="${item.action}">Сделать</a>
                 </li>
             </ol>
         </th:block>

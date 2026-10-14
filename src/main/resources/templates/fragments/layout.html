@@ -48,7 +48,7 @@
            class="steps-badge steps-badge--side">Первые шаги <b th:text="${firstSteps.left}">3</b></a>
 
         <nav class="sidebar__nav">
-            <!--/* Пока нет квартиры — только Главная, «Добавить квартиру» и Помощь. С квартирой —
+            <!--/* Пока нет жилья — только Главная, «Добавить жильё» и Помощь. С жильём —
                  основные разделы, остальное в сворачиваемой группе «Ещё». Страницы не удалены:
                  все адреса открываются как раньше. */-->
             <a th:href="@{/dashboard}"
@@ -59,7 +59,14 @@
 
             <a th:unless="${hasProperties}" th:href="@{/onboarding(step='property')}"
                class="nav-item nav-item--accent">
-                <span>+</span> Добавить квартиру
+                <span>+</span> <span th:text="${housing.fill('Добавить %acc%')}">Добавить жильё</span>
+            </a>
+            <!--/* Без жилья «Настройки» тоже в меню: там уведомления в Telegram и значения для нового жилья,
+                 а подсвечивать «Главную» на странице настроек было бы неправдой о том, где вы */-->
+            <a th:unless="${hasProperties}" th:href="@{/settings}"
+               th:classappend="${activePage == 'settings'} ? 'nav-item--active'"
+               class="nav-item">
+                <span>⚙</span> Настройки
             </a>
 
             <th:block th:if="${hasProperties}">
@@ -153,11 +160,6 @@
                 <a th:href="@{/instrukcii}" target="_blank" rel="noopener" class="nav-item">
                     <span>?</span> Инструкции
                 </a>
-                <a th:href="@{/account/password}"
-                   th:classappend="${activePage == 'account-password'} ? 'nav-item--active'"
-                   class="nav-item">
-                    <span>⚿</span> Сменить пароль
-                </a>
             </div>
 
             <!-- Admin only -->
@@ -181,8 +183,12 @@
             </div>
         </nav>
 
+        <!--/* Блок аккаунта: имя, пароль, тема, выход */-->
         <div class="sidebar__footer">
             <div sec:authentication="principal.displayName">User</div>
+            <a th:href="@{/account/password}" class="sidebar__account-link"
+               th:classappend="${activePage == 'account-password'} ? 'is-active'"
+               th:attr="aria-current=${activePage == 'account-password'} ? 'page'">⚿ Сменить пароль</a>
             <button type="button" class="theme-toggle" onclick="toggleTheme()"
                     title="Переключить тему оформления">
                 <span class="theme-toggle__to-light">☀ Светлая тема</span>

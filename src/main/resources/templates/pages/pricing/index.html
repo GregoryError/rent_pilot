@@ -2,34 +2,34 @@
 <html xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
-<head><title>Ценообразование</title></head>
+<head><title>Цены</title></head>
 <body>
 <div layout:fragment="content">
 
     <div class="page-header">
-        <h1 class="page-title">Ценообразование</h1>
+        <h1 class="page-title">Цены</h1>
         <p class="page-subtitle">Подсказки, когда поднять или снизить цену, и цены соседей</p>
     </div>
 
-    <!-- Квартиры нет: пустое состояние и кнопка в мастер -->
+    <!--/* Жилья нет: пустое состояние и кнопка в мастер */-->
     <div class="card" th:if="${!hasProperties}">
         <div th:replace="~{fragments/onboarding :: empty('pricing', '/onboarding?step=property')}"></div>
     </div>
 
     <th:block th:if="${hasProperties}">
     <div class="card pricing-note" th:if="${needsPrice}">
-        У квартиры не задана цена за ночь — рекомендовать не от чего.
-        <a th:href="@{/settings/properties}">Задать цену квартиры</a>
+        <span th:text="${propHousing.fill('У %gen% не задана цена за ночь — рекомендовать не от чего.')}">Не задана цена за ночь.</span>
+        <a th:href="@{/settings/properties}" th:text="${propHousing.fill('Задать цену %gen%')}">Задать цену</a>
     </div>
     <div class="card pricing-note pricing-note--warn" th:if="${boundsWarning != null}">
-        <span th:text="${boundsWarning}">Цена квартиры выше максимальной цены в настройках</span>
+        <span th:text="${boundsWarning}">Цена выше максимальной цены в настройках</span>
         <a th:href="@{/settings}">Открыть настройки</a>
     </div>
 
-    <!-- KPI: цена — квартиры, её задают мастер и «Объекты»; рекомендации считаются от неё -->
+    <!--/* KPI: цена — объекта, её задают мастер и «Объекты»; рекомендации считаются от неё */-->
     <div class="kpi-row">
         <div class="kpi">
-            <div class="kpi__label">Цена квартиры в будни <span th:replace="~{fragments/hint :: hint('Цена за ночь, которую вы задали для квартиры. Её видят гости на странице бронирования, от неё считаются подсказки.')}"></span></div>
+            <div class="kpi__label"><span th:text="${propHousing.fill('Цена %gen% в будни')}">Цена в будни</span> <span th:replace="~{fragments/hint :: hint('Цена за ночь, которую вы задали сами. Её видят гости на странице бронирования, от неё считаются подсказки.')}"></span></div>
             <div class="kpi__value" th:text="${weekdayPrice}"></div>
             <div class="kpi__hint" th:if="${severalUnits}" th:text="'по категории «' + ${pricedUnitName} + '»'"></div>
         </div>
@@ -64,7 +64,7 @@
                     <tr>
                         <th>Дата</th>
                         <th>День</th>
-                        <th class="text-right">Ваша цена <span th:replace="~{fragments/hint :: hint('Цена квартиры на этот день — как в шахматке и на странице бронирования.')}"></span></th>
+                        <th class="text-right">Ваша цена <span th:replace="~{fragments/hint :: hint(${propHousing.fill('Цена %gen% на этот день — как в шахматке и на странице бронирования.')})}"></span></th>
                         <th class="text-right">Подсказка</th>
                         <th class="text-right">Разница</th>
                         <th>Мин. срок <span th:replace="~{fragments/hint :: hint('Сколько ночей минимум стоит просить за бронь с заездом в этот день.')}"></span></th>

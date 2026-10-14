@@ -14,10 +14,13 @@
               th:title="${(verifyBanner.neverSent ? 'Отправим письмо со ссылкой на ' : 'Письмо со ссылкой отправлено на ') + verifyBanner.email + '.'
                         + (verifyBanner.deadline != null ? ' Без подтверждения кабинет закроется ' + verifyBanner.deadline + '.' : '')
                         + (pageInactive ? ' Пока почта не подтверждена, страница бронирования не принимает гостей.' : '')}">
-            <b>Подтвердите почту</b><span class="verify-strip__more">
-                <span th:text="${verifyBanner.email}">host@example.com</span>, чтобы не потерять доступ</span><span
-                class="verify-strip__when" th:if="${verifyBanner.deadline != null}"
-                th:text="' — до ' + ${verifyBanner.deadline}"> — до 21 октября</span>
+            <!--/* Сначала срок: «Подтвердите почту до 21 октября, иначе кабинет закроется». Адрес — в подсказке
+                 и в форме смены адреса */-->
+            <th:block th:if="${verifyBanner.deadline != null}">
+                <b th:text="'Подтвердите почту до ' + ${verifyBanner.deadline}">Подтвердите почту до 21 октября</b><span
+                    class="verify-strip__more">, иначе кабинет закроется</span>
+            </th:block>
+            <b th:if="${verifyBanner.deadline == null}">Подтвердите почту, чтобы не потерять доступ</b>
         </span>
         <span class="verify-strip__actions">
             <form class="verify-strip__form" th:action="@{/account/verify/resend}" method="post">
@@ -36,6 +39,7 @@
     </div>
     <form id="vb-change" class="verify-strip__change" hidden th:action="@{/account/email}" method="post">
         <input type="hidden" name="back" th:value="${verifyBanner.back}">
+        <p class="verify-strip__current">Письмо ушло на <b th:text="${verifyBanner.email}">host@example.com</b></p>
         <div class="form-group">
             <label class="form-label" for="vb-email">Новый адрес</label>
             <input type="email" id="vb-email" name="email" class="form-input" required

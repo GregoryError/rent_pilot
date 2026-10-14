@@ -196,3 +196,9 @@
 }
 
 .wz-skip--link { display: inline-flex; align-items: center; }
+
+/* «Что вы сдаёте?» в мастере */
+.wz-kinds{border:0;margin:0 0 var(--sp-4);padding:0;display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.wz-kinds legend{margin-bottom:var(--sp-2)}
+.wz-kind{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:44px;padding:0 var(--sp-3);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer}
+.wz-kind:has(input:checked){border-color:var(--accent);background:var(--accent-glow)}

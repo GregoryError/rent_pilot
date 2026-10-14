@@ -11,11 +11,11 @@
     <div class="page-header flex justify-between items-center">
         <div>
             <h1 class="page-title">Настройки</h1>
-            <p class="page-subtitle">Уборка и комиссия площадок. Цену за ночь задаёте у квартиры, площадки — в своём разделе</p>
+            <p class="page-subtitle">Уборка и комиссия площадок. Цена за ночь — в разделе «Объекты», площадки — в своём разделе</p>
         </div>
         <div class="settings-links">
             <a th:href="@{/settings/integrations}" class="btn btn-ghost">Интеграции →</a>
-            <a th:href="@{/settings/properties}" class="btn btn-ghost">Квартиры и цены →</a>
+            <a th:href="@{/settings/properties}" class="btn btn-ghost">Объекты и цены →</a>
         </div>
     </div>
 
@@ -43,10 +43,10 @@
                 <div th:replace="~{fragments/setting-field :: field(${setting})}"></div>
             </th:block>
 
-            <h3 class="settings-advanced__group">Значения по умолчанию для новых квартир</h3>
+            <h3 class="settings-advanced__group">Значения по умолчанию для нового жилья</h3>
             <p class="form-hint settings-advanced__lead">
-                Подставляются подсказкой, когда вы добавляете квартиру. На расчёты не влияют: цена — у
-                каждой квартиры, её меняют в разделе <a th:href="@{/settings/properties}">«Квартиры и цены»</a>.
+                Подставляются подсказкой, когда вы добавляете жильё. На расчёты не влияют: цена — у
+                каждого объекта, её меняют в разделе <a th:href="@{/settings/properties}">«Объекты»</a>.
             </p>
             <th:block th:each="key : ${ {'city','weekday_base_price','weekend_base_price'} }"
                       th:with="setting=${byKey.get(key)}">

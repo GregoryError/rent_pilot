@@ -47,6 +47,7 @@ public class DashboardController {
     private final OccupancyGridService gridService;
     private final DashboardForecastService forecastService;
     private final ChannelRepository channelRepo;
+    private final ru.rentoptima.housing.HousingVocabulary housingVocabulary;
 
     @GetMapping("/dashboard")
     public String dashboard(@RequestParam(required = false) String m, Model model) {
@@ -85,7 +86,7 @@ public class DashboardController {
         // Блок 4.6: hero-метрики, шахматка месяца, график выручки, статусы каналов
         MonthForecast forecast = forecastService.forecast(tenantId, targetMonth, now);
         model.addAttribute("grid", gridService.build(tenantId, monthStart, targetMonth.lengthOfMonth()));
-        model.addAttribute("hero", hero(forecast, targetMonth, now));
+        model.addAttribute("hero", hero(forecast, targetMonth, now, housingVocabulary.forTenant(tenantId)));
         model.addAttribute("revenueBars", revenueBars(forecast.daily(), now));
         model.addAttribute("revenueMax", money(maxDaily(forecast.daily())));
         model.addAttribute("hasRevenue", maxDaily(forecast.daily()).signum() > 0);
@@ -129,13 +130,14 @@ public class DashboardController {
         return "pages/dashboard/index";
     }
 
-    private static Hero hero(MonthForecast f, java.time.YearMonth month, LocalDate today) {
+    private static Hero hero(MonthForecast f, java.time.YearMonth month, LocalDate today,
+                             ru.rentoptima.housing.Housing housing) {
         boolean hasEstimate = f.estimated().signum() > 0;
         String revenueNote = hasEstimate
                 ? "по броням " + money(f.actual()) + " + оценка " + money(f.estimated())
                 : "по суммам броней";
         String occupancyNote = f.busyNights() + " из " + f.capacityNights() + " ночей";
-        String potentialNote = f.capacityNights() == 0 ? "нет квартир в шахматке"
+        String potentialNote = f.capacityNights() == 0 ? housing.fill("нет %plGen% в шахматке")
                 : month.atEndOfMonth().isBefore(today) ? "месяц прошёл"
                 : f.freeFutureNights() > 0 ? "свободно ночей: " + f.freeFutureNights() + ", по вашим ценам"
                 : "свободных ночей не осталось";

@@ -24,6 +24,16 @@ public class Property extends BaseEntity {
     private String address;
     private String city;
 
+    /** Тип жилья (V40): APARTMENT, APARTMENTS, HOUSE, ROOMS, OTHER — {@link ru.rentoptima.housing.HousingKind}. */
+    @Column(nullable = false, length = 20)
+    private String kind = "APARTMENT";
+
+    /** Слово для этого объекта в нужных формах («цена дома», «типы номеров»). */
+    @Transient
+    public ru.rentoptima.housing.Housing getHousing() {
+        return ru.rentoptima.housing.HousingKind.of(kind).housing;
+    }
+
     @Column(name = "feedback_code", nullable = false, unique = true)
     private String feedbackCode;
 

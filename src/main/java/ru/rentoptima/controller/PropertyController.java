@@ -58,12 +58,14 @@ public class PropertyController {
         model.addAttribute("properties", propertyRepo.findByTenantIdAndActiveTrue(tenantId));
         model.addAttribute("unitTypesByProperty", unitTypesByProperty);
         model.addAttribute("defaults", apartmentDefaults.forTenant(tenantId));
+        model.addAttribute("kinds", ru.rentoptima.housing.HousingKind.values());
         return "pages/settings/properties";
     }
 
     @PostMapping
     @Transactional
     public String create(@RequestParam String name,
+                         @RequestParam(required = false) String kind,
                          @RequestParam(required = false) String address,
                          @RequestParam(required = false) String city,
                          RedirectAttributes redirect) {
@@ -73,7 +75,7 @@ public class PropertyController {
         }
         // Город не указан — значение по умолчанию для новых квартир из настроек (может быть пустым)
         String cityValue = (city != null && !city.isBlank()) ? city.trim() : apartmentDefaults.forTenant(tenantId).city();
-        propertyCreator.createProperty(tenantId, name, address, cityValue);
+        propertyCreator.createProperty(tenantId, name, address, cityValue, ru.rentoptima.housing.HousingKind.of(kind));
         redirect.addFlashAttribute("success", "Объект «" + name + "» добавлен");
         return "redirect:/settings/properties";
     }
@@ -82,6 +84,7 @@ public class PropertyController {
     @Transactional
     public String update(@PathVariable Long id,
                          @RequestParam String name,
+                         @RequestParam(required = false) String kind,
                          @RequestParam(required = false) String address,
                          @RequestParam(required = false) String city,
                          RedirectAttributes redirect) {
@@ -89,10 +92,11 @@ public class PropertyController {
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
         int rows = jdbc.update("""
                 UPDATE properties
-                   SET name = ?, address = ?, city = ?, updated_at = ?
+                   SET name = ?, address = ?, city = ?, kind = COALESCE(?, kind), updated_at = ?
                  WHERE id = ? AND tenant_id = ?
                 """,
-                name, address, city, now, id, tenantId);
+                name, address, city, kind == null ? null : ru.rentoptima.housing.HousingKind.of(kind).name(),
+                now, id, tenantId);
         // чужой или несуществующий объект — 404 (условие tenant_id в самом UPDATE)
         if (rows == 0) throw Tenancy.notFound();
         redirect.addFlashAttribute("success", "Объект обновлён");

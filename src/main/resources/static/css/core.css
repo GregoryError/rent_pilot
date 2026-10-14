@@ -271,6 +271,15 @@ a:hover { text-decoration: underline; }
     cursor: pointer;
 }
 .theme-toggle:hover { color: var(--text-primary); }
+.sidebar__account-link {
+    display: flex;
+    align-items: center;
+    margin: var(--sp-2) 0 0;
+    color: var(--text-muted);
+    text-decoration: none;
+}
+.sidebar__account-link:hover { color: var(--text-primary); }
+.sidebar__account-link.is-active { color: var(--accent); font-weight: var(--weight-medium); }
 .theme-toggle__to-dark { display: none; }
 :root[data-theme="light"] .theme-toggle__to-light { display: none; }
 :root[data-theme="light"] .theme-toggle__to-dark  { display: inline; }
@@ -765,14 +774,12 @@ h1.login-subtitle { font-weight: 400; text-align: center; }
     padding: 0 0 0 var(--sp-4);
 }
 .verify-strip__text {
-    flex: 1 1 9em;
-    min-width: 9em;
+    flex: 1 1 12em;
+    min-width: 0;
     padding: var(--sp-2) 0;
     line-height: 1.4;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
+.verify-strip__current { grid-column: 1 / -1; margin: 0; }
 .verify-strip__actions { display: flex; flex: 0 0 auto; align-items: center; }
 .verify-strip__form { margin: 0; }
 .verify-strip__short { display: none; }
@@ -809,9 +816,6 @@ h1.login-subtitle { font-weight: 400; text-align: center; }
     .verify-strip__link { padding: 0 6px; }
     /* узкий крестик, но зона нажатия прежняя — по высоте 44 px, по ширине добирается отступами */
     .verify-strip__close { min-width: 40px; padding: 0; }
-}
-@media (max-width: 420px) {
-    .verify-strip__when { display: none; }
 }
 
 /* Администрирование → Регистрация */
@@ -1654,6 +1658,7 @@ h1.login-subtitle { font-weight: 400; text-align: center; }
     .nav-item { min-height: 44px; font-size: var(--text-base); }
     .sidebar__footer { font-size: var(--text-sm); }
     .theme-toggle,
+    .sidebar__account-link,
     .sidebar__logout { min-height: 44px; }
 
     .main-content {

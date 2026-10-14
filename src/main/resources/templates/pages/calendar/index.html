@@ -170,8 +170,8 @@
     </div>
 
     <div th:if="${property == null}" class="card" style="text-align:center; padding: var(--sp-10);">
-        <p class="muted">Цены по дням появятся вместе с квартирой.</p>
-        <a class="btn btn-primary" th:href="@{/onboarding(step='property')}">Добавить квартиру</a>
+        <p class="muted" th:text="${housing.fill('Цены по дням появятся, когда вы добавите %acc%.')}">Цены по дням появятся.</p>
+        <a class="btn btn-primary" th:href="@{/onboarding(step='property')}" th:text="${housing.fill('Добавить %acc%')}">Добавить жильё</a>
     </div>
 
     <th:block th:if="${property != null}">
@@ -217,7 +217,7 @@
 
                 <!-- GAP -->
                 <th:block th:if="${day.status() == 'gap'}">
-                    <div class="cal-gap">⚠ дыра</div>
+                    <div class="cal-gap">⚠ окно</div>
                 </th:block>
 
                 <!-- FREE (future only) -->
@@ -242,7 +242,7 @@
             </div>
             <div class="cal-legend-item">
                 <div class="cal-legend-swatch" style="background:rgba(248,113,113,0.2); border-left:3px solid var(--red);"></div>
-                <span>Gap (дыра)</span>
+                <span>Окно между бронями</span>
             </div>
             <div class="cal-legend-item">
                 <div class="cal-legend-swatch" style="background:var(--amber);"></div>

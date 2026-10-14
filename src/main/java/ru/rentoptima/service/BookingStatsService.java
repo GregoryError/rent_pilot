@@ -225,7 +225,7 @@ public class BookingStatsService {
                         "CLEANING",
                         "Выезд " + (b.getCheckOut().equals(now) ? "сегодня" : "завтра"),
                         b.getGuestName() != null ? b.getGuestName() : "Гость",
-                        b.getCheckOut().toString()
+                        null
                 ));
             }
         }
@@ -236,7 +236,7 @@ public class BookingStatsService {
             items.add(new ActionItem(
                     "GAP",
                     "Пустое окно " + gap.gapDays + " д.",
-                    gap.from + " — " + gap.to,
+                    "Свободно: " + AlertSchedulerService.formatNights(gap.from, gap.to),
                     "Рекомендация: открыть за сниженную цену"
             ));
         }
@@ -247,7 +247,8 @@ public class BookingStatsService {
             items.add(new ActionItem(
                     "PACE",
                     "Загрузка отстаёт",
-                    pace.month() + ": " + pace.currentOccupancy() + "% vs " + pace.historicalAvg() + "% (норма)",
+                    String.format(RU, "%s: занято %.1f %%, обычно %.1f %%", pace.month(), pace.currentOccupancy(),
+                            pace.historicalAvg()),
                     "Рассмотрите снижение цен или мин. срока"
             ));
         }

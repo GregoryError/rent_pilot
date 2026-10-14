@@ -68,7 +68,7 @@
 
     <!-- Шаг 2. Объект -->
     <section th:if="${step == 'property'}">
-        <h1 class="wz-title" th:text="${t['property.title']}">Расскажите о квартире</h1>
+        <h1 class="wz-title" th:text="${t['property.title']}">Что вы сдаёте?</h1>
         <p class="wz-lead" th:text="${t['property.lead']}"></p>
 
         <form method="post" th:action="@{/onboarding/property}" class="wz-card" th:if="${existingText != null}">
@@ -80,6 +80,15 @@
         </form>
 
         <form method="post" th:action="@{/onboarding/property}" class="wz-card" th:if="${existingText == null}">
+            <!--/* Тип жилья: от него слова во всём кабинете («ваша квартира», «цена дома», «типы номеров») */-->
+            <fieldset class="wz-kinds">
+                <legend class="form-label" th:text="${t['property.kind']}">Тип жилья</legend>
+                <label class="wz-kind" th:each="k, it : ${kinds}">
+                    <input type="radio" name="kind" th:value="${k.code}" required
+                           th:checked="${form != null and form.kind != null} ? ${form.kind == k.code} : ${it.first}">
+                    <span th:text="${k.label}">Квартира</span>
+                </label>
+            </fieldset>
             <div class="form-group">
                 <label class="form-label" for="wz-name" th:text="${t['property.name']}">Как назовём</label>
                 <input type="text" id="wz-name" name="name" class="form-input" required maxlength="200"

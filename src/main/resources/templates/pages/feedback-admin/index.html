@@ -21,7 +21,7 @@
             <div class="card" id="feedback-rating">
                 <div class="card__title">Средний рейтинг (90 дней)</div>
                 <div style="font-size: var(--text-3xl); font-weight: var(--weight-bold); margin-top: var(--sp-3);"
-                     th:text="${averageRating != null ? #numbers.formatDecimal(averageRating, 1, 2) + '/10' : '—'}"></div>
+                     th:text="${averageRating != null ? #numbers.formatDecimal(averageRating, 1, 'WHITESPACE', 2, 'COMMA') + '/10' : '—'}"></div>
             </div>
 
             <div class="card" id="feedback-link">
@@ -48,7 +48,7 @@
                     </div>
                 </div>
                 <div class="form-hint" style="margin-top: var(--sp-3);">
-                    Отправьте ссылку гостю после выезда или разместите QR-кодом в квартире.
+                    Отправьте ссылку гостю после выезда или повесьте QR-код на видном месте.
                     Доступ горничной настраивается в разделе <a th:href="@{/staff}">Сотрудники</a>.
                 </div>
             </div>

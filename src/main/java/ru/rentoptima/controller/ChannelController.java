@@ -111,7 +111,7 @@ public class ChannelController {
         try {
             UrlSafetyGuard.normalizeAndCheckShape(importUrl);
         } catch (ChannelSyncException e) {
-            redirect.addFlashAttribute("error", "URL импорта: " + e.getMessage());
+            redirect.addFlashAttribute("error", "Ссылка с площадки: " + e.getMessage());
             return "redirect:/settings/channels";
         }
 
@@ -288,7 +288,7 @@ public class ChannelController {
                 "background: " + color,
                 palette,
                 c.getChannelType().name(),
-                unitTypeLabels.getOrDefault(c.getUnitTypeId(), "квартира удалена"),
+                unitTypeLabels.getOrDefault(c.getUnitTypeId(), "объект удалён"),
                 importUrl,
                 exportUrl,
                 "copy-import-" + c.getId(),

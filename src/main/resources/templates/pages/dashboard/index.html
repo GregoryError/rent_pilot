@@ -11,7 +11,7 @@
     <div class="dash-header">
         <div>
             <h1 class="page-title">Главная</h1>
-            <p class="page-subtitle" th:if="${!hasProperties}">Сводка по вашим квартирам</p>
+            <p class="page-subtitle" th:if="${!hasProperties}">Прогноз, занятость и подсказки</p>
             <p class="page-subtitle" th:if="${hasProperties}">
                 Прогноз и занятость за месяц
                 <button type="button" id="grid-conflicts" class="tag tag--red grid-conflicts"
@@ -35,8 +35,9 @@
         </div>
     </div>
 
-    <!-- Квартиры нет: считать нечего — одно пустое состояние и кнопка в мастер -->
-    <div class="card" th:if="${!hasProperties}">
+    <!--/* Жилья нет: считать нечего — одно пустое состояние и кнопка в мастер. Пока раскрыт чек-лист
+         «Первые шаги», карточки нет: его первый пункт — то же «Добавить жильё» */-->
+    <div class="card" th:if="${!hasProperties and (firstSteps == null or firstSteps.collapsed or firstSteps.celebrate)}">
         <div th:replace="~{fragments/onboarding :: empty('home', '/onboarding?step=property')}"></div>
     </div>
 
@@ -46,14 +47,14 @@
         <div class="hero">
             <div class="hero__label">
                 Прогноз выручки
-                <span th:replace="~{fragments/hint :: hint('Сумма броней с заездом в этом месяце. Занятые ночи без суммы посчитаны по цене квартиры — это оценка.')}"></span>
+                <span th:replace="~{fragments/hint :: hint(${housing.fill('Сумма броней с заездом в этом месяце. Занятые ночи без суммы посчитаны по цене %gen% — это оценка.')})}"></span>
                 <span class="est-badge" th:if="${hero.revenueEstimated}">оценка</span>
             </div>
             <div class="hero__value" th:text="${hero.revenue}">84 000 ₽</div>
             <div class="hero__note" th:text="${hero.revenueNote}">по броням 60 000 ₽ + оценка 24 000 ₽</div>
         </div>
         <div class="hero">
-            <div class="hero__label">Занятость <span th:replace="~{fragments/hint :: hint('Сколько ночей месяца занято — от всех ночей всех квартир, с бронями и блокировками площадок.')}"></span></div>
+            <div class="hero__label">Занятость <span th:replace="~{fragments/hint :: hint('Какая доля ночей месяца занята — бронями и блокировками площадок.')}"></span></div>
             <div class="hero__value" th:text="${hero.occupancy}">72%</div>
             <div class="hero__note" th:text="${hero.occupancyNote}">22 из 31 ночей</div>
         </div>
@@ -108,7 +109,7 @@
             <div class="card__header">
                 <div class="card__title">
                     Выручка по дням
-                    <span th:replace="~{fragments/hint :: hint('Будущие дни и ночи без суммы посчитаны по цене квартиры — это оценка.')}"></span>
+                    <span th:replace="~{fragments/hint :: hint(${housing.fill('Будущие дни и ночи без суммы посчитаны по цене %gen% — это оценка.')})}"></span>
                     <span class="est-badge">оценка</span>
                 </div>
                 <span class="rev-chart__max" th:if="${hasRevenue}" th:text="'макс. ' + ${revenueMax}">макс. 4 200 ₽</span>
@@ -191,7 +192,7 @@
                 </svg>
             </div>
             <div class="kpi__label">Доход <span th:replace="~{fragments/hint :: hint('Сумма броней с заездом в этом месяце — там, где сумма указана.')}"></span></div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.revenue(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.revenue(), 1, 'WHITESPACE', 0, 'COMMA')} + ' ₽'">
                 —
             </div>
         </div>
@@ -203,7 +204,7 @@
                 </svg>
             </div>
             <div class="kpi__label">Чистый доход <span th:replace="~{fragments/hint :: hint('Доход минус уборки и другие расходы этого месяца.')}"></span></div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(netIncome, 1, 'COMMA', 0, 'POINT')} + ' ₽'">—
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(netIncome, 1, 'WHITESPACE', 0, 'COMMA')} + ' ₽'">—
             </div>
             <div class="kpi__delta muted" style="font-size:var(--text-xs)">Доход минус расходы</div>
         </div>
@@ -214,8 +215,8 @@
                     <path d="M3 12l2-2 2 2 4-4 4 4 4-4 2 2M3 20h18"/>
                 </svg>
             </div>
-            <div class="kpi__label">Заполняемость <span th:replace="~{fragments/hint :: hint('Доля ночей месяца, занятых бронями, от всех ночей всех квартир. Блокировки площадок без брони сюда не входят.')}"></span></div>
-            <div class="kpi__value" th:text="${kpi.occupancy()} + '%'">—</div>
+            <div class="kpi__label">Заполняемость <span th:replace="~{fragments/hint :: hint('Доля ночей месяца, занятых бронями. Блокировки площадок без брони сюда не входят.')}"></span></div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.occupancy(), 1, 'WHITESPACE', 1, 'COMMA')} + ' %'">—</div>
         </div>
 
         <div class="kpi">
@@ -226,7 +227,7 @@
                 </svg>
             </div>
             <div class="kpi__label">Ср. длительность <span th:replace="~{fragments/hint :: hint('Сколько ночей в среднем длится бронь с заездом в этом месяце.')}"></span></div>
-            <div class="kpi__value" th:text="${kpi.avgNights()} + ' н.'">—</div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.avgNights(), 1, 'WHITESPACE', 1, 'COMMA')} + ' н.'">—</div>
         </div>
 
         <div class="kpi" th:if="${avgRating != null}">
@@ -236,7 +237,7 @@
                 </svg>
             </div>
             <div class="kpi__label">Средний рейтинг</div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(avgRating, 1, 2) + ' / 10'}"></div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(avgRating, 1, 'WHITESPACE', 2, 'COMMA') + ' / 10'}"></div>
             <div class="kpi__hint">за последние 90 дней</div>
         </div>
 
@@ -246,8 +247,8 @@
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                 </svg>
             </div>
-            <div class="kpi__label">Доход на ночь в календаре <span th:replace="~{fragments/hint :: hint('Доход минус уборки, делённый на все ночи месяца всех квартир — и занятые, и свободные. Сколько в среднем приносит каждая ночь.')}"></span></div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.netRevPar(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">
+            <div class="kpi__label">Доход на ночь в календаре <span th:replace="~{fragments/hint :: hint('Доход минус уборки, делённый на все ночи месяца — и занятые, и свободные. Сколько в среднем приносит каждая ночь.')}"></span></div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.netRevPar(), 1, 'WHITESPACE', 0, 'COMMA')} + ' ₽'">
                 —
             </div>
             <div class="kpi__delta muted" style="font-size:var(--text-xs)">чистыми, после уборки</div>
@@ -261,7 +262,7 @@
             </div>
             <div class="kpi__label">Расход на уборку <span th:replace="~{fragments/hint :: hint('Стоимость уборки из настроек, умноженная на число выездов.')}"></span></div>
             <div class="kpi__value"
-                 th:text="${#numbers.formatDecimal(kpi.cleaningCost(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">—
+                 th:text="${#numbers.formatDecimal(kpi.cleaningCost(), 1, 'WHITESPACE', 0, 'COMMA')} + ' ₽'">—
             </div>
             <div class="kpi__delta muted" style="font-size:var(--text-xs)"
                  th:text="${kpi.checkouts()} + ' выездов'"></div>
@@ -286,8 +287,8 @@
         </p>
         <p class="text-sm" th:unless="${pace.status() == 'NO_DATA'}">
             <span th:text="${pace.month()}"></span>:
-            текущая загрузка <strong th:text="${pace.currentOccupancy()} + '%'"></strong>,
-            историческая норма <strong th:text="${pace.historicalAvg()} + '%'"></strong>
+            текущая загрузка <strong th:text="${#numbers.formatDecimal(pace.currentOccupancy(), 1, 'WHITESPACE', 1, 'COMMA')} + ' %'"></strong>,
+            историческая норма <strong th:text="${#numbers.formatDecimal(pace.historicalAvg(), 1, 'WHITESPACE', 1, 'COMMA')} + ' %'"></strong>
         </p>
     </div>
 

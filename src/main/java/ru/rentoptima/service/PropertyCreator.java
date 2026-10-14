@@ -26,20 +26,27 @@ public class PropertyCreator {
     private final JdbcTemplate jdbc;
     private final UnitTypeRepository unitTypeRepo;
 
-    /** @return id созданного объекта */
+    /** Квартира. @return id созданного объекта */
     @Transactional
     public Long createProperty(Long tenantId, String name, String address, String city) {
+        return createProperty(tenantId, name, address, city, ru.rentoptima.housing.HousingKind.APARTMENT);
+    }
+
+    /** @return id созданного объекта */
+    @Transactional
+    public Long createProperty(Long tenantId, String name, String address, String city,
+                               ru.rentoptima.housing.HousingKind kind) {
         if (tenantId == null) throw new IllegalStateException("tenantId в сессии не установлен");
         Timestamp now = Timestamp.valueOf(LocalDateTime.now());
         Long id = jdbc.queryForObject("""
                 INSERT INTO properties
-                    (tenant_id, name, address, city,
+                    (tenant_id, name, address, city, kind,
                      feedback_code, housekeeper_code,
                      active, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, TRUE, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, TRUE, ?, ?)
                 RETURNING id
                 """, Long.class,
-                tenantId, name, address, city, generateCode(), generateCode(), now, now);
+                tenantId, name, address, city, kind.name(), generateCode(), generateCode(), now, now);
         log.info("Property создан: tenant={}, name='{}'", tenantId, name);
         return id;
     }

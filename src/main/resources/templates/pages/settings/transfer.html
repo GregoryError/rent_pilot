@@ -18,7 +18,7 @@
         <form th:action="@{/settings/transfer}" method="post" enctype="multipart/form-data"
               style="display:flex; flex-wrap:wrap; gap: var(--sp-4); align-items: flex-end;">
             <div class="form-group" style="margin-bottom:0">
-                <label class="form-label">Квартира</label>
+                <label class="form-label" th:text="${housing.fill('%Nom%')}">Жильё</label>
                 <select name="propertyId" class="form-input form-input--sm" style="width:300px" required>
                     <option th:each="prop : ${properties}" th:value="${prop.id}" th:text="${prop.name}"></option>
                 </select>
@@ -43,14 +43,14 @@
         <div class="card__title" style="margin-bottom: var(--sp-2)">Удалить перенесённую историю</div>
         <p class="text-sm muted" style="margin-bottom: var(--sp-5)">
             Удалит брони, перенесённые из RealtyCalendar (файлом или раньше напрямую), и расходы на уборку,
-            созданные по ним, у выбранной квартиры. Ручные брони, заявки с сайта и брони с площадок
+            созданные по ним, у выбранного объекта. Ручные брони, заявки с сайта и брони с площадок
             остаются. Отменить удаление нельзя.
         </p>
         <form th:action="@{/settings/transfer/clear}" method="post"
-              onsubmit="return confirm('Удалить перенесённую из RealtyCalendar историю этой квартиры? Отменить нельзя.')"
+              onsubmit="return confirm('Удалить перенесённую из RealtyCalendar историю этого объекта? Отменить нельзя.')"
               style="display:flex; gap: var(--sp-4); align-items: flex-end;">
             <div class="form-group" style="margin-bottom:0">
-                <label class="form-label">Квартира</label>
+                <label class="form-label" th:text="${housing.fill('%Nom%')}">Жильё</label>
                 <select name="propertyId" class="form-input form-input--sm" style="width:300px" required>
                     <option th:each="prop : ${properties}" th:value="${prop.id}" th:text="${prop.name}"></option>
                 </select>

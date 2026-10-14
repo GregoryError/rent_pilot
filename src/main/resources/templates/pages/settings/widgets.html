@@ -5,7 +5,7 @@
 <head><title>Страница бронирования</title></head>
 <body>
 <div layout:fragment="content">
-    <!--/* без квартиры ссылок ещё нет — и пояснять про них нечего */-->
+    <!--/* без жилья ссылок ещё нет — и пояснять про них нечего */-->
     <th:block th:if="${!#lists.isEmpty(unitTypes)}">
         <div th:replace="~{fragments/verify :: page-note}"></div>
     </th:block>
@@ -35,11 +35,11 @@
     </div>
 
     <div class="card" th:if="${#lists.isEmpty(unitTypes)}">
-        <div class="card__title">Сначала добавьте квартиру</div>
+        <div class="card__title" th:text="${housing.fill('Сначала добавьте %acc%')}">Сначала добавьте жильё</div>
         <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
-            Страница бронирования открывается для конкретной квартиры — добавьте её, и здесь появится кнопка «Создать».
+            <span th:text="${housing.fill('Страница бронирования открывается для конкретного объекта. Добавьте %acc%, и здесь появится кнопка «Создать».')}">Страница бронирования открывается для конкретного объекта.</span>
         </p>
-        <a class="btn btn-primary" th:href="@{/onboarding(step='property')}">Добавить квартиру</a>
+        <a class="btn btn-primary" th:href="@{/onboarding(step='property')}" th:text="${housing.fill('Добавить %acc%')}">Добавить жильё</a>
     </div>
 
     <div class="card" th:unless="${#lists.isEmpty(unitTypes)}">

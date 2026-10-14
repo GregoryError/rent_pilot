@@ -84,7 +84,7 @@ public class FeedbackAdminController {
             boolean card = FeedbackResponse.SOURCE_CARD.equals(r.getSource());
             String cardLabel = null;
             if (card) {
-                cardLabel = "с карточки в квартире";
+                cardLabel = "с карточки для гостей";
                 if (r.getBookingId() != null) {
                     cardLabel += bookingRepo.findById(r.getBookingId())
                             .filter(b -> tenantId.equals(b.getTenant().getId()))

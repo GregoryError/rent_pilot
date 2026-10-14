@@ -61,7 +61,8 @@ public class PricingController {
         model.addAttribute("needsPrice", unit != null && weekday == null);
         model.addAttribute("severalUnits", pricingEngine.severalUnits(property.getId()));
         model.addAttribute("pricedUnitName", unit == null ? null : unit.getName());
-        model.addAttribute("boundsWarning", boundsWarning(settingsMap, weekday, weekend));
+        model.addAttribute("propHousing", property.getHousing());
+        model.addAttribute("boundsWarning", boundsWarning(settingsMap, weekday, weekend, property.getHousing()));
 
         model.addAttribute("settings", settingsMap);
         model.addAttribute("platformNames", PLATFORM_NAMES);
@@ -130,21 +131,22 @@ public class PricingController {
      * Пределы из настроек не дают рекомендациям дойти до цены квартиры: цена ниже минимума или
      * выше максимума. Такие пределы остались у аккаунтов, созданных до фазы 2 (2000–8000 ₽).
      */
-    static String boundsWarning(Map<String, String> s, BigDecimal weekday, BigDecimal weekend) {
+    static String boundsWarning(Map<String, String> s, BigDecimal weekday, BigDecimal weekend,
+                                ru.rentoptima.housing.Housing housing) {
         if (weekday == null) return null;
         Integer floor = positive(s.get("min_price_floor"));
         Integer ceil = positive(s.get("max_price_ceiling"));
         BigDecimal top = weekend != null && weekend.compareTo(weekday) > 0 ? weekend : weekday;
         BigDecimal low = weekend != null && weekend.compareTo(weekday) < 0 ? weekend : weekday;
         if (ceil != null && top.compareTo(BigDecimal.valueOf(ceil)) > 0) {
-            return "Цена квартиры (" + rub(top) + ") выше максимальной цены в настройках (" + ceil
+            return housing.fill("Цена %gen% (" + rub(top) + ") выше максимальной цены в настройках (" + ceil
                     + " ₽): рекомендации не поднимутся выше " + ceil + " ₽. Поправьте или очистите "
-                    + "предел в настройках — пустой означает «не выше 2,5 цены квартиры».";
+                    + "предел в настройках — пустой означает «не выше 2,5 цены %gen%».");
         }
         if (floor != null && low.compareTo(BigDecimal.valueOf(floor)) < 0) {
-            return "Цена квартиры (" + rub(low) + ") ниже минимальной цены в настройках (" + floor
+            return housing.fill("Цена %gen% (" + rub(low) + ") ниже минимальной цены в настройках (" + floor
                     + " ₽): рекомендации не опустятся ниже " + floor + " ₽. Поправьте или очистите "
-                    + "предел в настройках — пустой означает «не ниже половины цены квартиры».";
+                    + "предел в настройках — пустой означает «не ниже половины цены %gen%».");
         }
         return null;
     }

@@ -154,8 +154,9 @@ class OnboardingIntegrationTest {
         TenantUserDetails fresh = newcomer();
         mvc.perform(get("/calendar/grid").with(user(fresh))).andExpect(redirectedUrl("/onboarding"));
         mvc.perform(get("/dashboard").with(user(fresh))).andExpect(redirectedUrl("/onboarding"));
-        // с остальных страниц его никто не уводит
-        mvc.perform(get("/settings/channels").with(user(fresh))).andExpect(status().isOk());
+        // с остальных страниц его никто не уводит (без жилья открыты «Настройки»; разделы вне короткого
+        // меню ведут на шаг жилья — FirstRunIntegrationTest)
+        mvc.perform(get("/settings").with(user(fresh))).andExpect(status().isOk());
 
         // Пользователь, созданный до онбординга (строки состояния нет): всё как раньше;
         // без квартиры шахматки нет — «Главная» с пустым состоянием
@@ -178,7 +179,7 @@ class OnboardingIntegrationTest {
 
         mvc.perform(post("/onboarding/branch").with(user(u)).with(csrf()).param("branch", "A"))
                 .andExpect(redirectedUrl("/onboarding"));
-        assertThat(page(u, "/onboarding")).contains("Расскажите о квартире", "Шаг 2 из 4");
+        assertThat(page(u, "/onboarding")).contains("Что вы сдаёте?", "Шаг 2 из 4");
 
         // Пустое название — остаёмся на шаге, введённое не теряется
         mvc.perform(post("/onboarding/property").with(user(u)).with(csrf()).param("name", " ").param("city", "Приморск")
@@ -405,7 +406,7 @@ class OnboardingIntegrationTest {
     void firstSteps() throws Exception {
         TenantUserDetails u = newcomer();
         // пока идёт мастер, чек-листа нет
-        assertThat(page(u, "/settings/channels")).doesNotContain("id=\"first-steps\"", "steps-badge");
+        assertThat(page(u, "/settings")).doesNotContain("id=\"first-steps\"", "steps-badge");
         wizardDone(u);
 
         String grid = page(u, "/calendar/grid");
@@ -508,7 +509,7 @@ class OnboardingIntegrationTest {
         mvc.perform(post("/onboarding/tour/start").with(user(old)).with(csrf()));
         mvc.perform(post("/onboarding/tour").with(user(old)).with(csrf()).param("event", "close"));
         assertThat(page(old, "/dashboard")).doesNotContain("onboarding-config", "\"hints\"");
-        assertThat(page(old, "/settings/channels")).doesNotContain("onboarding-config");
+        assertThat(page(old, "/settings")).doesNotContain("onboarding-config");
     }
 
     @Test
@@ -517,15 +518,18 @@ class OnboardingIntegrationTest {
         TenantUserDetails old = account();
         // без квартиры шахматки нет: «Главная» с одним пустым состоянием и кнопкой в мастер
         mvc.perform(get("/calendar/grid").with(user(old))).andExpect(redirectedUrl("/dashboard"));
-        assertThat(page(old, "/dashboard")).contains("empty-state", "Здесь будет сводка по квартире",
+        assertThat(page(old, "/dashboard")).contains("empty-state", "Здесь появится сводка", "Добавить жильё",
                 "href=\"/onboarding?step=property\"");
+        // без жилья разделов, которых нет в коротком меню, нет — старая ссылка ведёт в мастер
+        mvc.perform(get("/settings/channels").with(user(old))).andExpect(redirectedUrl("/onboarding?step=property"));
+        apartment(old);
         assertThat(page(old, "/settings/channels")).contains("Площадок пока нет", "href=\"/onboarding?step=platforms\"")
                 .doesNotContain("Сначала добавьте категорию номеров");
         assertThat(page(old, "/bookings/pending")).contains("Заявок пока нет", "href=\"/settings/widgets\"");
         assertThat(page(old, "/expenses")).contains("Расходов за этот месяц нет");
         // кнопка с пустой страницы ведёт к шагу мастера — он открывается и тому, кто создан до онбординга,
         // но мастер, чек-лист и подсказки после этого ему не навязываются
-        assertThat(page(old, "/onboarding?step=platforms")).contains("Расскажите о квартире", "Вернуться в кабинет");
+        assertThat(page(old, "/onboarding?step=platforms")).contains("Где вы сдаёте?", "Вернуться в кабинет");
         mvc.perform(get("/dashboard").with(user(old))).andExpect(status().isOk());
         assertThat(page(old, "/dashboard")).doesNotContain("id=\"first-steps\"", "onboarding-config");
         mvc.perform(get("/onboarding").with(user(account()))).andExpect(redirectedUrl("/calendar/grid"));

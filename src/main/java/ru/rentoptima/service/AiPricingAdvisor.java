@@ -71,7 +71,8 @@ public class AiPricingAdvisor {
         }
     }
 
-    private String buildPrompt(Property property,
+    /** Подсказка AI-советнику; пакетная — для теста «цена из квартиры, не из настроек». */
+    String buildPrompt(Property property,
                                 List<PricingEngine.PricingRecommendation> recs,
                                 Long tenantId,
                                 CompetitorAnalysis competitorAnalysis) {

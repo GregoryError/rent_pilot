@@ -15,7 +15,7 @@
         <th:block th:if="${grid.hasProperties}">
             <div class="card__title">Нет категорий номеров</div>
             <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
-                У ваших объектов пока нет ни одной категории номеров. Для квартиры
+                У ваших объектов пока нет ни одной категории. Если сдаёте жильё целиком,
                 достаточно одной «Основной» с количеством 1; для мини-отеля — по
                 одной на каждый тип номера.
             </p>
@@ -32,7 +32,7 @@
       <div class="grid-wrap" id="grid-wrap">
         <div class="grid" id="grid" th:style="'--cols: ' + ${#lists.size(grid.dayHeaders)}">
 
-            <div class="grid__corner" th:text="${simpleUnits} ? 'Квартира' : 'Объект / категория'">Объект / категория</div>
+            <div class="grid__corner" th:text="${simpleUnits} ? ${housing.fill('%Nom%')} : ${housing.fill('Объект / %cat%')}">Объект / категория</div>
 
             <div th:each="h : ${grid.dayHeaders}" th:class="${h.cssClasses}"
                  th:data-date="${h.date}" th:data-label="${h.fullLabel}">
@@ -161,7 +161,7 @@
                                 <option value="MANUAL_BOOKING">Ручная бронь</option>
                                 <option value="MAINTENANCE">Ремонт</option>
                                 <option value="OWNER_USE">Личное использование</option>
-                                <option value="HOLD">Hold (предварительный резерв)</option>
+                                <option value="HOLD">Резерв — придержать даты</option>
                             </select>
                         </div>
 

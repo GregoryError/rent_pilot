@@ -43,6 +43,7 @@ public class OnboardingUi {
     private final OnboardingService onboarding;
     private final OnboardingChecklist checklist;
     private final OnboardingNotifier notifier;
+    private final ru.rentoptima.housing.HousingVocabulary housingVocabulary;
 
     /** Страницы кабинета с общим layout: только им нужны чек-лист и подсказки. */
     private static boolean cabinetPage(HttpServletRequest request) {
@@ -65,7 +66,8 @@ public class OnboardingUi {
     /** Тексты онбординга для шаблонов кабинета (чек-лист, пустые страницы): {@code ${ot['first.title']}}. */
     @ModelAttribute("ot")
     public java.util.Map<String, String> texts() {
-        return OnboardingTexts.RU;
+        // слово для жилья — по типу жилья хозяина («Добавить квартиру» / «Добавить дом» / «Добавить жильё»)
+        return OnboardingTexts.forHousing(housingVocabulary.forTenant(AuthContext.tenantIdOrNull()));
     }
 
     /**
