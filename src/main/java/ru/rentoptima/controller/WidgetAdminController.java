@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.Channel;
@@ -44,6 +43,7 @@ import ru.rentoptima.service.WidgetLayout;
 import ru.rentoptima.service.WidgetPhotoService;
 import ru.rentoptima.service.WidgetOrigins;
 import ru.rentoptima.service.WidgetSlug;
+import ru.rentoptima.seo.SiteSettings;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -84,6 +84,7 @@ public class WidgetAdminController {
     private final WidgetCorsConfig cors;
     private final IndexNowService indexNow;
     private final WidgetCreator widgetCreator;
+    private final SiteSettings site;
 
     private static final Map<String, String> BLOCK_LABELS = Map.ofEntries(
             Map.entry("gallery", "Фотографии"), Map.entry("title", "Название и цена «от»"),
@@ -703,8 +704,8 @@ public class WidgetAdminController {
         return array;
     }
 
-    private static String baseUrl(HttpServletRequest request) {
-        return ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
+    private String baseUrl(HttpServletRequest request) {
+        return site.linkBase(request);
     }
 
     private static String clean(String s, int max) {

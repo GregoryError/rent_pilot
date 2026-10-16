@@ -39,4 +39,19 @@ class SiteSettingsLinkBaseTest {
         assertThat(site("prod").linkBase(request("https", "www.optirent.ru", 443))).isEqualTo("https://optirent.ru");
         assertThat(site("prod").linkBase(request("https", "evil.example", 443))).isEqualTo("https://optirent.ru");
     }
+
+    @Test
+    void canonicalUsesSameBaseAsLinks() {
+        assertThat(site("prod").canonical(request("https", "staging.optirent.ru", 443), "/b/x"))
+                .isEqualTo("https://optirent.ru/b/x");
+        assertThat(site("staging").canonical(request("https", "staging.optirent.ru", 443), "/b/x"))
+                .isEqualTo("https://staging.optirent.ru/b/x");
+    }
+
+    @Test
+    void secondaryHostOnlyOnProdAndOnlyForOtherDomain() {
+        assertThat(site("prod").isSecondaryHost(request("https", "staging.optirent.ru", 443))).isTrue();
+        assertThat(site("prod").isSecondaryHost(request("https", "OptiRent.ru", 443))).isFalse();
+        assertThat(site("staging").isSecondaryHost(request("https", "staging.optirent.ru", 443))).isFalse();
+    }
 }

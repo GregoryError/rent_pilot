@@ -8,18 +8,32 @@ log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" | tee -a "$LOG_FILE"
 }
 
-log "=== Deploy started ==="
+# Ветку, которую установка отслеживает, задаёт DEPLOY_BRANCH в .env (по умолчанию
+# feat/channels-mvp — как до переезда). Workflow передаёт ветку, которую выкатывает,
+# первым аргументом; чужую ветку скрипт пропускает. Так push в feat/channels-mvp не
+# попадёт на prod, когда эта установка обслуживает optirent.ru с веткой main.
+REQUESTED_BRANCH="${1:-feat/channels-mvp}"
+
+log "=== Deploy started ($REQUESTED_BRANCH) ==="
 
 cd "$DEPLOY_DIR" || {
     log "ERROR: cannot cd to $DEPLOY_DIR"
     exit 1
 }
 
+BRANCH=$(grep -E '^DEPLOY_BRANCH=' .env 2>/dev/null | tail -n 1 | cut -d= -f2- | tr -d '"'"'"' \r')
+BRANCH="${BRANCH:-feat/channels-mvp}"
+
+if [ "$REQUESTED_BRANCH" != "$BRANCH" ]; then
+    log "Skip: this install tracks $BRANCH, not $REQUESTED_BRANCH"
+    exit 0
+fi
+
 log "Fetching latest changes"
-git fetch origin feat/channels-mvp
+git fetch origin "$BRANCH"
 
 CURRENT_SHA=$(git rev-parse HEAD)
-LATEST_SHA=$(git rev-parse origin/feat/channels-mvp)
+LATEST_SHA=$(git rev-parse "origin/$BRANCH")
 
 if [ "$CURRENT_SHA" = "$LATEST_SHA" ]; then
     log "No changes to deploy (already at $CURRENT_SHA)"
@@ -27,7 +41,7 @@ if [ "$CURRENT_SHA" = "$LATEST_SHA" ]; then
 fi
 
 log "Deploying $CURRENT_SHA → $LATEST_SHA"
-git reset --hard origin/feat/channels-mvp
+git checkout -f -B "$BRANCH" "origin/$BRANCH"
 
 log "Rebuilding containers"
 docker compose up --build -d

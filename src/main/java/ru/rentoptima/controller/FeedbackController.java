@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.FeedbackAnswer;
@@ -30,6 +29,7 @@ import ru.rentoptima.service.TelegramService;
 import ru.rentoptima.service.WidgetBookingService;
 import ru.rentoptima.service.WidgetCardService;
 import ru.rentoptima.util.PdAnonymizer;
+import ru.rentoptima.seo.SiteSettings;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -55,6 +55,7 @@ public class FeedbackController {
     private final FeedbackResponseRepository feedbackRepo;
     private final FeedbackQuestionRepository questionRepo;
     private final FeedbackAnswerRepository answerRepo;
+    private final SiteSettings site;
 
     @GetMapping("/feedback/{code}")
     public String feedbackPage(@PathVariable String code, Model model) {
@@ -73,9 +74,12 @@ public class FeedbackController {
      * хозяину, а не публичный отзыв; куда-либо ещё гостя отсюда не направляют.
      */
     @GetMapping("/f/{code}")
-    public String cardFeedbackPage(@PathVariable String code, Model model) {
+    public String cardFeedbackPage(@PathVariable String code, Model model, HttpServletRequest request) {
         Property property = cardProperty(code);
         if (property == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        // QR со старым доменом (staging.optirent.ru/f/…): анкета открывается на основном —
+        // там же её стили и /api/feedback/submit, который старый домен уже не пропускает
+        if (site.isSecondaryHost(request)) return "redirect:" + site.getBaseUrl() + "/f/" + code;
         model.addAttribute("property", property);
         model.addAttribute("sessionId", UUID.randomUUID().toString());
         model.addAttribute("cardCode", code);
@@ -218,7 +222,7 @@ public class FeedbackController {
             Long tenantId = property.getTenant().getId();
             if (!telegram.isConfigured(tenantId)) return;
             boolean card = FeedbackResponse.SOURCE_CARD.equals(response.getSource());
-            String baseUrl = ServletUriComponentsBuilder.fromContextPath(http).build().toUriString();
+            String baseUrl = site.linkBase(http);
             StringBuilder sb = new StringBuilder(card
                     ? "💬 OptiRent: сообщение от гостя — с карточки для гостей\n"
                     : "💬 OptiRent: новый отзыв гостя\n");

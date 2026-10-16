@@ -14,6 +14,7 @@ import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.service.PropertyCreator;
+import ru.rentoptima.seo.SiteSettings;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
@@ -44,12 +45,12 @@ public class PropertyController {
     private final JdbcTemplate jdbc;
     private final PropertyCreator propertyCreator;
     private final ru.rentoptima.service.ApartmentDefaults apartmentDefaults;
+    private final SiteSettings site;
 
     @GetMapping
     public String list(Model model, jakarta.servlet.http.HttpServletRequest request) {
         Long tenantId = AuthContext.tenantId();
-        model.addAttribute("baseUrl", org.springframework.web.servlet.support.ServletUriComponentsBuilder
-                .fromContextPath(request).build().toUriString());
+        model.addAttribute("baseUrl", site.linkBase(request));
         // Группируем unit_type по propertyId — шаблон достанет по ключу для каждой карточки.
         Map<Long, List<UnitType>> unitTypesByProperty = unitTypeRepo
                 .findByTenantIdAndActiveTrue(tenantId).stream()

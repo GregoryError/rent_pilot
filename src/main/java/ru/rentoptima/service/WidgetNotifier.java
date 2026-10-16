@@ -12,6 +12,7 @@ import ru.rentoptima.mail.Mail;
 import ru.rentoptima.repository.BookingRepository;
 import ru.rentoptima.repository.BookingWidgetRepository;
 import ru.rentoptima.repository.CalendarBlockRepository;
+import ru.rentoptima.seo.SiteSettings;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -32,16 +33,15 @@ public class WidgetNotifier {
     /** За сколько до истечения заявки напомнить хозяину. */
     static final Duration REMIND_BEFORE = Duration.ofHours(2);
 
-    private static final String DEFAULT_BASE_URL = "https://optirent.ru";
     private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("dd.MM HH:mm");
 
     private final TelegramService telegram;
     private final EmailService email;
-    private final SettingsService settings;
     private final CalendarBlockRepository blockRepo;
     private final BookingRepository bookingRepo;
     private final BookingWidgetRepository widgetRepo;
+    private final SiteSettings site;
 
     /** Новая заявка (REQUEST) или бронь (INSTANT). */
     public void created(BookingWidget w, Booking b, LocalDateTime holdExpiresAt, String baseUrl) {
@@ -112,7 +112,7 @@ public class WidgetNotifier {
                     + ", гость " + (b.getGuestName() == null ? "—" : b.getGuestName())
                     + ", " + b.getGuestPhone() + "\n"
                     + "Осталось " + remaining(minutes) + " — потом даты освободятся сами.\n"
-                    + "Подтвердить или отклонить: " + baseUrl(hold.getTenantId()) + "/bookings/pending");
+                    + "Подтвердить или отклонить: " + site.getBaseUrl() + "/bookings/pending");
         }
     }
 
@@ -209,11 +209,6 @@ public class WidgetNotifier {
         } catch (Exception e) {
             log.warn("Не удалось уведомить гостя по брони {}: {}", b.getId(), e.getMessage());
         }
-    }
-
-    private String baseUrl(Long tenantId) {
-        String url = settings.getValue(tenantId, TelegramService.KEY_BASE_URL);
-        return url == null || url.isBlank() ? DEFAULT_BASE_URL : url;
     }
 
     private static String rub(BigDecimal amount) {

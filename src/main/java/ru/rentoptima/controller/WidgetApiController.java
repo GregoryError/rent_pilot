@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.auth.EmailVerificationService;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.BookingWidget;
@@ -37,6 +36,7 @@ import ru.rentoptima.service.WidgetFunnelService;
 import ru.rentoptima.service.WidgetGuestCalendar;
 import ru.rentoptima.service.WidgetNotifier;
 import ru.rentoptima.service.WidgetPricing;
+import ru.rentoptima.seo.SiteSettings;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -81,11 +81,12 @@ public class WidgetApiController {
     private final WidgetConfigService configs;
     private final WidgetFunnelService funnel;
     private final EmailVerificationService verification;
+    private final SiteSettings site;
 
     @GetMapping("/config")
     public ResponseEntity<Map<String, Object>> config(@PathVariable String slug, HttpServletRequest http) {
         BookingWidget w = require(slug);
-        String baseUrl = ServletUriComponentsBuilder.fromContextPath(http).build().toUriString();
+        String baseUrl = site.linkBase(http);
         Map<String, Object> body = configs.config(w, baseUrl);
         return ResponseEntity.ok().cacheControl(CACHE).body(body);
     }
@@ -233,7 +234,7 @@ public class WidgetApiController {
         }
 
         Booking b = result.booking();
-        String baseUrl = ServletUriComponentsBuilder.fromContextPath(http).build().toUriString();
+        String baseUrl = site.linkBase(http);
         notifier.created(w, b, result.holdExpiresAt(), baseUrl);
         PaymentProvider.PaymentStart payment = payments.start(b,
                 b.getPrepaymentAmount() == null ? BigDecimal.ZERO : b.getPrepaymentAmount());

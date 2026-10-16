@@ -742,10 +742,10 @@ class WidgetBookingIntegrationTest {
 
         mvc.perform(get("/q/" + card))
                 .andExpect(status().isFound())
-                .andExpect(header().string("Location", "/b/" + slug + "?promo=SNOVA10&utm_source=qr_card&utm_medium=print"))
+                .andExpect(header().string("Location", "http://localhost/b/" + slug + "?promo=SNOVA10&utm_source=qr_card&utm_medium=print"))
                 .andExpect(header().string("Cache-Control", "no-store"));
         mvc.perform(get("/q/" + message))
-                .andExpect(header().string("Location", "/b/" + slug + "?promo=SNOVA10&utm_source=guest_message&utm_medium=messenger"));
+                .andExpect(header().string("Location", "http://localhost/b/" + slug + "?promo=SNOVA10&utm_source=guest_message&utm_medium=messenger"));
         mvc.perform(get("/q/nosuch1")).andExpect(status().isNotFound());
         // Ссылка обратной связи по адресу бронирования не открывается, и наоборот
         mvc.perform(get("/q/" + linkCode("FEEDBACK"))).andExpect(status().isNotFound());
@@ -755,10 +755,10 @@ class WidgetBookingIntegrationTest {
         jdbc.update("UPDATE promo_codes SET valid_until = CURRENT_DATE - 1 WHERE id = ?", promoId);
         mvc.perform(get("/q/" + card))
                 .andExpect(status().isFound())
-                .andExpect(header().string("Location", "/b/" + slug + "?utm_source=qr_card&utm_medium=print"));
+                .andExpect(header().string("Location", "http://localhost/b/" + slug + "?utm_source=qr_card&utm_medium=print"));
         jdbc.update("UPDATE promo_codes SET valid_until = NULL, active = FALSE WHERE id = ?", promoId);
         mvc.perform(get("/q/" + card))
-                .andExpect(header().string("Location", "/b/" + slug + "?utm_source=qr_card&utm_medium=print"));
+                .andExpect(header().string("Location", "http://localhost/b/" + slug + "?utm_source=qr_card&utm_medium=print"));
         jdbc.update("UPDATE promo_codes SET active = TRUE WHERE id = ?", promoId);
 
         // Перевыпуск: новый код, старый жив, но уже без промокода
@@ -767,9 +767,9 @@ class WidgetBookingIntegrationTest {
         assertThat(fresh).isNotEqualTo(card);
         mvc.perform(get("/q/" + card))
                 .andExpect(status().isFound())
-                .andExpect(header().string("Location", "/b/" + slug + "?utm_source=qr_card&utm_medium=print"));
+                .andExpect(header().string("Location", "http://localhost/b/" + slug + "?utm_source=qr_card&utm_medium=print"));
         mvc.perform(get("/q/" + fresh))
-                .andExpect(header().string("Location", "/b/" + slug + "?promo=SNOVA10&utm_source=qr_card&utm_medium=print"));
+                .andExpect(header().string("Location", "http://localhost/b/" + slug + "?promo=SNOVA10&utm_source=qr_card&utm_medium=print"));
 
         // Промокод создаётся прямо со страницы карточки и сразу выбирается
         mvc.perform(post(page + "/promo").with(user(host())).with(csrf())
@@ -778,7 +778,7 @@ class WidgetBookingIntegrationTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(flash().attribute("success", org.hamcrest.Matchers.containsString("SNOVA15")));
         mvc.perform(get("/q/" + fresh))
-                .andExpect(header().string("Location", "/b/" + slug + "?promo=SNOVA15&utm_source=qr_card&utm_medium=print"));
+                .andExpect(header().string("Location", "http://localhost/b/" + slug + "?promo=SNOVA15&utm_source=qr_card&utm_medium=print"));
     }
 
     @Test

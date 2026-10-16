@@ -16,7 +16,7 @@ import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.security.Tenancy;
 import ru.rentoptima.service.FeedbackAnalyticsService;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import ru.rentoptima.seo.SiteSettings;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -34,6 +34,7 @@ public class FeedbackAdminController {
     private final FeedbackAnswerRepository answerRepo;
     private final FeedbackQuestionRepository questionRepo;
     private final FeedbackAnalyticsService analytics;
+    private final SiteSettings site;
 
     @GetMapping
     public String page(@RequestParam(name = "property", required = false) Long propertyId,
@@ -116,7 +117,7 @@ public class FeedbackAdminController {
         model.addAttribute("averageRating", analytics.averageRating(tenantId, property.getId()));
 
         // Ссылки на анкету — по всем объектам и сразу полным адресом: их копируют в QR и мессенджеры
-        String baseUrl = ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
+        String baseUrl = site.linkBase(request);
         List<FeedbackLink> links = new ArrayList<>();
         for (Property p : properties) {
             links.add(new FeedbackLink(p.getName(),

@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.channel.ChannelSyncException;
 import ru.rentoptima.channel.ical.UrlSafetyGuard;
 import ru.rentoptima.entity.Channel;
@@ -69,8 +68,7 @@ public class ChannelController {
         List<Property> properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
 
         Map<Long, String> unitTypeLabels = buildUnitTypeLabels(unitTypes, properties);
-        String baseUrl = ServletUriComponentsBuilder
-                .fromContextPath(request).build().toUriString();
+        String baseUrl = site.linkBase(request);
 
         List<ChannelView> views = new ArrayList<>(channels.size());
         for (Channel c : channels) {

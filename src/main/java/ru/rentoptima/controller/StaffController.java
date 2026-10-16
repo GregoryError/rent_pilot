@@ -11,11 +11,11 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.Property;
 import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.security.Tenancy;
+import ru.rentoptima.seo.SiteSettings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,11 +33,12 @@ public class StaffController {
 
     private final PropertyRepository propertyRepo;
     private final PasswordEncoder encoder;
+    private final SiteSettings site;
 
     @GetMapping
     public String page(Model model, HttpServletRequest request) {
         Long tenantId = AuthContext.tenantId();
-        String baseUrl = ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
+        String baseUrl = site.linkBase(request);
 
         List<HousekeeperAccess> items = new ArrayList<>();
         for (Property p : propertyRepo.findByTenantIdAndActiveTrue(tenantId)) {

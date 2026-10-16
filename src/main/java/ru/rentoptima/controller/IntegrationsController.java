@@ -6,7 +6,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.AlertEvent;
 import ru.rentoptima.repository.AlertEventRepository;
 import ru.rentoptima.security.AuthContext;
@@ -14,7 +13,6 @@ import ru.rentoptima.service.AlertSchedulerService;
 import ru.rentoptima.service.SettingsService;
 import ru.rentoptima.service.TelegramService;
 
-import jakarta.servlet.http.HttpServletRequest;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
@@ -52,7 +50,6 @@ public class IntegrationsController {
     @PostMapping("/telegram")
     public String saveTelegram(@RequestParam(required = false) String tgToken,
                                @RequestParam(required = false) String tgChatId,
-                               HttpServletRequest request,
                                RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
         String token = tgToken == null ? "" : tgToken.trim();
@@ -73,7 +70,6 @@ public class IntegrationsController {
             settings.setEncryptedValue(tenantId, TelegramService.KEY_TOKEN, token);
         }
         settings.setValue(tenantId, TelegramService.KEY_CHAT_ID, chatId);
-        rememberBaseUrl(tenantId, request);
 
         redirect.addFlashAttribute("success", "Настройки Telegram сохранены");
         return "redirect:/settings/integrations";
@@ -81,7 +77,7 @@ public class IntegrationsController {
 
     /** Хост написал боту /start — находим этот чат, сохраняем и шлём в него проверочное сообщение. */
     @PostMapping("/telegram/detect")
-    public String detectTelegramChat(HttpServletRequest request, RedirectAttributes redirect) {
+    public String detectTelegramChat(RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
         try {
             Optional<TelegramService.Chat> chat = telegram.detectChat(tenantId);
@@ -91,7 +87,6 @@ public class IntegrationsController {
                 return "redirect:/settings/integrations";
             }
             settings.setValue(tenantId, TelegramService.KEY_CHAT_ID, chat.get().id());
-            rememberBaseUrl(tenantId, request);
             telegram.send(tenantId, "OptiRent подключён. Сюда будут приходить уведомления о пересечениях броней и сбоях площадок.");
             redirect.addFlashAttribute("success", "Чат найден: " + chat.get().title() + ". Проверочное сообщение отправлено.");
         } catch (Exception e) {
@@ -139,12 +134,6 @@ public class IntegrationsController {
         settings.setValue(tenantId, TelegramService.KEY_CHAT_ID, "");
         redirect.addFlashAttribute("success", "Telegram отключён");
         return "redirect:/settings/integrations";
-    }
-
-    /** Планировщик работает вне запроса и сам адрес сервиса не знает — запоминаем его здесь. */
-    private void rememberBaseUrl(Long tenantId, HttpServletRequest request) {
-        String baseUrl = ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
-        settings.setValue(tenantId, TelegramService.KEY_BASE_URL, baseUrl);
     }
 
     private static AlertView toView(AlertEvent a) {

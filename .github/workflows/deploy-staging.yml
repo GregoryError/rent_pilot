@@ -1,5 +1,8 @@
 name: Deploy to Staging
 
+# После переезда установка отслеживает main (DEPLOY_BRANCH в .env), и эта выкладка
+# на сервере пропускается. Workflow можно удалить, когда переезд закрепится.
+
 on:
   push:
     branches:
@@ -27,7 +30,7 @@ jobs:
           ssh -i ~/.ssh/deploy_key \
               -o StrictHostKeyChecking=accept-new \
               ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} \
-              'bash /opt/rentoptima-staging/scripts/deploy.sh'
+              'bash /opt/rentoptima-staging/scripts/deploy.sh feat/channels-mvp'
 
       - name: Notify success
         if: success()

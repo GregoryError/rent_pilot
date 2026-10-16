@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.WidgetCard;
 import ru.rentoptima.entity.WidgetQrLink;
@@ -28,6 +27,7 @@ import ru.rentoptima.service.QrSvg;
 import ru.rentoptima.service.WidgetCardService;
 import ru.rentoptima.service.WidgetCardService.CardForm;
 import ru.rentoptima.service.WidgetLayout;
+import ru.rentoptima.seo.SiteSettings;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -47,6 +47,7 @@ public class WidgetCardController {
 
     private final BookingWidgetRepository widgetRepo;
     private final WidgetCardService cards;
+    private final SiteSettings site;
     private final ObjectMapper json = new ObjectMapper();
 
     @GetMapping
@@ -181,7 +182,7 @@ public class WidgetCardController {
         return Tenancy.found(widgetRepo.findByIdAndTenantIdAndActiveTrue(id, AuthContext.tenantId()));
     }
 
-    private static String baseUrl(HttpServletRequest request) {
-        return ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
+    private String baseUrl(HttpServletRequest request) {
+        return site.linkBase(request);
     }
 }

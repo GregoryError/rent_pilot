@@ -1,7 +1,10 @@
+# Одна установка — разные роли через .env. Без переменных всё как на staging до переезда:
+# те же контейнеры, тома, порт и адрес. Prod на optirent.ru — APP_ENVIRONMENT=prod и
+# APP_BASE_URL=https://optirent.ru (см. patches/INTEGRATION_PROD_SWITCH.md).
 services:
   app:
     build: .
-    container_name: rentoptima-staging-app
+    container_name: ${APP_CONTAINER_NAME:-rentoptima-staging-app}
     ports:
       - "127.0.0.1:${STAGING_APP_PORT:-8081}:8080"
     environment:
@@ -12,7 +15,9 @@ services:
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
       - TZ=Europe/Moscow
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
-      - APP_ENVIRONMENT=staging
+      - APP_ENVIRONMENT=${APP_ENVIRONMENT:-staging}
+      # Единственный источник адреса сайта в ссылках, письмах, QR, canonical и sitemap
+      - APP_BASE_URL=${APP_BASE_URL:-https://staging.optirent.ru}
       - YANDEX_VERIFICATION=${YANDEX_VERIFICATION:-}
       - GOOGLE_VERIFICATION=${GOOGLE_VERIFICATION:-}
       - INDEXNOW_KEY=${INDEXNOW_KEY:-}
@@ -38,7 +43,7 @@ services:
 
   db:
     image: postgres:16-alpine
-    container_name: rentoptima-staging-db
+    container_name: ${DB_CONTAINER_NAME:-rentoptima-staging-db}
     volumes:
       - staging-pgdata:/var/lib/postgresql/data
     environment:
@@ -54,9 +59,11 @@ services:
       retries: 5
     restart: unless-stopped
 
+# Имена томов — это данные. Менять их только вместе с переносом содержимого:
+# новое имя = пустая база и пустой каталог фото.
 volumes:
   staging-uploads:
-    name: rentoptima-staging_uploads
+    name: ${UPLOADS_VOLUME:-rentoptima-staging_uploads}
   staging-pgdata:
     external: true
-    name: rentoptima-staging_pgdata-staging
+    name: ${PGDATA_VOLUME:-rentoptima-staging_pgdata-staging}

@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.auth.EmailVerificationService;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.Channel;
@@ -103,7 +102,7 @@ public class OnboardingController {
                 : OnboardingTexts.format("common.step", current + 1, steps.size()));
         model.addAttribute("backStep", current > 0 && !STEP_DONE.equals(view) && !returning ? steps.get(current - 1) : null);
 
-        String baseUrl = ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
+        String baseUrl = site.linkBase(request);
         Optional<UnitType> unit = onboarding.unitType(s);
         switch (view) {
             case STEP_PROPERTY -> {

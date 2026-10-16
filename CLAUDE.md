@@ -63,6 +63,9 @@ DB_PASSWORD=...
 ENCRYPTION_KEY=<base64, AES-256-GCM>
 APP_ADMIN_PASSWORD=...
 APP_PORT=8080           # или STAGING_APP_PORT=8081, PARTNER_APP_PORT=8082
+APP_ENVIRONMENT=prod    # в docker-compose.yml по умолчанию staging
+APP_BASE_URL=https://optirent.ru  # единственный источник адреса сайта; в compose по умолчанию staging
+DEPLOY_BRANCH=main      # какую ветку выкатывает scripts/deploy.sh; по умолчанию feat/channels-mvp
 # Почта (Unisender Go); без SMTP_HOST или MAIL_FROM письма не уходят
 SMTP_HOST=smtp.go2.unisender.ru
 SMTP_PORT=587           # SMTP_SECURITY=starttls|ssl, пусто — по порту
@@ -208,7 +211,7 @@ AI-режим — только рекомендации. `PricingEngine.runForPr
 ### Почта, пароли, подтверждение адреса, регистрация
 
 - **Письма** — только `EmailService.send(Mail)`: `Mail` — данные (заголовок, абзацы, одна кнопка), `MailRenderer` собирает HTML без картинок и внешних ресурсов + текстовую часть. У каждого письма `Reply-To: MAIL_REPLY_TO` и `X-UNISENDER-GO` с выключенным трекингом ссылок и прочтений — **не включать**: ссылки в письмах должны вести прямо на наш домен, а не через `links.optirent.ru`. Шифрование — `mail/MailConfig` (`SMTP_SECURITY`, без открытого режима). Без `SMTP_HOST`/`MAIL_FROM` писем нет, и всё, что на них опирается, мягко выключается.
-- **Ссылки в письмах** строит `SiteSettings.linkBase` (prod — `APP_BASE_URL`, вне prod — адрес запроса, если хост наш). Не собирать адрес из `Host` напрямую.
+- **Любой адрес наружу** (письма, Telegram, ссылки фидов, QR `/q/` и `/f/`, горничная, отзывы, код вставки, canonical) строит `SiteSettings.linkBase(request)` (prod — `APP_BASE_URL`, вне prod — адрес запроса, если хост наш), без запроса — `SiteSettings.getBaseUrl()`. Не собирать адрес из `Host` и `ServletUriComponentsBuilder.fromContextPath` напрямую.
 - **Токены ссылок** (сброс пароля, подтверждение почты) — `AuthTokenService`, таблица `auth_tokens` (V37): 32 байта `SecureRandom`, в базе только SHA-256, одноразовые. Токены открытым текстом в базу не писать.
 - **Пароль** — правила в `PasswordPolicy` (от 10 символов, не равен адресу), одни для регистрации, сброса и смены. После нового пароля остальные сессии завершаются (`SessionRegistry`). `/forgot` отвечает одинаково, есть аккаунт или нет, — не выдавать найден ли адрес ни текстом, ни временем ответа (отправка в фоне, `AuthNotifier`).
 - **Подтверждение почты** (V38) — `EmailVerificationService`: плашка в кабинете, через 7 дней (`users.verify_deadline`) кабинет закрывает `EmailVerificationInterceptor` экраном `/verify-email`. Новая страница бронирования неподтверждённого аккаунта (`page_needs_verified_email`) не принимает брони (`WidgetError.PAGE_INACTIVE`); страницы аккаунтов, созданных до V38, не затрагиваются. Новый раздел, который должен работать с закрытым кабинетом, — в `EmailVerificationInterceptor.OPEN`.
@@ -522,6 +525,8 @@ POST /widget/{secret}/request
 ## Нюансы деплоя
 
 ### Три окружения на одном сервере
+
+Готовится переезд: `/opt/rentoptima-staging` становится prod на optirent.ru (ветка main), прежний prod — pilot.optirent.ru (ветка legacy-rc). Порядок, nginx и откат — `patches/INTEGRATION_PROD_SWITCH.md`. Таблица ниже — до переезда.
 
 | Домен | Порт | Ветка | Директория |
 |---|---|---|---|

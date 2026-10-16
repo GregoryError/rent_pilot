@@ -31,8 +31,6 @@ public class TelegramService {
 
     public static final String KEY_TOKEN = "tg_bot_token";
     public static final String KEY_CHAT_ID = "tg_chat_id";
-    /** Адрес, по которому tenant открывает сервис — для ссылок в сообщениях. */
-    public static final String KEY_BASE_URL = "public_base_url";
 
     private static final String API = "https://api.telegram.org/bot";
     private static final Pattern TOKEN_FORMAT = Pattern.compile("\\d{5,}:[A-Za-z0-9_-]{30,}");

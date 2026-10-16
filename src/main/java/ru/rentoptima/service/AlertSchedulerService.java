@@ -15,6 +15,7 @@ import ru.rentoptima.repository.PropertyRepository;
 import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.service.AvailabilityService.DayOccupancy;
 import ru.rentoptima.service.ConflictDetector.ConflictPeriod;
+import ru.rentoptima.seo.SiteSettings;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -45,7 +46,6 @@ public class AlertSchedulerService {
     static final int CHANNEL_DOWN_THRESHOLD = 3;
     /** Больше пунктов в одно сообщение не кладём — остальное сводим в «и ещё N». */
     private static final int MAX_ITEMS_PER_MESSAGE = 10;
-    private static final String DEFAULT_BASE_URL = "https://optirent.ru";
 
     private final UnitTypeRepository unitTypeRepo;
     private final PropertyRepository propertyRepo;
@@ -53,7 +53,7 @@ public class AlertSchedulerService {
     private final AlertEventRepository alertRepo;
     private final AvailabilityService availability;
     private final TelegramService telegram;
-    private final SettingsService settings;
+    private final SiteSettings site;
 
     @Scheduled(fixedDelayString = "${app.alerts.interval-ms:300000}",
                initialDelayString = "${app.alerts.initial-delay-ms:90000}")
@@ -197,7 +197,7 @@ public class AlertSchedulerService {
                 .filter(a -> a.getNotifiedAt() == null && a.getAlertType() != AlertType.OVERLAP)
                 .toList();
         if (!pending.isEmpty()) {
-            String text = composeMessage(pending, baseUrl(tenantId));
+            String text = composeMessage(pending, site.getBaseUrl());
             if (telegram.send(tenantId, text).ok()) {
                 LocalDateTime now = LocalDateTime.now();
                 for (AlertEvent a : pending) {
@@ -217,11 +217,6 @@ public class AlertSchedulerService {
         if (!recovered.isEmpty()) {
             telegram.send(tenantId, String.join("\n", recovered));
         }
-    }
-
-    private String baseUrl(Long tenantId) {
-        String url = settings.getValue(tenantId, TelegramService.KEY_BASE_URL);
-        return url == null || url.isBlank() ? DEFAULT_BASE_URL : url;
     }
 
     // --- Тексты

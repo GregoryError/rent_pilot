@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import ru.rentoptima.auth.EmailVerificationService;
 import ru.rentoptima.entity.BookingWidget;
 import ru.rentoptima.entity.Property;
@@ -90,7 +89,7 @@ public class WidgetPublicController {
     }
 
     private void fill(Model model, BookingWidget w, HttpServletRequest request, boolean embed) {
-        String baseUrl = ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
+        String baseUrl = site.linkBase(request);
         var theme = WidgetLayout.normalize(w.getConfigJson()).path("theme");
         String accent = theme.path("accent").asText();
         // Выбранный шрифт подгружается заранее: тогда он успевает к первой отрисовке
@@ -134,6 +133,8 @@ public class WidgetPublicController {
      * QR с карточки и ссылка из сообщения гостю. Редирект временный (302) и не кэшируется:
      * куда он ведёт, хозяин может поменять уже после печати — сменить или отключить
      * промокод. Отозванная ссылка всё равно открывает страницу бронирования.
+     * Адрес в Location — полный, от {@code APP_BASE_URL}: карточки, напечатанные со старым
+     * доменом (staging.optirent.ru/q/…), ведут сразу на основной, без второго редиректа.
      */
     @GetMapping("/q/{code}")
     public ResponseEntity<Void> shortLink(@PathVariable String code, HttpServletRequest request) {
@@ -143,7 +144,7 @@ public class WidgetPublicController {
         BookingWidget w = widgets.findById(link.getWidgetId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         return ResponseEntity.status(HttpStatus.FOUND)
-                .header(HttpHeaders.LOCATION, request.getContextPath() + cards.target(link, w, LocalDate.now()))
+                .header(HttpHeaders.LOCATION, site.linkBase(request) + cards.target(link, w, LocalDate.now()))
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")
                 .build();
     }

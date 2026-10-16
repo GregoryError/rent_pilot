@@ -45,10 +45,15 @@ public class SiteSettings {
     }
 
     /**
-     * Начало адреса для ссылок в письмах и Telegram (сброс пароля, подтверждение почты).
-     * На prod — домен из настройки. Вне prod — адрес запроса (ссылка со staging ведёт на
-     * staging), но только если хост — наш домен, его поддомен или localhost: иначе подменой
-     * заголовка Host можно было бы получить письмо со ссылкой на чужой сайт.
+     * Начало любого адреса, который мы отдаём наружу: письма, Telegram, ссылки фидов,
+     * QR и короткие ссылки, ссылки горничной и отзывов, код вставки виджета, canonical.
+     * Других источников адреса в коде нет — не собирать его из запроса напрямую.
+     * <p>
+     * На prod — только {@code APP_BASE_URL}, с какого бы домена ни пришёл запрос (после
+     * переезда staging.optirent.ru ещё обслуживает /ical/, /q/ и /f/). Вне prod — адрес
+     * запроса (ссылка с partner ведёт на partner), но только если хост — наш домен, его
+     * поддомен или localhost: иначе подменой заголовка Host можно было бы получить письмо
+     * со ссылкой на чужой сайт. Без запроса (планировщики) — {@link #getBaseUrl()}.
      */
     public String linkBase(HttpServletRequest request) {
         if (isProduction()) return baseUrl;
@@ -62,11 +67,21 @@ public class SiteSettings {
     /**
      * Канонический адрес страницы — без параметров. На prod домен берётся из настройки,
      * а не из запроса: каноническим должен быть https://optirent.ru, каким бы путём
-     * (www, http, IP) запрос ни пришёл. Вне prod — адрес самого запроса.
+     * (www, http, IP) запрос ни пришёл. Вне prod — адрес самого запроса, как в {@link #linkBase}.
      */
     public String canonical(HttpServletRequest request, String path) {
-        String base = isProduction() ? baseUrl
-                : ServletUriComponentsBuilder.fromContextPath(request).build().toUriString();
-        return base + path;
+        return linkBase(request) + path;
+    }
+
+    /**
+     * На prod запрос пришёл не на домен из {@code APP_BASE_URL} — например, на прежний
+     * staging.optirent.ru, который nginx пропускает только для /ical/, /q/ и /f/.
+     * Страницу на таком домене не показываем: её стили и запросы ушли бы на основной домен.
+     */
+    public boolean isSecondaryHost(HttpServletRequest request) {
+        if (!isProduction()) return false;
+        String host = request.getServerName();
+        String own = java.net.URI.create(baseUrl).getHost();
+        return host != null && own != null && !host.equalsIgnoreCase(own);
     }
 }
