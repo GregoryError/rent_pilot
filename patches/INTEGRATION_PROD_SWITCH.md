@@ -337,9 +337,48 @@ server {
    sudo cp -a /etc/nginx/sites-available /root/backup/nginx-sites-$(date +%F)
    ```
 
+7. **Пароли и секреты** — установка была staging с basic auth, а станет открытым prod.
+   Бэкап из шага 6 уже есть.
+   - **Пароль базы** (`DB_PASSWORD=staging_temp_password`). `POSTGRES_PASSWORD` действует
+     только при создании тома, поэтому пароль меняется сначала в самой базе, потом в `.env`:
+     ```bash
+     cd /opt/rentoptima-staging
+     NEW=$(openssl rand -hex 24)
+     docker exec rentoptima-staging-db psql -U rentoptima -d rentoptima_staging \
+       -c "ALTER USER rentoptima PASSWORD '$NEW'"
+     sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=$NEW/" .env
+     docker compose up -d
+     curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8081/login   # 200 (через минуту)
+     ```
+     `psql` внутри контейнера входит по локальному сокету без пароля. Если приложение не
+     поднялось (`docker compose logs app | grep -i 'password authentication failed'`) —
+     пароли разошлись: повторить `ALTER USER` со значением из `.env`.
+   - **Пользователь `admin`.** Его создаёт миграция V1 с паролем **`admin`**.
+     `APP_ADMIN_PASSWORD` в `.env` не читают ни код, ни `docker-compose.yml` — строку можно
+     удалить, она ничего не защищает. Проверить, не остался ли пароль по умолчанию:
+     ```bash
+     docker exec rentoptima-staging-db psql -U rentoptima -d rentoptima_staging -tAc \
+       "SELECT username, active, password_hash = '\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy'
+          FROM users WHERE role = 'ADMIN'"
+     ```
+     `t` в последней колонке — пароль всё ещё `admin`. Сменить: войти под `admin` →
+     «Сменить пароль» внизу меню (от 10 символов). Без входа — через SQL, как в
+     `INTEGRATION_AUTH.md` (хеш из `htpasswd -bnBC 10`), с условием `WHERE username = 'admin'`.
+   - **SMTP Unisender** — пароль попал в переписку. Выпустить новый в кабинете Unisender,
+     записать в `SMTP_PASSWORD`, `docker compose up -d`, проверить письмом с `/forgot`.
+   - **`ENCRYPTION_KEY`** — тоже попал в переписку; он общий для prod, staging и partner.
+     Просто заменить нельзя: им зашифрованы настройки с `is_encrypted = true` (токен
+     Telegram-бота) и пароли Wi-Fi карточек (`widget_cards.wifi_password_enc`), со старым
+     ключом они не расшифруются, а перешифровки в коде нет. Варианты: оставить (без доступа к
+     базе ключ бесполезен) или сменить и попросить хозяев заново ввести токен Telegram и пароль
+     Wi-Fi. Решить до переезда, пока хозяев мало. Если менять — у partner свой ключ, перенос
+     данных между установками с этого момента не работает.
+   - **`APP_ICAL_EXPORT_CANCELLED=false`** переедет в prod как есть: удалённые ручные записи не
+     уходят в фид со `STATUS:CANCELLED`. Если это решение по пилоту — оставить.
+
 ### Переключение (минуты)
 
-7. **`.env` в /opt/rentoptima-staging** — дописать:
+8. **`.env` в /opt/rentoptima-staging** — дописать:
    ```
    APP_ENVIRONMENT=prod
    APP_BASE_URL=https://optirent.ru
@@ -347,16 +386,16 @@ server {
    ```
    плюс prod-значения из `INTEGRATION_SEO_MOBILE.md` (`INDEXNOW_KEY`, `METRIKA_ID` — только
    после абзаца в политике, `YANDEX_VERIFICATION` / `GOOGLE_VERIFICATION`).
-8. **Выкатить main**: `bash /opt/rentoptima-staging/scripts/deploy.sh main` (или «Run workflow» у
+9. **Выкатить main**: `bash /opt/rentoptima-staging/scripts/deploy.sh main` (или «Run workflow» у
    `Deploy to optirent.ru`). Проверить, что внутри новые переменные:
    `docker exec rentoptima-staging-app env | grep -E 'APP_(ENVIRONMENT|BASE_URL)'`.
    Если SHA совпал и скрипт сказал «No changes» (баг 1) — `docker compose up -d` руками:
    переменные из `.env` применяются пересозданием контейнера.
-9. **nginx**: включить три новых конфига, `sudo nginx -t && sudo systemctl reload nginx`.
+10. **nginx**: включить три новых конфига, `sudo nginx -t && sudo systemctl reload nginx`.
 
 ### Сразу после
 
-10. Проверки:
+11. Проверки:
     ```bash
     curl -sI https://optirent.ru/ | head -1                                   # 200, без 401
     curl -sI https://optirent.ru/ | grep -i x-robots-tag                     # пусто (prod индексируется)
@@ -373,15 +412,15 @@ server {
     В кабинете: «Площадки» — ссылки начинаются с `https://optirent.ru/ical/`; карточка — QR
     ведёт на `https://optirent.ru/q/…`; письмо «сбросить пароль» — ссылка на optirent.ru;
     Telegram-алерт — «Шахматка: https://optirent.ru/…».
-11. **Загрузка**: фото больше 1 МБ на странице бронирования загружается (`client_max_body_size`).
-12. **RealtyCalendar**: в кабинете RC сменить адрес вебхука на
+12. **Загрузка**: фото больше 1 МБ на странице бронирования загружается (`client_max_body_size`).
+13. **RealtyCalendar**: в кабинете RC сменить адрес вебхука на
     `https://pilot.optirent.ru/api/webhooks/rc`, затем убрать временный `location` из блока
     optirent.ru.
-13. **Поисковики**: пункты «prod» из `INTEGRATION_SEO_MOBILE.md` (Вебмастер, Search Console,
+14. **Поисковики**: пункты «prod» из `INTEGRATION_SEO_MOBILE.md` (Вебмастер, Search Console,
     sitemap).
-14. **Пользователи старого prod**: сообщить новый адрес pilot.optirent.ru. Сессии на
+15. **Пользователи старого prod**: сообщить новый адрес pilot.optirent.ru. Сессии на
     optirent.ru у всех сбросятся — это другое приложение.
-15. **CLAUDE.md**: таблица «Три окружения» — после того, как переезд закрепится.
+16. **CLAUDE.md**: таблица «Три окружения» — после того, как переезд закрепится.
 
 ## 6. Откат
 
@@ -391,9 +430,12 @@ server {
    `sudo cp -a /root/backup/nginx-sites-<дата>/. /etc/nginx/sites-available/ && sudo nginx -t && sudo systemctl reload nginx`
    (и удалить ссылку на `pilot.optirent.ru` из `sites-enabled`, если её не было).
    optirent.ru снова идёт на 8080, staging.optirent.ru — на 8081 с basic auth.
-2. Вернуть `.env` staging из `/root/backup/staging.env.<дата>` (или удалить три добавленные
-   строки) и `cd /opt/rentoptima-staging && docker compose up -d` — снова `staging`, noindex,
-   ссылки на staging.optirent.ru. `DEPLOY_BRANCH` пропадёт вместе с ними, и автодеплой
+2. Удалить из `.env` staging три строки, добавленные в шаге 8, и
+   `cd /opt/rentoptima-staging && docker compose up -d`. **Не копировать `.env` из бэкапа
+   целиком**: там прежние `DB_PASSWORD` и `SMTP_PASSWORD`, а после шага 7 база ждёт новый
+   пароль. Если всё же скопировали — вернуть новые значения из шага 7.
+   После этого снова `staging`, noindex, ссылки на staging.optirent.ru. С тремя строками
+   уходит и `DEPLOY_BRANCH`, поэтому автодеплой
    `feat/channels-mvp` заработает снова; push в main опять будет пропускаться.
 3. `/opt/rentoptima` не трогали (только checkout legacy-rc с тем же кодом), его откатывать не
    нужно.
