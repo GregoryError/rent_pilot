@@ -37,6 +37,21 @@
             <div class="form-hint">Отправьте ссылку горничной. Чтобы войти, ей понадобится PIN.</div>
         </div>
 
+        <form method="post" th:action="@{'/staff/' + ${it.propertyId} + '/horizon'}">
+            <div class="form-group">
+                <label class="form-label" th:for="|horizon-${it.propertyId}|">Показывать уборки на ближайшие</label>
+                <div style="display: flex; gap: var(--sp-2); align-items: center;">
+                    <input type="number" name="days" required th:id="|horizon-${it.propertyId}|"
+                           th:value="${it.horizonDays}" th:min="${horizonMin}" th:max="${horizonMax}" step="1"
+                           class="form-input form-input--sm" style="width: 6em;">
+                    <span>дней</span>
+                    <button type="submit" class="btn btn-ghost">Сохранить</button>
+                </div>
+                <div class="form-hint" th:text="|От ${horizonMin} до ${horizonMax} дней. Выезды позже горничная не видит.|">
+                    От 7 до 180 дней. Выезды позже горничная не видит.</div>
+            </div>
+        </form>
+
         <form method="post" th:action="@{'/staff/' + ${it.propertyId} + '/pin'}">
             <div class="form-group" style="margin-bottom: 0;">
                 <label class="form-label">Новый PIN (от 4 символов)</label>

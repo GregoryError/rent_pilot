@@ -57,8 +57,8 @@ public class FeedbackAdminController {
         List<FeedbackResponse> responses = feedbackRepo
                 .findByPropertyIdAndCompletedTrueOrderByCreatedAtDesc(property.getId());
 
-        List<FeedbackQuestion> questions = questionRepo
-                .findByTenantIdAndActiveTrueOrderBySortOrderAsc(tenantId);
+        // Подписи — и у выключенных вопросов: на них есть старые и перенесённые ответы
+        List<FeedbackQuestion> questions = questionRepo.findByTenantId(tenantId);
         Map<Long, FeedbackQuestion> qMap = questions.stream()
                 .collect(Collectors.toMap(FeedbackQuestion::getId, q -> q));
 

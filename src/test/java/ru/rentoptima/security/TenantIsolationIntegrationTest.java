@@ -187,6 +187,7 @@ class TenantIsolationIntegrationTest {
                 .param("name", "Взлом"));
         notFound(post("/settings/properties/" + o.property() + "/unit-types/" + o.unitType() + "/delete"));
         notFound(post("/staff/" + o.property() + "/pin").param("pin", "123456"));
+        notFound(post("/staff/" + o.property() + "/horizon").param("days", "90"));
         assertThat(snapshot()).isEqualTo(before);
     }
 

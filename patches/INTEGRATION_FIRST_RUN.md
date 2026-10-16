@@ -73,6 +73,7 @@
 | `POST /pricing/competitors/{id}/delete` | конкурент | `CompetitorService.deleteListing(tenantId, id)` |
 | `POST /pricing/competitors/{id}/scrape` | конкурент | среди своих активных, иначе 404 |
 | `POST /staff/{propertyId}/pin` | объект | среди своих активных, иначе 404 |
+| `POST /staff/{propertyId}/horizon` | объект | среди своих активных, иначе 404 |
 | `POST /settings/transfer`, `POST /settings/transfer/clear` (прежде `/import`) | объект | `Tenancy.own(property)`; `ImportService` проверяет ещё раз |
 | `POST /api/overrides/{id}/cancel` | правило из AI-чата | тенант, иначе 404 (было и раньше) |
 

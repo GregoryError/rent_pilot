@@ -43,6 +43,14 @@ public class Property extends BaseEntity {
     @Column(name = "housekeeper_pin_hash")
     private String housekeeperPinHash;
 
+    /** Горизонт страницы горничной (V41): выезды дальше стольких дней от сегодня не показываются. */
+    @Column(name = "housekeeper_horizon_days", nullable = false)
+    private Integer housekeeperHorizonDays = DEFAULT_HOUSEKEEPER_HORIZON_DAYS;
+
+    public static final int DEFAULT_HOUSEKEEPER_HORIZON_DAYS = 30;
+    public static final int MIN_HOUSEKEEPER_HORIZON_DAYS = 7;
+    public static final int MAX_HOUSEKEEPER_HORIZON_DAYS = 180;
+
     @Column(nullable = false)
     private Boolean active = true;
 

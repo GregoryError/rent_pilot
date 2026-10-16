@@ -37,8 +37,6 @@ import java.util.stream.Collectors;
 public class HousekeeperController {
 
     private static final int FRESH_REVIEW_DAYS = 5;
-    /** На сколько дней вперёд показываем выезды из блокировок каналов. */
-    private static final int SCHEDULE_DAYS = 180;
     /**
      * Блокировка с площадки длиннее этого — не проживание, а закрытый период (площадки
      * так отдают даты за горизонтом продаж, иногда на год вперёд). Уборки после неё нет.
@@ -97,8 +95,8 @@ public class HousekeeperController {
         boolean hasFreshReview = feedbacks.stream()
                 .anyMatch(f -> f.getCreatedAt() != null && f.getCreatedAt().isAfter(freshThreshold));
 
-        List<FeedbackQuestion> questions = questionRepo
-                .findByTenantIdAndActiveTrueOrderBySortOrderAsc(property.getTenant().getId());
+        // Подписи — и у выключенных вопросов: на них есть старые и перенесённые ответы
+        List<FeedbackQuestion> questions = questionRepo.findByTenantId(property.getTenant().getId());
         Map<Long, FeedbackQuestion> qMap = questions.stream()
                 .collect(Collectors.toMap(FeedbackQuestion::getId, q -> q));
 
@@ -169,13 +167,19 @@ public class HousekeeperController {
      * ни гостя, ни суммы), поэтому одних броней для графика уборок мало: объект, который
      * продаётся только через каналы, выглядел бы у горничной пустым.
      * Ремонт, личное использование и неподтверждённый hold уборку после гостя не означают
-     * и в график не идут.
+     * и в график не идут. Даты, открытые хозяином («Открыть даты», {@code ignored}), и
+     * удалённые ручные записи — тоже: гостя там нет.
+     * <p>
+     * Выезды позже горизонта объекта ({@link Property#getHousekeeperHorizonDays()},
+     * раздел «Сотрудники») не показываются.
      */
-    private List<Stay> upcomingStays(Property property, LocalDate today) {
+    List<Stay> upcomingStays(Property property, LocalDate today) {
         List<Stay> stays = new ArrayList<>();
         Set<String> seen = new HashSet<>();
+        LocalDate lastCheckOut = today.plusDays(horizonDays(property));
 
         for (Booking b : bookingRepo.findUpcomingCheckouts(property.getId(), today)) {
+            if (b.getCheckOut().isAfter(lastCheckOut)) continue;
             // Одни и те же даты могут прийти дважды: ручная бронь хранится парой с блокировкой,
             // а площадка возвращает в своём фиде чужие брони. В графике выезд нужен один раз.
             if (seen.add(b.getCheckIn() + "/" + b.getCheckOut())) {
@@ -194,9 +198,12 @@ public class HousekeeperController {
             }
             // from = вчера: условие запроса «выезд позже from», а выезд сегодня тоже нужен
             for (CalendarBlock b : blockRepo.findByUnitTypesInRange(
-                    unitTypeIds, today.minusDays(1), today.plusDays(SCHEDULE_DAYS))) {
+                    unitTypeIds, today.minusDays(1), lastCheckOut)) {
                 if (b.getBlockType() != CalendarBlock.BlockType.CHANNEL_SYNC
                         && b.getBlockType() != CalendarBlock.BlockType.MANUAL_BOOKING) continue;
+                // Запрос их уже отфильтровывает; проверка здесь — чтобы график не зависел от него
+                if (Boolean.TRUE.equals(b.getIgnored()) || b.getCancelledAt() != null) continue;
+                if (b.getToDate().isBefore(today) || b.getToDate().isAfter(lastCheckOut)) continue;
                 if (java.time.temporal.ChronoUnit.DAYS.between(b.getFromDate(), b.getToDate())
                         > MAX_STAY_NIGHTS) continue;
                 if (!seen.add(b.getFromDate() + "/" + b.getToDate())) continue;
@@ -208,6 +215,13 @@ public class HousekeeperController {
 
         stays.sort(Comparator.comparing(Stay::checkOut));
         return stays;
+    }
+
+    private static int horizonDays(Property property) {
+        Integer days = property.getHousekeeperHorizonDays();
+        if (days == null) return Property.DEFAULT_HOUSEKEEPER_HORIZON_DAYS;
+        return Math.max(Property.MIN_HOUSEKEEPER_HORIZON_DAYS,
+                Math.min(Property.MAX_HOUSEKEEPER_HORIZON_DAYS, days));
     }
 
     private static Stay stay(LocalDate checkIn, LocalDate checkOut, String guestName, LocalDate today) {

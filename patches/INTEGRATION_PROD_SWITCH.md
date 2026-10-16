@@ -391,7 +391,10 @@ server {
    `docker exec rentoptima-staging-app env | grep -E 'APP_(ENVIRONMENT|BASE_URL)'`.
    Если SHA совпал и скрипт сказал «No changes» (баг 1) — `docker compose up -d` руками:
    переменные из `.env` применяются пересозданием контейнера.
+   **Ссылки старого prod** (отзывы и горничная «Садовой»): перенос — `INTEGRATION_LEGACY_LINKS.md`,
+   раздел 2, шаг 3 — сейчас, до nginx.
 10. **nginx**: включить три новых конфига, `sudo nginx -t && sudo systemctl reload nginx`.
+    Сразу после — `INTEGRATION_LEGACY_LINKS.md`, раздел 2, шаг 4 (догрузить отзывы).
 
 ### Сразу после
 
