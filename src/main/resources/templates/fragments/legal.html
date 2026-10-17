@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+<!--
+    Правовые фрагменты (patches/INTEGRATION_LEGAL.md).
+      account-checks  — два чекбокса согласий: регистрация и окно повторного согласия.
+                        Тексты — юриста (docs/legal-src/ui-texts.md, п. 1); не отмечены заранее,
+                        ссылки открываются в новой вкладке, форма не сбрасывается.
+      operator-banner — плашка в кабинете: страница бронирования перестанет принимать заявки,
+                        если не заполнить сведения об операторе для гостей.
+-->
+</head>
+<body>
+
+<th:block th:fragment="account-checks">
+    <div class="checkbox-row">
+        <input type="checkbox" name="agreedToTerms" id="agreedToTerms" required class="reg-check">
+        <label for="agreedToTerms">
+            Принимаю <a href="/legal/terms" target="_blank" rel="noopener">Пользовательское соглашение</a>
+            и ознакомлен(а) с <a href="/legal/privacy" target="_blank" rel="noopener">Политикой обработки персональных данных</a>.
+            Мне больше 18 лет
+        </label>
+    </div>
+    <div class="checkbox-row">
+        <input type="checkbox" name="agreedToConsent" id="agreedToConsent" required class="reg-check">
+        <label for="agreedToConsent">
+            Даю <a href="/legal/consent" target="_blank" rel="noopener">согласие на обработку персональных данных</a>
+        </label>
+    </div>
+</th:block>
+
+<div th:fragment="operator-banner" class="legal-banner" role="status" th:if="${legalGrace != null}">
+    <span th:text="${legalGrace.text}">Текст</span>
+    <a th:href="${legalGrace.link}">Заполнить сведения</a>
+</div>
+
+</body>
+</html>

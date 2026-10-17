@@ -162,20 +162,7 @@
                    th:attr="minlength=${minLength}" autocomplete="new-password">
         </div>
 
-        <div class="checkbox-row">
-            <input type="checkbox" name="agreedToTerms" id="agreedToTerms" required class="reg-check">
-            <label for="agreedToTerms">
-                Я принимаю <a href="/legal/terms" target="_blank">Пользовательское соглашение</a>
-                и ознакомлен(а) с <a href="/legal/privacy" target="_blank">Политикой обработки персональных данных</a>
-            </label>
-        </div>
-
-        <div class="checkbox-row">
-            <input type="checkbox" name="agreedToConsent" id="agreedToConsent" required class="reg-check">
-            <label for="agreedToConsent">
-                Даю <a href="/legal/consent" target="_blank">согласие на обработку персональных данных</a>
-            </label>
-        </div>
+        <th:block th:replace="~{fragments/legal :: account-checks}"></th:block>
 
         <button type="submit" class="btn-submit" id="submitBtn" disabled>Зарегистрироваться</button>
 

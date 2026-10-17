@@ -50,4 +50,8 @@ public class FeedbackResponse {
 
     @Column(name = "agreed_to_consent_at")
     private java.time.LocalDateTime agreedToConsentAt;
+
+    /** Редакция документа review, на которую дано согласие при вводе имени (V43). */
+    @Column(name = "consent_version")
+    private Integer consentVersion;
 }

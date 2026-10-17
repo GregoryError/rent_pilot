@@ -27,6 +27,7 @@ public class RegistrationService {
     private final UserRepository userRepo;
     private final PasswordEncoder passwordEncoder;
     private final SettingsService settings;
+    private final ru.rentoptima.legal.AccountConsents consents;
 
     /**
      * Регистрация нового пользователя вместе с tenant.
@@ -85,8 +86,7 @@ public class RegistrationService {
 
         LocalDateTime now = LocalDateTime.now();
         user.setAgreedToPdAt(now); // legacy
-        user.setAgreedToTermsAt(now);
-        user.setAgreedToConsentAt(now);
+        consents.apply(user, now); // время и номера редакций соглашения, политики и согласия
 
         user = userRepo.save(user);
 

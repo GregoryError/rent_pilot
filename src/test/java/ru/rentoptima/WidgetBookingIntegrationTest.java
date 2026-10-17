@@ -128,6 +128,9 @@ class WidgetBookingIntegrationTest {
                         + " VALUES (?, ?, ?, ?, ?, 'Лофт у парка', 1500, 10, ?)",
                 tenantId, widgetChannel, unitTypeId, "secret-" + tag, slug, ALLOWED_ORIGIN);
         widget = widgetRepo.findBySlugAndActiveTrue(slug).orElseThrow();
+        // host() — пользователь 1 из V1: миграция V43 просит у него согласия заново (окно при входе).
+        // Здесь проверяется не окно, а кабинет — согласие уже дано
+        jdbc.update("UPDATE users SET legal_reconsent_required = FALSE WHERE id = 1");
         cors.evict();
     }
 

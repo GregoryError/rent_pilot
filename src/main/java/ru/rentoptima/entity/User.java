@@ -72,6 +72,20 @@ public class User extends BaseEntity {
     @Column(name = "agreed_to_consent_at")
     private java.time.LocalDateTime agreedToConsentAt;
 
+    /** Редакции документов, на которые дано согласие (V43; номер из legal_page_versions). */
+    @Column(name = "terms_version")
+    private Integer termsVersion;
+
+    @Column(name = "privacy_version")
+    private Integer privacyVersion;
+
+    @Column(name = "consent_version")
+    private Integer consentVersion;
+
+    /** Согласие нужно дать заново: до тех пор кабинет закрыт окном согласий (LegalConsentInterceptor). */
+    @Column(name = "legal_reconsent_required", nullable = false)
+    private Boolean legalReconsentRequired = false;
+
     public enum Role {
         ADMIN, OWNER
     }

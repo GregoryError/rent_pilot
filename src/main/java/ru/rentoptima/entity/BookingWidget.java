@@ -173,6 +173,18 @@ public class BookingWidget {
     @Column(name = "search_indexed", nullable = false)
     private Boolean searchIndexed = true;
 
+    /**
+     * До какого момента страница, созданная до V43, принимает заявки без сведений об операторе
+     * для гостей (запасной текст согласия гостя). NULL — срока нет: новая страница без сведений
+     * заявок не принимает. См. {@code GuestOperators}.
+     */
+    @Column(name = "legal_grace_until")
+    private LocalDateTime legalGraceUntil;
+
+    /** Когда хозяину ушло письмо о сведениях об операторе (один раз на страницу). */
+    @Column(name = "legal_notice_sent_at")
+    private LocalDateTime legalNoticeSentAt;
+
     /** Удобства, по одному в строке. */
     @Column(columnDefinition = "TEXT")
     private String amenities;

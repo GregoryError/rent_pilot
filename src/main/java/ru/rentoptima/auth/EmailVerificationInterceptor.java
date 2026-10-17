@@ -48,7 +48,7 @@ public class EmailVerificationInterceptor implements WebMvcConfigurer, HandlerIn
     }
 
     /** Префиксы открытых адресов: «/verify» покрывает и ссылку из письма, и экран /verify-email. */
-    static boolean open(String path) {
+    public static boolean open(String path) {
         for (String p : OPEN) {
             if (path.startsWith(p)) return true;
         }
