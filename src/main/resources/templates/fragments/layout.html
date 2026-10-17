@@ -126,7 +126,7 @@
                        class="nav-item">
                         <span>☺</span> Сотрудники
                     </a>
-                    <a th:href="@{/chat}"
+                    <a th:href="@{/chat}" th:if="${aiChatEnabled}"
                        th:classappend="${activePage == 'chat'} ? 'nav-item--active'"
                        class="nav-item">
                         <span>◬</span> AI-чат
@@ -214,6 +214,9 @@
         <!-- Почта не подтверждена: сворачиваемая плашка (в потоке страницы — тур и подсказки она не перекрывает) -->
         <div th:replace="~{fragments/verify :: banner}"></div>
 
+        <!-- Страница бронирования без сведений об операторе для гостей: дата, когда она перестанет принимать заявки -->
+        <div th:replace="~{fragments/legal :: operator-banner}"></div>
+
         <!-- Сопровождение после мастера: площадка подключилась, пришли первые брони. Показывается один раз -->
         <div class="notice" role="status" th:each="n : ${onboardingNotices}">
             <span class="notice__mark" aria-hidden="true">✓</span>
@@ -240,6 +243,8 @@
     </main>
 </div>
 
+<!--/* Плавающий чат — только при APP_AI_CHAT_ENABLED=true (AiChatFlag) */-->
+<th:block th:if="${aiChatEnabled}">
 <!-- Floating AI Chat -->
 <div id="floating-chat">
     <!-- Trigger button -->
@@ -598,6 +603,7 @@ async function fcSend() {
 }
 
 </script>
+</th:block>
 
 <script>
     // Меню на узком экране

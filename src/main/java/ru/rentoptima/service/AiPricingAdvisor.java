@@ -27,6 +27,11 @@ import java.util.Map;
 /**
  * AI advisor: раз в цикл автопилота отправляет Claude сводку по объекту
  * и получает per-date корректировки цены.
+ * <p>
+ * В запрос уходят только обезличенные параметры (patches/INTEGRATION_LEGAL.md, п. 5): город,
+ * тип жилья, число единиц в категории, цены и их границы, загрузка, даты и цены прошлых броней,
+ * рекомендации алгоритма, средние цены конкурентов. Без названия и адреса объекта, данных
+ * хозяина и гостей, текстов отзывов и площадок броней — так записано в политике.
  */
 @Slf4j
 @Service
@@ -38,7 +43,6 @@ public class AiPricingAdvisor {
     private final ProductionCalendarService prodCalendar;
     private final ObjectMapper objectMapper;
     private final BookingStatsService bookingStatsService;
-    private final FeedbackAnalyticsService feedbackAnalytics;
     private final RestTemplate restTemplate = new RestTemplate();
     private final ru.rentoptima.repository.AiCommentRepository aiCommentRepo;
     private final ru.rentoptima.repository.UnitTypeRepository unitTypeRepo;
@@ -101,11 +105,10 @@ public class AiPricingAdvisor {
         for (int i = bookings.size() - 1; i >= 0 && shown < 5; i--) {
             Booking b = bookings.get(i);
             recentBookings.append(String.format(
-                    "- %s→%s, %d ночей, %s ₽/ночь, %s\n",
+                    "- %s→%s, %d ночей, %s ₽/ночь\n",
                     b.getCheckIn(), b.getCheckOut(), b.getNights(),
                     b.getAmount().divide(BigDecimal.valueOf(Math.max(1, b.getNights())),
-                            0, java.math.RoundingMode.HALF_UP),
-                    b.getSource() != null ? b.getSource() : "?"));
+                            0, java.math.RoundingMode.HALF_UP)));
             shown++;
         }
 
@@ -155,12 +158,8 @@ public class AiPricingAdvisor {
             competitorBlock = cb.toString();
         }
 
-        String ratingBlock = "";
-        try {
-            ratingBlock = feedbackAnalytics.buildPromptSection(tenantId, property.getId());
-        } catch (Exception e) {
-            log.debug("Rating block generation failed: {}", e.getMessage());
-        }
+        String kind = ru.rentoptima.housing.HousingKind.of(property.getKind()).getLabel();
+        int units = unit == null || unit.getUnitCount() == null ? 1 : unit.getUnitCount();
 
         return String.format("""
                 Ты — эксперт по revenue management посуточной аренды, город: %s.
@@ -168,8 +167,8 @@ public class AiPricingAdvisor {
                 контекста и рынка.
 
                 === ОБЪЕКТ ===
-                %s, %s
-                Цена квартиры: будни %d₽, выходные (ночи с пт и с сб) %d₽
+                Тип жилья: %s, единиц в категории: %d
+                Цена: будни %d₽, выходные (ночи с пт и с сб) %d₽
                 Ограничения: min %d₽, max %d₽, уборка %d₽
 
                 === ИСТОРИЯ ===
@@ -186,14 +185,11 @@ public class AiPricingAdvisor {
                 === КОНКУРЕНТНЫЙ АНАЛИЗ ===
                 %s
 
-                %s
-
                 === ТВОЯ ЗАДАЧА ===
                 Учти сезонность и праздники этого города.
                 Короткие бронирования нормальны в высокий сезон, длинные — в межсезонье.
 
                 Не паникуй если booking pace низкий в межсезонье — это норма.
-                Учитывай отзывы и рейтинг: низкий рейтинг → цены ближе к рынку, высокий → можно выше.
 
                 Верни СТРОГО JSON, ничего лишнего:
                 {
@@ -208,15 +204,13 @@ public class AiPricingAdvisor {
                 Множитель ∈ [0.75, 1.30]. Учти диапазон [%d, %d]₽.
                 """,
                 city,
-                property.getName(),
-                property.getAddress() != null ? property.getAddress() : "",
+                kind, units,
                 weekday, weekend, floor, ceil, cleaning,
                 historicalOccupancy, paceMonth, bookingPace, paceStatus,
                 recentBookings.toString(),
                 recCount, recs.size(),
                 recsList.toString(),
                 competitorBlock,
-                ratingBlock,
                 floor, ceil
         );
     }

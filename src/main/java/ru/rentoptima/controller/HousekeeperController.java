@@ -55,6 +55,7 @@ public class HousekeeperController {
     private final FeedbackResponseRepository feedbackRepo;
     private final FeedbackAnswerRepository answerRepo;
     private final FeedbackQuestionRepository questionRepo;
+    private final ru.rentoptima.legal.GuestOperators operators;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
     @GetMapping("/housekeeper/{code}")
@@ -78,6 +79,8 @@ public class HousekeeperController {
         if (!authorized) {
             model.addAttribute("code", code);
             model.addAttribute("error", error != null);
+            String host = operators.hostName(property.getTenantId());
+            model.addAttribute("hostSuffix", host == null || host.isBlank() ? "" : " " + host);
             return "pages/housekeeper/login";
         }
 

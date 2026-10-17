@@ -29,9 +29,18 @@ public class ChatController {
     private final ManualOverrideRepository overrideRepo;
     private final PropertyRepository propertyRepo;
     private final ObjectMapper objectMapper;
+    private final ru.rentoptima.service.AiChatFlag aiChat;
+
+    /** Чат выключен — его адресов как будто нет. */
+    private void requireEnabled() {
+        if (!aiChat.enabled()) {
+            throw new org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND);
+        }
+    }
 
     @GetMapping("/chat")
     public String chatPage(Model model) {
+        requireEnabled();
         model.addAttribute("activePage", "chat");
         return "pages/chat/index";
     }
@@ -39,6 +48,7 @@ public class ChatController {
     @PostMapping("/api/chat")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> sendMessage(@RequestBody ChatRequest request) {
+        requireEnabled();
         Long tenantId = AuthContext.tenantId();
         var response = aiChatService.chat(tenantId, request.message(), request.history());
 
@@ -56,6 +66,7 @@ public class ChatController {
     @PostMapping("/api/chat/apply-action")
     @ResponseBody
     public ResponseEntity<Map<String, Object>> applyAction(@RequestBody ActionRequest req) {
+        requireEnabled();
         Long tenantId = AuthContext.tenantId();
         var properties = propertyRepo.findByTenantIdAndActiveTrue(tenantId);
         Long propertyId = properties.isEmpty() ? null : properties.get(0).getId();

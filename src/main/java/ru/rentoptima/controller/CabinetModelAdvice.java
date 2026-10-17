@@ -15,7 +15,8 @@ import ru.rentoptima.service.UnitVocabulary;
  *   <li>{@code simpleUnits} — у хозяина один объект на одну единицу, и шаблоны не показывают
  *       понятие «категория номеров» ({@link UnitVocabulary});</li>
  *   <li>{@code housing} — слово для жилья хозяина в нужных формах
- *       ({@link ru.rentoptima.housing.HousingVocabulary}).</li>
+ *       ({@link ru.rentoptima.housing.HousingVocabulary});</li>
+ *   <li>{@code aiChatEnabled} — показывать ли AI-чат ({@link ru.rentoptima.service.AiChatFlag}).</li>
  * </ul>
  */
 @ControllerAdvice
@@ -24,6 +25,38 @@ public class CabinetModelAdvice {
 
     private final UnitVocabulary vocabulary;
     private final ru.rentoptima.housing.HousingVocabulary housingVocabulary;
+    private final ru.rentoptima.service.AiChatFlag aiChat;
+    private final ru.rentoptima.legal.GuestOperators operators;
+    private final ru.rentoptima.repository.BookingWidgetRepository widgetRepo;
+
+    /** Плашка: страница бронирования без сведений об операторе перестанет принимать заявки. */
+    public record LegalGrace(String text, String link) {
+    }
+
+    private static final java.time.format.DateTimeFormatter DAY = java.time.format.DateTimeFormatter
+            .ofPattern("d MMMM", java.util.Locale.forLanguageTag("ru"));
+
+    @ModelAttribute("legalGrace")
+    public LegalGrace legalGrace(HttpServletRequest request) {
+        Long tenantId = AuthContext.tenantIdOrNull();
+        if (tenantId == null || !page(request)) return null;
+        var pending = operators.pendingInGrace(widgetRepo.findByTenantIdAndActiveTrueOrderByCreatedAtAsc(tenantId));
+        if (pending.isEmpty()) return null;
+        var first = pending.stream().min(java.util.Comparator.comparing(
+                ru.rentoptima.entity.BookingWidget::getLegalGraceUntil)).orElseThrow();
+        String pages = pending.size() == 1 ? "Страница бронирования «" + first.getTitle() + "»"
+                : "Страницы бронирования (" + pending.size() + ")";
+        return new LegalGrace(pages + " с " + first.getLegalGraceUntil().toLocalDate().format(DAY)
+                + (pending.size() == 1 ? " перестанет" : " перестанут") + " принимать заявки, если не заполнить сведения об операторе для гостей"
+                + " и не дать согласие на их показ.",
+                "/settings/widgets/" + first.getId() + "#public-data");
+    }
+
+    /** AI-чат в меню и плавающая кнопка — только когда он включён (APP_AI_CHAT_ENABLED). */
+    @ModelAttribute("aiChatEnabled")
+    public boolean aiChatEnabled() {
+        return aiChat.enabled();
+    }
 
     private static boolean page(HttpServletRequest request) {
         String path = request.getRequestURI().substring(request.getContextPath().length());

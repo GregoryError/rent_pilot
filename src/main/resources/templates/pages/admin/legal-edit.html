@@ -4,6 +4,14 @@
       layout:decorate="~{fragments/layout}">
 <head>
     <title>Редактор правовой страницы</title>
+    <link rel="stylesheet" th:href="@{/css/legal.css}">
+    <style>
+        .le-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-5); align-items: start; }
+        @media (max-width: 1100px) { .le-grid { grid-template-columns: minmax(0, 1fr); } }
+        .le-text { width: 100%; font-family: var(--font-mono); font-size: var(--text-sm); line-height: 1.6; }
+        .le-preview { max-height: 80vh; overflow: auto; }
+        .le-history { margin-top: 0.5rem; font-size: var(--text-sm); color: var(--text-secondary); }
+    </style>
 </head>
 <body>
 <div layout:fragment="content">
@@ -13,37 +21,66 @@
         <p class="page-subtitle">
             <a th:href="@{/admin/legal-pages}" style="color: var(--text-secondary);">← К списку</a>
             &nbsp;·&nbsp;
-            <a th:href="@{'/legal/' + ${page.slug}}" target="_blank" style="color: var(--accent);">
-                Просмотр на публичной странице ↗
-            </a>
+            <a th:href="@{${page.path()}}" target="_blank" style="color: var(--accent);">Действующая редакция ↗</a>
         </p>
     </div>
 
-    <form th:action="@{'/admin/legal-pages/' + ${page.slug}}" method="post">
+    <form th:action="@{'/admin/legal-pages/' + ${page.slug}}" method="post" id="legal-form">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
 
         <div class="card" style="margin-bottom: 1rem;">
             <div class="form-group">
-                <label class="form-label">Заголовок страницы</label>
-                <input type="text" name="title" th:value="${page.title}" required class="form-input"
+                <label class="form-label" for="le-title">Заголовок</label>
+                <input type="text" id="le-title" name="title" th:value="${page.title}" required class="form-input"
                        style="width: 100%; max-width: 600px;">
             </div>
-
-            <div class="form-group" style="margin-top: 1.5rem;">
-                <label class="form-label">Содержимое (Markdown)</label>
-                <div class="form-hint" style="margin-bottom: 0.5rem;">
-                    Поддерживается: <code># Заголовок</code>, <code>## Подзаголовок</code>, <code>- список</code>, <code>**жирный**</code>, <code>*курсив*</code>
+            <div class="form-group">
+                <label class="form-label" for="le-date">Дата вступления в силу новой редакции</label>
+                <input type="date" id="le-date" name="effectiveDate" th:value="${today}" required class="form-input"
+                       style="max-width: 220px;">
+                <div class="form-hint">
+                    Сейчас действует редакция <span th:text="${page.version}">1</span>
+                    с <span th:text="${page.effectiveText()}">даты</span>. Сохранение создаёт редакцию
+                    <span th:text="${page.version + 1}">2</span>; прежние не меняются — на них ссылаются согласия.
                 </div>
-                <textarea name="content" rows="25" required class="form-input"
-                          style="width: 100%; font-family: var(--font-mono); font-size: var(--text-sm); line-height: 1.6;"
-                          th:text="${page.content}"></textarea>
+                <div class="le-history">
+                    <span>Редакции: </span>
+                    <th:block th:each="v, it : ${history}">
+                        <a th:href="${v.versionPath()}" target="_blank" th:text="|${v.version}|">1</a><span th:unless="${it.last}">, </span>
+                    </th:block>
+                </div>
             </div>
         </div>
 
-        <button type="submit" class="btn btn--primary">Сохранить</button>
-        <a th:href="@{/admin/legal-pages}" class="btn btn-ghost">Отменить</a>
+        <div class="le-grid">
+            <div class="card">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label" for="le-content">Текст (Markdown)</label>
+                    <div class="form-hint" style="margin-bottom: 0.5rem;">
+                        <code>## Раздел</code>, <code>### Подраздел</code>, <code>- список</code>, <code>1. список</code>,
+                        <code>**жирный**</code>, <code>[ссылка](/legal/privacy)</code>, таблицы <code>| a | b |</code>.
+                        HTML не поддерживается. Название документа — в поле «Заголовок», в тексте его не повторяйте.
+                        В согласии гостя метка <code>{{operator}}</code> заменяется сведениями хозяина.
+                    </div>
+                    <textarea id="le-content" name="content" rows="30" required class="form-input le-text"
+                              th:text="${page.body}"></textarea>
+                </div>
+            </div>
+            <div class="card le-preview" aria-live="polite">
+                <div class="form-label">Предпросмотр</div>
+                <div class="form-hint" id="le-preview-hint">Нажмите «Предпросмотр» — текст отрисуется так же, как на сайте.</div>
+                <div class="legal-content" id="le-preview"></div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem;">
+            <button type="button" class="btn" id="le-preview-btn">Предпросмотр</button>
+            <button type="submit" class="btn btn--primary">Опубликовать новую редакцию</button>
+            <a th:href="@{/admin/legal-pages}" class="btn btn-ghost">Отменить</a>
+        </div>
     </form>
 
+    <script th:src="@{/js/legal-editor.js}"></script>
 </div>
 </body>
 </html>

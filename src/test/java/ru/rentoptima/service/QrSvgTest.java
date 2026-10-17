@@ -121,7 +121,7 @@ class QrSvgTest {
         assertThat(WidgetCardService.CODE_ALPHABET.chars().distinct().count()).isEqualTo(57);
 
         var linkRepo = org.mockito.Mockito.mock(ru.rentoptima.repository.WidgetQrLinkRepository.class);
-        WidgetCardService service = new WidgetCardService(null, linkRepo, null, null, null);
+        WidgetCardService service = new WidgetCardService(null, linkRepo, null, null, null, null);
         Set<String> codes = new HashSet<>();
         for (int i = 0; i < 2000; i++) {
             String code = service.newCode();

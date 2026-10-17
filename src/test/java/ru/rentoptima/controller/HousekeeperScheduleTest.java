@@ -54,7 +54,8 @@ class HousekeeperScheduleTest {
     @BeforeEach
     void setUp() {
         controller = new HousekeeperController(propertyRepo, bookingRepo, blockRepo, unitTypeRepo,
-                channelRepo, feedbackRepo, answerRepo, questionRepo);
+                channelRepo, feedbackRepo, answerRepo, questionRepo,
+                org.mockito.Mockito.mock(ru.rentoptima.legal.GuestOperators.class));
         property = new Property();
         property.setId(5L);
         property.setName("Садовая 5 кв. 38");

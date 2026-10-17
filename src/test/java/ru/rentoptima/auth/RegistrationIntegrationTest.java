@@ -318,6 +318,9 @@ class RegistrationIntegrationTest {
     private TenantUserDetails principal(String role) {
         Long id = jdbc.queryForObject("SELECT id FROM users WHERE role = ? ORDER BY id LIMIT 1", Long.class, role);
         Long tenantId = jdbc.queryForObject("SELECT tenant_id FROM users WHERE id = ?", Long.class, id);
+        // Администратор из V1 был до правовых документов: V43 просит у него согласия заново.
+        // Здесь проверяется не окно согласий, а страница администратора
+        jdbc.update("UPDATE users SET legal_reconsent_required = FALSE WHERE id = ?", id);
         Tenant t = new Tenant();
         t.setId(tenantId);
         User u = new User();

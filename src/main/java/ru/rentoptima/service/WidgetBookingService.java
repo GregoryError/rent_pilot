@@ -85,6 +85,7 @@ public class WidgetBookingService {
     private final AvailabilityService availability;
     private final EffectivePriceService effectivePrice;
     private final EchoShadowService shadows;
+    private final ru.rentoptima.legal.LegalDocuments legalDocs;
 
     /** Виджет по секрету — для прежних ссылок /book/ и /widget/. */
     public Optional<BookingWidget> findActive(String secret) {
@@ -334,6 +335,8 @@ public class WidgetBookingService {
         b.setUtmCampaign(cutOrNull(req.utmCampaign(), 100));
         b.setReferrer(cutOrNull(req.referrer(), 500));
         b.setConsentAt(now);
+        // Редакция текста согласия гостя, на которую он согласился (/legal/guest-consent/<slug>/vN)
+        b.setGuestConsentVersion(legalDocs.currentVersion(ru.rentoptima.legal.LegalDocuments.GUEST_CONSENT));
         b.setUpdatedAt(now);
         if (promo != null) {
             b.setPromoCodeId(promo.getId());

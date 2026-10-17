@@ -9,6 +9,8 @@
 //
 // Необязательно: WIDTHS=320,375   EXTRA_PATHS=/f/abc,/feedback/xyz   SHOTS_DIR=./shots
 //                CHROME=/путь/к/chrome
+//                RECONSENT_LOGIN=... RECONSENT_PASSWORD=... — пользователь, у которого кабинет
+//                закрыт окном согласий (/account/legal): проверяется само окно
 // Код выхода 1 — нашлась страница шире экрана, ответ 5xx или ячейка шахматки уже 44 px.
 // Запускается и из `mvn test` (MobileLayoutTest), если есть docker, node и Chrome.
 import puppeteer from 'puppeteer-core';
@@ -30,9 +32,10 @@ const NARROW = 900;
 const ADMIN = [
   '/calendar/grid', '/calendar', '/dashboard', '/bookings/pending',
   '/settings/widgets', '/settings/channels', '/settings/channels/diagnostics',
-  '/pricing', '/expenses', '/feedback-admin', '/feedback', '/staff', '/chat', '/settings/transfer',
+  '/pricing', '/expenses', '/feedback-admin', '/feedback', '/staff', '/settings/transfer',
   '/settings', '/settings/integrations', '/settings/properties', '/welcome',
-  '/admin/legal-pages', '/admin/legal-pages/privacy/edit', '/admin/onboarding', '/admin/registration',
+  '/admin/legal-pages', '/admin/legal-pages/privacy/edit', '/admin/legal-pages/guest-consent/edit',
+  '/admin/onboarding', '/admin/registration',
   '/account/password',
   // Мастер первой настройки: шаги открываются по ?step=, если у пользователя есть состояние онбординга
   '/onboarding?step=start', '/onboarding?step=property', '/onboarding?step=platforms',
@@ -44,7 +47,9 @@ const PUBLIC = [
   '/instrukcii/sutochno', '/instrukcii/ostrovok', '/instrukcii/domclick',
   '/instrukcii/yandex-puteshestviya',
   '/login', '/register', '/forgot', '/forgot?sent=email', '/reset?token=expired', '/verify?token=expired',
-  '/legal/terms', '/legal/privacy', '/legal/consent', '/legal/feedback-consent',
+  // Правовые документы (V42): все, прежняя редакция и прежний адрес (301 на /legal/review)
+  '/legal/terms', '/legal/privacy', '/legal/consent', '/legal/consent-public', '/legal/cookies',
+  '/legal/cookie-consent', '/legal/guest-consent', '/legal/review', '/legal/privacy/v1', '/legal/feedback-consent',
   '/no-such-page', '/b/no-such-page',
   ...(process.env.EXTRA_PATHS || '').split(',').filter(Boolean),
 ];
@@ -161,7 +166,7 @@ if (process.env.LOGIN) {
   } else {
     console.warn('Виджетов нет: страницы настроек виджета не проверены');
   }
-  if (slug) PUBLIC.push(`/b/${slug}`, `/b/${slug}/embed`);
+  if (slug) PUBLIC.push(`/b/${slug}`, `/b/${slug}/embed`, `/legal/guest-consent/${slug}`);
 
   for (const width of WIDTHS) {
     for (const p of admin) await check(page, p, width);
@@ -169,6 +174,18 @@ if (process.env.LOGIN) {
   }
 } else {
   console.warn('LOGIN не задан: проверяются только публичные страницы');
+}
+
+// --- Окно согласий (/account/legal): отдельный пользователь, у которого кабинет им закрыт
+if (process.env.RECONSENT_LOGIN) {
+  const consent = await (await browser.createBrowserContext()).newPage();
+  await sameOriginOnly(consent);
+  await consent.goto(BASE + '/login', { waitUntil: 'networkidle2' });
+  await consent.type('input[name=username]', process.env.RECONSENT_LOGIN);
+  await consent.type('input[name=password]', process.env.RECONSENT_PASSWORD || '');
+  await Promise.all([consent.waitForNavigation(), consent.$eval('form', f => f.submit())]);
+  for (const width of WIDTHS) await check(consent, '/account/legal', width, 'account_legal');
+  if (!/\/account\/legal/.test(consent.url())) failures.push('/account/legal: окно согласий не открылось');
 }
 
 // --- Публичные страницы: в чистом окне, без сессии

@@ -24,6 +24,10 @@ import java.time.format.DateTimeFormatter;
  * Уведомления по заявкам и броням с виджета: хозяину — в Telegram, гостю — письмом
  * (если настроен SMTP и гость оставил адрес). Сбой уведомления никогда не ломает
  * саму бронь: методы вызываются после её транзакции и исключений не бросают.
+ * <p>
+ * В Telegram персональных данных гостя нет (patches/INTEGRATION_LEGAL.md, п. 4): только вид
+ * события, название страницы, даты, число гостей и ссылка в кабинет. Имя, телефон, почта и
+ * комментарий — в кабинете, на /bookings/pending.
  */
 @Slf4j
 @Service
@@ -42,24 +46,14 @@ public class WidgetNotifier {
     private final BookingRepository bookingRepo;
     private final BookingWidgetRepository widgetRepo;
     private final SiteSettings site;
+    private final ru.rentoptima.legal.GuestOperators operators;
 
     /** Новая заявка (REQUEST) или бронь (INSTANT). */
     public void created(BookingWidget w, Booking b, LocalDateTime holdExpiresAt, String baseUrl) {
         boolean instant = holdExpiresAt == null;
         try {
             if (telegram.isConfigured(w.getTenantId())) {
-                StringBuilder sb = new StringBuilder(instant
-                        ? "✅ OptiRent: новая бронь со страницы бронирования\n"
-                        : "🛎 OptiRent: новая заявка на бронь\n");
-                sb.append(summary(w, b));
-                if (instant) {
-                    sb.append("Даты уже заняты в шахматке и уйдут на площадки.\n");
-                    sb.append("Брони: ").append(baseUrl).append("/bookings/pending");
-                } else {
-                    sb.append("Даты держатся до ").append(holdExpiresAt.format(TIME)).append(".\n");
-                    sb.append("Подтвердить или отклонить: ").append(baseUrl).append("/bookings/pending");
-                }
-                telegram.send(w.getTenantId(), sb.toString());
+                telegram.send(w.getTenantId(), createdText(w.getTitle(), b, holdExpiresAt, baseUrl));
             }
         } catch (Exception e) {
             log.warn("Не удалось уведомить хозяина о заявке с виджета {}: {}", w.getId(), e.getMessage());
@@ -106,13 +100,7 @@ public class WidgetNotifier {
                     .filter(w -> w.getChannelId().equals(hold.getChannelId()))
                     .map(BookingWidget::getTitle).findFirst().orElse("Страница бронирования");
             long minutes = Math.max(1, Duration.between(now, hold.getExpiresAt()).toMinutes());
-            telegram.send(hold.getTenantId(), "⏰ OptiRent: заявка на бронь скоро истечёт\n"
-                    + title + "\n"
-                    + b.getCheckIn().format(DAY) + " — " + b.getCheckOut().format(DAY)
-                    + ", гость " + (b.getGuestName() == null ? "—" : b.getGuestName())
-                    + ", " + b.getGuestPhone() + "\n"
-                    + "Осталось " + remaining(minutes) + " — потом даты освободятся сами.\n"
-                    + "Подтвердить или отклонить: " + site.getBaseUrl() + "/bookings/pending");
+            telegram.send(hold.getTenantId(), reminderText(title, b, minutes, site.getBaseUrl()));
         }
     }
 
@@ -128,26 +116,33 @@ public class WidgetNotifier {
         return rest == 0 ? hours + " ч" : hours + " ч " + rest + " мин";
     }
 
-    private String summary(BookingWidget w, Booking b) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(w.getTitle()).append(" · № ").append(b.getPublicCode()).append("\n");
-        sb.append(b.getCheckIn().format(DAY)).append(" — ").append(b.getCheckOut().format(DAY))
-                .append(", ночей: ").append(b.getNights())
-                .append(", гостей: ").append(b.getGuestCount()).append("\n");
-        if (b.getAmount() != null && b.getAmount().signum() > 0) {
-            sb.append("Сумма: ").append(rub(b.getAmount())).append(" ₽");
-            if (b.getPrepaymentAmount() != null && b.getPrepaymentAmount().signum() > 0) {
-                sb.append(", предоплата ").append(rub(b.getPrepaymentAmount())).append(" ₽");
-            }
-            sb.append("\n");
+    /** Строки о заявке для Telegram: название страницы, даты, ночи и гости — без данных гостя. */
+    static String summary(String title, Booking b) {
+        return title + "\n"
+                + b.getCheckIn().format(DAY) + " — " + b.getCheckOut().format(DAY)
+                + ", ночей: " + b.getNights() + ", гостей: " + b.getGuestCount() + "\n";
+    }
+
+    static String createdText(String title, Booking b, LocalDateTime holdExpiresAt, String baseUrl) {
+        StringBuilder sb = new StringBuilder(holdExpiresAt == null
+                ? "✅ OptiRent: новая бронь со страницы бронирования\n"
+                : "🛎 OptiRent: новая заявка на бронь\n");
+        sb.append(summary(title, b));
+        if (holdExpiresAt == null) {
+            sb.append("Даты уже заняты в шахматке и уйдут на площадки.\n");
+            sb.append("Гость и контакты — в кабинете: ").append(baseUrl).append("/bookings/pending");
+        } else {
+            sb.append("Даты держатся до ").append(holdExpiresAt.format(TIME)).append(".\n");
+            sb.append("Гость и контакты, подтвердить или отклонить: ").append(baseUrl).append("/bookings/pending");
         }
-        sb.append("Гость: ").append(b.getGuestName() == null ? "—" : b.getGuestName())
-                .append(", ").append(b.getGuestPhone());
-        if (b.getGuestEmail() != null) sb.append(", ").append(b.getGuestEmail());
-        sb.append("\n");
-        if (b.getNotes() != null) sb.append(b.getNotes()).append("\n");
-        if (b.getUtmSource() != null) sb.append("Источник: ").append(b.getUtmSource()).append("\n");
         return sb.toString();
+    }
+
+    static String reminderText(String title, Booking b, long minutes, String baseUrl) {
+        return "⏰ OptiRent: заявка на бронь скоро истечёт\n"
+                + summary(title, b)
+                + "Осталось " + remaining(minutes) + " — потом даты освободятся сами.\n"
+                + "Подтвердить или отклонить: " + baseUrl + "/bookings/pending";
     }
 
     private enum Event { REQUESTED, BOOKED, DECLINED, CANCELLED }
@@ -190,8 +185,10 @@ public class WidgetNotifier {
                         && Boolean.TRUE.equals(w.getShowPrice())) {
                     text.append(en ? "Total: " : "Сумма: ").append(rub(b.getAmount())).append(" ₽\n");
                 }
-                if (w.getContactPhone() != null) {
-                    text.append(en ? "Host phone: " : "Телефон хозяина: ").append(w.getContactPhone()).append("\n");
+                // Телефон хозяина — только если он разрешил его показ гостям
+                Object hostPhone = operators.visibleContacts(w).get("phone");
+                if (hostPhone != null) {
+                    text.append(en ? "Host phone: " : "Телефон хозяина: ").append(hostPhone).append("\n");
                 }
             }
             email.send(Mail.to(b.getGuestEmail()).subject(subject).lang(en ? "en" : "ru")

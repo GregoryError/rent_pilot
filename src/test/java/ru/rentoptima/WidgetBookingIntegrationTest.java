@@ -128,6 +128,15 @@ class WidgetBookingIntegrationTest {
                         + " VALUES (?, ?, ?, ?, ?, 'Лофт у парка', 1500, 10, ?)",
                 tenantId, widgetChannel, unitTypeId, "secret-" + tag, slug, ALLOWED_ORIGIN);
         widget = widgetRepo.findBySlugAndActiveTrue(slug).orElseThrow();
+        // host() — пользователь 1 из V1: миграция V43 просит у него согласия заново (окно при входе).
+        // Здесь проверяется не окно, а кабинет — согласие уже дано
+        jdbc.update("UPDATE users SET legal_reconsent_required = FALSE WHERE id = 1");
+        // Хозяин указал сведения об операторе для гостей и разрешил их и контакты показывать —
+        // иначе новая страница заявок не принимает (LegalPagesIntegrationTest)
+        jdbc.update("INSERT INTO guest_operators(tenant_id, name, contact) VALUES (?, 'Иванов И. И.', 'host@example.com')",
+                tenantId);
+        jdbc.update("INSERT INTO public_data_consents(tenant_id, widget_id, fields, document_version)"
+                + " VALUES (?, ?, 'phone,telegram,whatsapp,operator_name,operator_contact', 1)", tenantId, widget.getId());
         cors.evict();
     }
 
@@ -1114,7 +1123,8 @@ class WidgetBookingIntegrationTest {
 
         // Страница бронирования без счётчика хозяина: ни баннера, ни обещания согласия
         String plain = mvc.perform(get("/b/" + slug)).andReturn().getResponse().getContentAsString(utf8);
-        assertThat(plain).doesNotContain("consent", "optirentAnalyticsConsent", "mc.yandex.ru");
+        // («consent» как слово есть: ссылка на согласие гостя /legal/guest-consent/… в настройках виджета)
+        assertThat(plain).doesNotContain("/js/consent", "optirentAnalyticsConsent", "mc.yandex.ru");
 
         // Со счётчиком хозяина: виджет ждёт согласия; счётчик сайта на эту страницу не попадает
         jdbc.update("UPDATE booking_widgets SET metrika_id = '87654321' WHERE id = ?", widget.getId());

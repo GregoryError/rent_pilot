@@ -66,6 +66,10 @@
 .wz-card h2 { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
 .wz-card .form-input { font-size: 16px; min-height: 48px; }
 .wz-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+.wz-subtitle { font-size: var(--text-base); font-weight: 600; margin: var(--sp-5) 0 var(--sp-1); }
+.wz-check { display: flex; gap: var(--sp-2); align-items: flex-start; margin: var(--sp-3) 0; font-size: var(--text-sm); line-height: 1.5; color: var(--text-secondary); }
+.wz-check input { flex: none; width: 20px; height: 20px; margin-top: 1px; }
+.wz-check a { color: var(--accent); }
 
 .wz-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-3); margin-top: var(--sp-6); }
 .wz-actions--start { justify-content: flex-start; margin-top: var(--sp-4); }

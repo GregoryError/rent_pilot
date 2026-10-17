@@ -146,6 +146,10 @@ public class Booking extends BaseEntity {
     @Column(name = "consent_at")
     private LocalDateTime consentAt;
 
+    /** Редакция документа guest-consent, на которую дано согласие (V43). */
+    @Column(name = "guest_consent_version")
+    private Integer guestConsentVersion;
+
     /** Хозяину уже напомнили, что заявка скоро истечёт. */
     @Column(name = "hold_reminder_sent_at")
     private LocalDateTime holdReminderSentAt;

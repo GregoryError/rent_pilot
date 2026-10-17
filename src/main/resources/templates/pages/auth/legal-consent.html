@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Новые документы — OptiRent</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
+    <style>
+        /* Окно поверх затемнения — на широком экране; на телефоне карточка и есть весь экран */
+        .consent-backdrop .login-card { background: var(--bg-surface); }
+        @media (min-width: 641px) { .consent-backdrop { background: rgba(0, 0, 0, 0.45); } }
+        .checkbox-row {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.5rem;
+            margin: 1rem 0;
+            font-size: var(--text-sm);
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        .checkbox-row input { margin-top: 0.2rem; width: 18px; height: 18px; flex: none; }
+        .checkbox-row a, .consent-links a { color: var(--accent); }
+        .consent-links { margin-top: 1rem; font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <div class="login-page consent-backdrop">
+        <div class="login-card" role="dialog" aria-modal="true" aria-labelledby="consent-title">
+            <a th:href="@{/}" class="login-title login-brand">
+                <svg th:replace="~{fragments/logo :: mark(32)}"></svg>
+                <span>OptiRent</span>
+            </a>
+            <h1 class="login-subtitle" id="consent-title">Мы опубликовали правовые документы</h1>
+            <p class="login-note">
+                Чтобы продолжить работу в кабинете, примите соглашение и дайте согласие на обработку
+                персональных данных. Ваши данные, страницы бронирования и брони на месте — они работают как прежде.
+            </p>
+
+            <div th:if="${error}" class="login-error" role="alert" th:text="${error}"></div>
+
+            <form th:action="@{/account/legal}" method="post">
+                <input type="hidden" name="next" th:value="${next}">
+                <th:block th:replace="~{fragments/legal :: account-checks}"></th:block>
+                <button type="submit" class="btn btn-primary" id="consent-submit" disabled style="width: 100%;">Продолжить</button>
+            </form>
+
+            <p class="consent-links">
+                Не согласны — можно
+                <a th:href="|mailto:${operatorEmail}?subject=Удаление аккаунта OptiRent|">запросить удаление аккаунта</a>
+                по e-mail <span th:text="${operatorEmail}">e-mail</span>: удалим в течение 30 дней.
+            </p>
+
+            <form th:action="@{/logout}" method="post" class="login-links">
+                <button type="submit" class="link-button">Выйти</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var checks = document.querySelectorAll('.reg-check');
+            var btn = document.getElementById('consent-submit');
+            function update() { btn.disabled = !Array.prototype.every.call(checks, function (c) { return c.checked; }); }
+            Array.prototype.forEach.call(checks, function (c) { c.addEventListener('change', update); });
+            update();
+        })();
+    </script>
+</body>
+</html>

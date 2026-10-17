@@ -954,6 +954,12 @@ textarea.inp {
     border-color: var(--danger);
 }
 
+.fhint {
+    margin-top: 6px;
+    font-size: .8125rem;
+    color: var(--muted);
+}
+
 .err {
     margin-top: 6px;
     font-size: .8125rem;

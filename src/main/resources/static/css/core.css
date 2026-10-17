@@ -755,6 +755,24 @@ h1.login-subtitle { font-weight: 400; text-align: center; }
 .verify-change form { margin-top: var(--sp-3); }
 .page-soon__title { text-align: center; margin-bottom: var(--sp-4); }
 
+/* Плашка «заполните сведения об операторе для гостей» (fragments/legal :: operator-banner) */
+.legal-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-1) var(--sp-3);
+    margin-bottom: var(--sp-4);
+    padding: var(--sp-2) var(--sp-4);
+    border: 1px solid var(--amber);
+    border-radius: var(--radius-sm);
+    background: var(--amber-dim);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    line-height: 1.4;
+}
+.legal-banner span { flex: 1 1 14em; min-width: 0; }
+.legal-banner a { display: inline-flex; align-items: center; min-height: 44px; color: var(--accent); white-space: nowrap; }
+
 /* Полоса «Подтвердите почту» вверху кабинета: одна строка, на 320 px — не больше двух */
 .verify-strip {
     margin-bottom: var(--sp-4);

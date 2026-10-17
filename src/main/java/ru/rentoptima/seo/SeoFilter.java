@@ -74,7 +74,8 @@ public class SeoFilter extends OncePerRequestFilter {
             if (path.startsWith(prefix)) return true;
         }
         if (path.equals("/") || SitePages.contains(path)) return true;
-        if (path.startsWith("/legal/")) return true;
+        // Документ — да; прежние редакции /legal/<slug>/vN и согласие гостя отдельного хозяина — нет
+        if (path.startsWith("/legal/")) return path.indexOf('/', "/legal/".length()) < 0;
         // /b/<slug> — да (галочку хозяина проверяет WidgetPublicController), /b/<slug>/embed — нет
         return path.startsWith("/b/") && path.indexOf('/', 3) < 0;
     }

@@ -67,6 +67,7 @@
 | `POST /settings/widgets/{id}/promo/{promoId}/toggle` | промокод | `findByIdAndTenantId` + промокод этой страницы |
 | `GET /settings/widgets/{id}/card`, `/card/print`, `/card/qr.svg`; `POST /card`, `/card/promo`, `/card/regenerate`, `/card/wifi-qr` | страница бронирования | `WidgetCardController.widget` → `findByIdAndTenantIdAndActiveTrue` |
 | `POST /settings/widgets/{id}/card` `promoCodeId`, `photoId` | промокод, фото | запрос по тенанту / по фото этой страницы; чужой id не сохраняется |
+| `POST /settings/widgets/{id}/public-data` | страница бронирования | `ownWidget` → `findByIdAndTenantIdAndActiveTrue`; сведения об операторе пишутся тенанту страницы |
 | `POST /expenses` | объект, статья расходов | `Tenancy.own` для обоих |
 | `GET /feedback-admin?property=` | объект | среди своих активных; чужой → 404 |
 | `POST /feedback-admin/{id}/toggle-housekeeper` | отзыв | отзыв своего объекта, иначе 404 |

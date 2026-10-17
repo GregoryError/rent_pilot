@@ -22,7 +22,8 @@ public final class WidgetGuestCalendar {
 
     private WidgetGuestCalendar() {}
 
-    public static String write(BookingWidget w, Booking b) {
+    /** @param hostPhone телефон хозяина, если он разрешил его показ гостям; null — без телефона */
+    public static String write(BookingWidget w, Booking b, String hostPhone) {
         boolean en = "en".equals(b.getLocale());
         boolean pending = WidgetBookingService.STATUS_PENDING.equals(b.getStatus());
         LocalDateTime start = b.getCheckIn().atTime(w.getCheckinTime());
@@ -31,8 +32,8 @@ public final class WidgetGuestCalendar {
         String summary = w.getTitle() + (pending ? (en ? " (awaiting confirmation)" : " (ждёт подтверждения)") : "");
         StringBuilder description = new StringBuilder();
         description.append(en ? "Booking no. " : "Номер брони: ").append(b.getPublicCode());
-        if (w.getContactPhone() != null) {
-            description.append("\n").append(en ? "Host phone: " : "Телефон хозяина: ").append(w.getContactPhone());
+        if (hostPhone != null) {
+            description.append("\n").append(en ? "Host phone: " : "Телефон хозяина: ").append(hostPhone);
         }
 
         StringBuilder sb = new StringBuilder();

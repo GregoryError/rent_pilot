@@ -553,7 +553,7 @@ class OptirentBooking extends HTMLElement {
         const input = (key, type, opts = {}) => {
             const id = 'f-' + key;
             const el = h(type === 'area' ? 'textarea' : 'input', {
-                class: 'inp', id, name: key, 'aria-describedby': id + '-e', ...opts.attrs,
+                class: 'inp', id, name: key, 'aria-describedby': (opts.hint ? id + '-h ' : '') + id + '-e', ...opts.attrs,
                 ...(type === 'area' ? { rows: '2' } : { type })
             });
             el.value = f[key];
@@ -569,8 +569,13 @@ class OptirentBooking extends HTMLElement {
                 h('label', { class: 'label', for: id },
                     t(key), opts.optional && ' · ' + t('optional')),
                 el,
+                opts.hint && h('div', { class: 'fhint', id: id + '-h', text: t(opts.hint) }),
                 h('div', { class: 'err', id: id + '-e', role: 'alert' }));
         };
+        // Хозяин — оператор данных гостя: его имя в согласии и подписи (текст — юриста).
+        // Имя вставляется только как текст (t() → textContent).
+        const host = c.host && c.host.name ? ' ' + c.host.name : '';
+        const consentUrl = (c.host && c.host.consentUrl) || this.base + '/legal/guest-consent/' + c.slug;
         const consent = h('input', { type: 'checkbox', id: 'f-consent', 'aria-describedby': 'f-consent-e' });
         consent.checked = f.consent;
         consent.addEventListener('change', () => {
@@ -588,19 +593,22 @@ class OptirentBooking extends HTMLElement {
             class: 'form', novalidate: true,
             onsubmit: e => { e.preventDefault(); this.submit(); }
         },
-            input('name', 'text', { attrs: { autocomplete: 'name', maxlength: '100', required: true } }),
+            input('name', 'text', { hint: 'nameHint', attrs: { autocomplete: 'name', maxlength: '100', required: true } }),
             input('phone', 'tel', { attrs: { autocomplete: 'tel', inputmode: 'tel', maxlength: '30', required: true } }),
             input('email', 'email', { optional: true, attrs: { autocomplete: 'email', maxlength: '255' } }),
-            input('note', 'area', { optional: true, attrs: { maxlength: '1000' } }),
+            input('note', 'area', { optional: true, hint: 'noteHint', attrs: { maxlength: '1000' } }),
             this.trap,
             h('div', {},
                 h('label', { class: 'check' }, consent,
-                    h('span', {}, t('consent') + ' ',
-                        h('a', { href: this.base + '/legal/privacy', target: '_blank', rel: 'noopener', text: t('policy') }))),
+                    h('span', {}, t('consentA'),
+                        h('a', { href: consentUrl, target: '_blank', rel: 'noopener', text: t('consentLink') }),
+                        t('consentB', { host }))),
                 h('div', { class: 'err', id: 'f-consent-e', role: 'alert' })),
             this.formErr,
             this.submitBtn,
-            h('div', { class: 'note', text: (instant ? t('instantNote') : t('requestNote', { h: hold })) + ' ' + t('payOffline') }));
+            h('div', { class: 'note', text: (instant ? t('instantNote') : t('requestNote', { h: hold })) + ' ' + t('payOffline') }),
+            h('div', { class: 'note' }, t('passNote', { host }) + ' ',
+                h('a', { href: this.base + '/legal/privacy', target: '_blank', rel: 'noopener', text: t('policy') })));
     }
 
     fieldError(key, text) {

@@ -71,6 +71,8 @@ public class OnboardingController {
     private final EmailVerificationService verification;
     private final ru.rentoptima.service.ApartmentDefaults apartmentDefaults;
     private final ru.rentoptima.housing.HousingVocabulary housingVocabulary;
+    private final ru.rentoptima.legal.GuestOperators operators;
+    private final ru.rentoptima.legal.LegalDocuments legalDocs;
 
     @GetMapping
     public String wizard(@RequestParam(required = false) String step, Model model, HttpServletRequest request) {
@@ -126,6 +128,11 @@ public class OnboardingController {
                         .map(Property::getName).orElse(""));
                 model.addAttribute("defaultPrice", unit.map(UnitType::getBasePrice)
                         .map(p -> p.stripTrailingZeros().toPlainString()).orElse(""));
+                // Сведения об операторе для гостей: без них страница не принимает заявки (GuestOperators)
+                var info = operators.info(s.getTenantId());
+                model.addAttribute("operatorName", info.map(ru.rentoptima.legal.GuestOperators.Info::name).orElse(""));
+                model.addAttribute("operatorContact", info.map(ru.rentoptima.legal.GuestOperators.Info::contact)
+                        .orElse(AuthContext.current().getUsername()));
             }
             case STEP_DONE -> model.addAttribute("doneLines", doneLines(s));
             default -> { }
@@ -246,6 +253,9 @@ public class OnboardingController {
                        @RequestParam(required = false) BigDecimal price,
                        @RequestParam(required = false) String contactPhone,
                        @RequestParam(required = false) String contactTelegram,
+                       @RequestParam(required = false) String operatorName,
+                       @RequestParam(required = false) String operatorContact,
+                       @RequestParam(required = false, defaultValue = "false") boolean operatorConsent,
                        @RequestParam(value = "files", required = false) List<MultipartFile> files,
                        RedirectAttributes redirect) {
         OnboardingState s = state();
@@ -254,7 +264,18 @@ public class OnboardingController {
             redirect.addFlashAttribute("formError", OnboardingTexts.get("page.error.name"));
             return "redirect:/onboarding?step=page";
         }
+        String opName = operatorName == null || operatorName.isBlank() ? null : operatorName.strip();
+        String opContact = operatorContact == null || operatorContact.isBlank() ? null : operatorContact.strip();
+        if (opName == null || opContact == null || !operatorConsent) {
+            redirect.addFlashAttribute("formError", OnboardingTexts.get("page.error.operator"));
+            return "redirect:/onboarding?step=page";
+        }
         BookingWidget w = onboarding.createPage(s, title, price, contactPhone, contactTelegram);
+        // Сведения об операторе и согласие на показ гостям (их и контактов выше) — запись в журнал
+        operators.saveInfo(s.getTenantId(), new ru.rentoptima.legal.GuestOperators.Info(
+                cutTo(opName, 255), cutTo(opContact, 255), null, null));
+        operators.recordConsent(w, AuthContext.userId(), AuthContext.current().getUsername(),
+                legalDocs.currentVersion(ru.rentoptima.legal.LegalDocuments.CONSENT_PUBLIC));
         List<String> failed = new ArrayList<>();
         int added = 0;
         for (MultipartFile file : files == null ? List.<MultipartFile>of() : files) {
@@ -453,4 +474,8 @@ public class OnboardingController {
                        String fromText, String toText, List<String> fromSteps, String fromScreenshot,
                        List<String> toSteps, String toScreenshot, String refresh, List<String> notes,
                        String guidePath) {}
+
+    private static String cutTo(String s, int max) {
+        return s.length() > max ? s.substring(0, max) : s;
+    }
 }

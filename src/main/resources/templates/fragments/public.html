@@ -85,11 +85,17 @@
             <li><a th:href="@{/sinhronizaciya}">Синхронизация площадок</a></li>
             <li><a th:href="@{/modul-bronirovaniya}">Модуль бронирования</a></li>
             <li><a th:href="@{/instrukcii}">Инструкции</a></li>
-            <li><a th:href="@{/legal/terms}">Условия</a></li>
-            <li><a th:href="@{/legal/privacy}">Конфиденциальность</a></li>
-            <li><a href="mailto:errorgrisha@gmail.com">Связаться</a></li>
+            <li><a th:href="@{/legal/privacy}">Политика конфиденциальности</a></li>
+            <li><a th:href="@{/legal/terms}">Пользовательское соглашение</a></li>
+            <li><a th:href="@{/legal/cookies}">Cookie</a></li>
+            <!--/* Баннер и его настройки есть, только когда подключена Метрика (consent.js) */-->
             <li th:if="${!#strings.isEmpty(site.metrikaId)}"><a href="#" data-cookie-settings>Настройки cookie</a></li>
+            <li><a th:href="'mailto:' + ${legalOperator.email}">Связаться</a></li>
         </ul>
+        <p class="footer-operator">
+            <span th:text="${legalOperator.line}">Оператор</span> ·
+            <a th:href="'mailto:' + ${legalOperator.email}" th:text="${legalOperator.email}">e-mail</a>
+        </p>
     </div>
 </footer>
 

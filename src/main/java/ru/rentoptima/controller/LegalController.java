@@ -1,88 +1,142 @@
 package ru.rentoptima.controller;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.server.ResponseStatusException;
-import ru.rentoptima.repository.LegalPageRepository;
+import ru.rentoptima.entity.BookingWidget;
+import ru.rentoptima.legal.GuestOperators;
+import ru.rentoptima.legal.LegalDocuments;
+import ru.rentoptima.legal.LegalDocuments.Version;
+import ru.rentoptima.legal.LegalMarkdown;
+import ru.rentoptima.repository.BookingWidgetRepository;
+import ru.rentoptima.seo.SeoFilter;
 import ru.rentoptima.seo.SiteSettings;
 
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Правовые документы: /legal/&lt;slug&gt; — текущая редакция, /legal/&lt;slug&gt;/v&lt;N&gt; — любая
+ * (noindex), /legal/guest-consent/&lt;slug страницы бронирования&gt; — согласие гостя со
+ * сведениями этого хозяина. Тексты — {@link LegalDocuments}, рендер — {@link LegalMarkdown}.
+ */
 @Controller
 @RequiredArgsConstructor
 public class LegalController {
 
-    private final LegalPageRepository legalRepo;
+    /** Метка в тексте согласия гостя, вместо которой встаёт блок «Оператор». */
+    static final String OPERATOR_MARK = "{{operator}}";
+
+    private static final Pattern VERSION = Pattern.compile("v([1-9]\\d{0,4})");
+
+    /** Документы в подвале страницы документа. */
+    private static final List<String[]> RELATED = List.of(
+            new String[]{"/legal/privacy", "Политика обработки персональных данных"},
+            new String[]{"/legal/terms", "Пользовательское соглашение"},
+            new String[]{"/legal/cookies", "Политика cookie"});
+
+    private final LegalDocuments documents;
+    private final GuestOperators operators;
+    private final BookingWidgetRepository widgetRepo;
     private final SiteSettings site;
+
+    /** Прежний адрес согласия в анкете отзыва: ссылки на него остались в напечатанных QR. */
+    @GetMapping("/legal/feedback-consent")
+    public ResponseEntity<Void> feedbackConsent() {
+        return ResponseEntity.status(HttpStatus.MOVED_PERMANENTLY)
+                .header(HttpHeaders.LOCATION, "/legal/" + LegalDocuments.REVIEW).build();
+    }
 
     @GetMapping("/legal/{slug}")
     public String page(@PathVariable String slug, Model model, HttpServletRequest request) {
-        var page = legalRepo.findBySlug(slug)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        model.addAttribute("page", page);
-        model.addAttribute("canonical", site.canonical(request, "/legal/" + page.getSlug()));
-        model.addAttribute("description", page.getTitle() + " сервиса OptiRent — календаря бронирования"
-                + " и синхронизации площадок для посуточной аренды. Действующая редакция документа.");
-        model.addAttribute("htmlContent", renderMarkdown(page.getContent()));
-        return "pages/legal/view";
+        Version doc = documents.current(slug).orElseThrow(LegalController::notFound);
+        String body = LegalDocuments.GUEST_CONSENT.equals(slug)
+                ? doc.body().replace(OPERATOR_MARK, GuestOperators.genericOperatorMarkdown()) : doc.body();
+        return view(model, request, doc, body, null, false);
+    }
+
+    @GetMapping("/legal/{slug}/v{version:\\d+}")
+    public String version(@PathVariable String slug, @PathVariable int version, Model model,
+                          HttpServletRequest request, HttpServletResponse response) {
+        Version doc = documents.version(slug, version).orElseThrow(LegalController::notFound);
+        String body = LegalDocuments.GUEST_CONSENT.equals(slug)
+                ? doc.body().replace(OPERATOR_MARK, GuestOperators.genericOperatorMarkdown()) : doc.body();
+        response.setHeader(SeoFilter.HEADER, SeoFilter.NOINDEX);
+        return view(model, request, doc, body, null, true);
     }
 
     /**
-     * Мини-конвертер markdown → HTML.
-     * Обрабатывает: заголовки, списки, параграфы, курсив, жирный.
-     * Не подходит для сложного markdown, но покрывает нужды правовых страниц.
+     * Согласие гостя со сведениями хозяина страницы бронирования. Адрес /legal/guest-consent/v2 —
+     * редакция общего текста: если такая редакция есть, она важнее страницы бронирования
+     * с адресом «v2» (адрес страницы — от трёх символов, так что «v1»–«v9» заняты не бывают).
      */
-    private String renderMarkdown(String md) {
-        if (md == null) return "";
-
-        StringBuilder html = new StringBuilder();
-        String[] lines = md.split("\n");
-        boolean inList = false;
-
-        for (String line : lines) {
-            String trimmed = line.trim();
-
-            if (trimmed.isEmpty()) {
-                if (inList) { html.append("</ul>\n"); inList = false; }
-                continue;
-            }
-
-            // Headers
-            if (trimmed.startsWith("### ")) {
-                if (inList) { html.append("</ul>\n"); inList = false; }
-                html.append("<h3>").append(escapeInline(trimmed.substring(4))).append("</h3>\n");
-            } else if (trimmed.startsWith("## ")) {
-                if (inList) { html.append("</ul>\n"); inList = false; }
-                html.append("<h2>").append(escapeInline(trimmed.substring(3))).append("</h2>\n");
-            } else if (trimmed.startsWith("# ")) {
-                if (inList) { html.append("</ul>\n"); inList = false; }
-                html.append("<h1>").append(escapeInline(trimmed.substring(2))).append("</h1>\n");
-            }
-            // List items
-            else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-                if (!inList) { html.append("<ul>\n"); inList = true; }
-                html.append("<li>").append(escapeInline(trimmed.substring(2))).append("</li>\n");
-            }
-            // Paragraphs
-            else {
-                if (inList) { html.append("</ul>\n"); inList = false; }
-                html.append("<p>").append(escapeInline(trimmed)).append("</p>\n");
-            }
+    @GetMapping("/legal/guest-consent/{widgetSlug}")
+    public String guestConsent(@PathVariable String widgetSlug, Model model, HttpServletRequest request,
+                               HttpServletResponse response) {
+        Matcher m = VERSION.matcher(widgetSlug);
+        if (m.matches() && documents.version(LegalDocuments.GUEST_CONSENT, Integer.parseInt(m.group(1))).isPresent()) {
+            return version(LegalDocuments.GUEST_CONSENT, Integer.parseInt(m.group(1)), model, request, response);
         }
-        if (inList) html.append("</ul>\n");
-        return html.toString();
+        Version doc = documents.current(LegalDocuments.GUEST_CONSENT).orElseThrow(LegalController::notFound);
+        return guestConsentView(widgetSlug, doc, model, request, response);
     }
 
-    private String escapeInline(String s) {
-        // Escape HTML first
-        s = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-        // Bold **text**
-        s = s.replaceAll("\\*\\*([^*]+)\\*\\*", "<strong>$1</strong>");
-        // Italic *text*
-        s = s.replaceAll("\\*([^*]+)\\*", "<em>$1</em>");
-        return s;
+    @GetMapping("/legal/guest-consent/{widgetSlug}/v{version:\\d+}")
+    public String guestConsentVersion(@PathVariable String widgetSlug, @PathVariable int version, Model model,
+                                      HttpServletRequest request, HttpServletResponse response) {
+        Version doc = documents.version(LegalDocuments.GUEST_CONSENT, version).orElseThrow(LegalController::notFound);
+        return guestConsentView(widgetSlug, doc, model, request, response);
+    }
+
+    private String guestConsentView(String widgetSlug, Version doc, Model model, HttpServletRequest request,
+                                    HttpServletResponse response) {
+        BookingWidget w = widgetRepo.findBySlugAndActiveTrue(widgetSlug).orElseThrow(LegalController::notFound);
+        // Сведения хозяина подставляются как текст (LegalMarkdown.literal), HTML после рендера чистит санитайзер
+        String body = doc.body().replace(OPERATOR_MARK, operators.operatorMarkdown(w));
+        // Страница одного хозяина: в поиске ей делать нечего
+        response.setHeader(SeoFilter.HEADER, SeoFilter.NOINDEX);
+        return view(model, request, doc, body, w.getTitle(), true);
+    }
+
+    private String view(Model model, HttpServletRequest request, Version doc, String body, String subtitle,
+                        boolean noindex) {
+        LegalMarkdown.Rendered rendered = LegalMarkdown.render(body);
+        int current = documents.currentVersion(doc.slug());
+        List<Version> history = documents.history(doc.slug());
+        model.addAttribute("doc", doc);
+        model.addAttribute("subtitle", subtitle);
+        model.addAttribute("htmlContent", rendered.html());
+        model.addAttribute("toc", rendered.toc());
+        model.addAttribute("effective", doc.effectiveText());
+        model.addAttribute("archived", doc.version() != current);
+        model.addAttribute("currentPath", doc.path());
+        model.addAttribute("history", history.size() < 2 ? List.of() : history.stream()
+                .map(v -> new HistoryRow(v.versionPath(), "Редакция " + v.version() + " — с "
+                        + v.effectiveText(), v.version() == doc.version()))
+                .toList());
+        model.addAttribute("noindex", noindex);
+        model.addAttribute("related", RELATED.stream().filter(r -> !r[0].equals(doc.path())).toList());
+        model.addAttribute("canonical", site.canonical(request, doc.path()));
+        model.addAttribute("description", doc.title() + " сервиса OptiRent — календаря бронирования"
+                + " и синхронизации площадок для посуточной аренды. Редакция " + doc.version()
+                + " от " + doc.effectiveText() + ".");
+        return "pages/legal/view";
+    }
+
+    /** Строка списка редакций; {@code shown} — та, что открыта сейчас. */
+    public record HistoryRow(String path, String label, boolean shown) {
+    }
+
+    private static ResponseStatusException notFound() {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND);
     }
 }

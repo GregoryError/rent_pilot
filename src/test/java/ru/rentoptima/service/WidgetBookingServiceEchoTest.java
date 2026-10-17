@@ -54,6 +54,7 @@ class WidgetBookingServiceEchoTest {
     @Mock ChannelRepository channelRepo;
     @Mock AvailabilityService availability;
     @Mock EffectivePriceService effectivePrice;
+    @Mock ru.rentoptima.legal.LegalDocuments legalDocs;
 
     WidgetBookingService service;
 
@@ -61,7 +62,7 @@ class WidgetBookingServiceEchoTest {
     void setUp() {
         service = new WidgetBookingService(widgetRepo, unitTypeRepo, propertyRepo, tenantRepo, bookingRepo,
                 blockRepo, promoRepo, availability, effectivePrice,
-                new EchoShadowService(blockRepo, bookingRepo, channelRepo));
+                new EchoShadowService(blockRepo, bookingRepo, channelRepo), legalDocs);
     }
 
     private static Booking booking(String status) {

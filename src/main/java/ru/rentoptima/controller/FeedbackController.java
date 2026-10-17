@@ -56,6 +56,15 @@ public class FeedbackController {
     private final FeedbackQuestionRepository questionRepo;
     private final FeedbackAnswerRepository answerRepo;
     private final SiteSettings site;
+    private final ru.rentoptima.legal.GuestOperators operators;
+    private final ru.rentoptima.legal.LegalDocuments legalDocs;
+
+    /** « Иванов И. И.» для «Даю согласие хосту…»; пусто — просто «хосту». Текст — th:text, экранируется. */
+    private String hostSuffix(Property property) {
+        if (property.getTenantId() == null) return "";
+        String name = operators.hostName(property.getTenantId());
+        return name == null || name.isBlank() ? "" : " " + name;
+    }
 
     @GetMapping("/feedback/{code}")
     public String feedbackPage(@PathVariable String code, Model model) {
@@ -65,6 +74,7 @@ public class FeedbackController {
         String sessionId = UUID.randomUUID().toString();
         model.addAttribute("property", property);
         model.addAttribute("sessionId", sessionId);
+        model.addAttribute("hostSuffix", hostSuffix(property));
         return "pages/feedback/index";
     }
 
@@ -83,6 +93,7 @@ public class FeedbackController {
         model.addAttribute("property", property);
         model.addAttribute("sessionId", UUID.randomUUID().toString());
         model.addAttribute("cardCode", code);
+        model.addAttribute("hostSuffix", hostSuffix(property));
         return "pages/feedback/card";
     }
 
@@ -138,7 +149,9 @@ public class FeedbackController {
                     "error", "Для указания имени требуется согласие на обработку персональных данных"));
         }
         if (hasName) {
+            // Время и редакция /legal/review, на которую дано согласие (чекбокс появляется при вводе имени)
             response.setAgreedToConsentAt(LocalDateTime.now());
+            response.setConsentVersion(legalDocs.currentVersion(ru.rentoptima.legal.LegalDocuments.REVIEW));
         }
 
         boolean wasCompleted = Boolean.TRUE.equals(response.getCompleted());
@@ -171,7 +184,6 @@ public class FeedbackController {
             }
         }
 
-        StringBuilder summary = new StringBuilder();
         for (FeedbackQuestion q : questions) {
             FeedbackAnswer a = new FeedbackAnswer();
             a.setResponseId(response.getId());
@@ -193,14 +205,12 @@ public class FeedbackController {
             if (a.getNumericValue() != null
                     || (a.getTextValue() != null && !a.getTextValue().isBlank())) {
                 answerRepo.save(a);
-                summary.append(q.getQuestionText()).append(": ")
-                        .append(a.getNumericValue() != null ? a.getNumericValue() + " из 10" : a.getTextValue()).append("\n");
             }
         }
 
         // Хозяину — один раз, когда гость дошёл до конца, а не на каждый сохранённый шаг
         if (!wasCompleted && Boolean.TRUE.equals(response.getCompleted())) {
-            notifyHost(property, response, summary.toString(), http);
+            notifyHost(property, response, http);
         }
         return ResponseEntity.ok(Map.of("status", "saved"));
     }
@@ -217,26 +227,32 @@ public class FeedbackController {
         return staying.size() == 1 ? staying.get(0).getId() : null;
     }
 
-    private void notifyHost(Property property, FeedbackResponse response, String summary, HttpServletRequest http) {
+    private void notifyHost(Property property, FeedbackResponse response, HttpServletRequest http) {
         try {
             Long tenantId = property.getTenant().getId();
             if (!telegram.isConfigured(tenantId)) return;
-            boolean card = FeedbackResponse.SOURCE_CARD.equals(response.getSource());
-            String baseUrl = site.linkBase(http);
-            StringBuilder sb = new StringBuilder(card
-                    ? "💬 OptiRent: сообщение от гостя — с карточки для гостей\n"
-                    : "💬 OptiRent: новый отзыв гостя\n");
-            sb.append(property.getName()).append("\n");
-            if (card) {
-                sb.append(response.getBookingId() != null
-                        ? "Гость сейчас проживает.\n" : "Бронь определить не удалось.\n");
-            }
-            sb.append(summary.length() > 1500 ? summary.substring(0, 1500) + "…\n" : summary);
-            sb.append("Все отзывы: ").append(baseUrl).append("/feedback-admin");
-            telegram.send(tenantId, sb.toString());
+            telegram.send(tenantId, notifyText(property.getName(), response, site.linkBase(http)));
         } catch (Exception e) {
             log.warn("Не удалось уведомить об отзыве по объекту {}: {}", property.getId(), e.getMessage());
         }
+    }
+
+    /**
+     * Сообщение хозяину в Telegram — без текста отзыва, оценок и имени (patches/INTEGRATION_LEGAL.md,
+     * п. 4): вид события, объект и ссылка. Сам отзыв — в кабинете.
+     */
+    static String notifyText(String propertyName, FeedbackResponse response, String baseUrl) {
+        boolean card = FeedbackResponse.SOURCE_CARD.equals(response.getSource());
+        StringBuilder sb = new StringBuilder(card
+                ? "💬 OptiRent: сообщение от гостя — с карточки для гостей\n"
+                : "💬 OptiRent: новый отзыв гостя\n");
+        sb.append(propertyName).append("\n");
+        if (card) {
+            sb.append(response.getBookingId() != null
+                    ? "Гость сейчас проживает.\n" : "Бронь определить не удалось.\n");
+        }
+        sb.append("Прочитать: ").append(baseUrl).append("/feedback-admin");
+        return sb.toString();
     }
 
     /** Оценка 1–10; всё остальное — нет оценки. */

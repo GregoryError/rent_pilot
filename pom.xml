@@ -21,6 +21,7 @@
         <!-- 1.19.x из BOM Spring Boot не работает с Docker Engine 29+ (слишком старая версия API) -->
         <testcontainers.version>1.21.4</testcontainers.version>
         <java.version>21</java.version>
+        <commonmark.version>0.24.0</commonmark.version>
     </properties>
 
     <dependencies>
@@ -81,6 +82,28 @@
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
             <version>1.17.2</version>
+        </dependency>
+        <!-- Markdown правовых документов (LegalMarkdown): таблицы, якоря заголовков, автоссылки.
+             HTML после рендера чистит jsoup Safelist -->
+        <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark</artifactId>
+            <version>${commonmark.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark-ext-gfm-tables</artifactId>
+            <version>${commonmark.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark-ext-heading-anchor</artifactId>
+            <version>${commonmark.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.commonmark</groupId>
+            <artifactId>commonmark-ext-autolink</artifactId>
+            <version>${commonmark.version}</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
