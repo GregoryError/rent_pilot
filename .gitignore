@@ -6,6 +6,15 @@ target/
 .env
 *.log
 
+# Исходники юриста (patches/INTEGRATION_LEGAL.md). Тексты перенесены в миграцию V42,
+# INTEGRATION.md и ui-texts.md — в docs/legal-src/. Черновик уведомления в Роскомнадзор,
+# внутреннее положение о защите ПД и раздел «Риски» живут у оператора, не в репозитории.
+# Со слэшем в начале: иначе правило скрыло бы и пакет ru.rentoptima.legal
+/legal/
+legal/rkn-notification.md
+legal/internal-security.md
+docs/legal-src/*.local.md
+
 # Maven wrapper jar will be downloaded at build time
 !.mvn/wrapper/maven-wrapper.properties
 .DS_Store
