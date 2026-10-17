@@ -44,6 +44,8 @@ class MobileLayoutTest {
     private static final Path TOOL = Path.of("tools", "mobile-check");
     private static final String LOGIN = "mobile-check@example.com";
     private static final String PASSWORD = "mobile-check-1";
+    /** Пользователь до V42: кабинет закрыт окном согласий — проверяется само окно. */
+    private static final String RECONSENT_LOGIN = "mobile-reconsent@example.com";
 
     @LocalServerPort int port;
     @Autowired JdbcTemplate jdbc;
@@ -70,6 +72,8 @@ class MobileLayoutTest {
             pb.environment().put("BASE_URL", "http://localhost:" + port);
             pb.environment().put("LOGIN", LOGIN);
             pb.environment().put("PASSWORD", PASSWORD);
+            pb.environment().put("RECONSENT_LOGIN", RECONSENT_LOGIN);
+            pb.environment().put("RECONSENT_PASSWORD", PASSWORD);
             pb.environment().put("EXTRA_PATHS", String.join(",", List.of(
                     "/f/mcFeed7", "/f/nope000", "/feedback/mc-feedback", "/feedback/nope",
                     "/housekeeper/mc-keeper", "/housekeeper/nope", "/legal/nope")));
@@ -121,6 +125,17 @@ class MobileLayoutTest {
         jdbc.update("INSERT INTO onboarding_state(user_id, tenant_id, branch, wizard_step, wizard_status, data)"
                 + " VALUES (?, ?, 'AB', 'done', 'DONE', ?::jsonb)", userId, tenantId,
                 "{\"unitTypeId\":" + unitTypeId + ",\"propertyId\":" + propertyId + "}");
+        // Сведения об операторе и согласие на показ: на странице бронирования есть контакты и форма
+        jdbc.update("UPDATE booking_widgets SET contact_phone = '+7 900 000-00-00' WHERE id = ?", widgetId);
+        jdbc.update("INSERT INTO guest_operators(tenant_id, name, contact, inn, address) VALUES (?,"
+                + " 'Индивидуальный предприниматель Константинопольская-Щедрина Анастасия Владимировна',"
+                + " 'kostantinopolskaya-shchedrina.anastasia@example.com', '470416071381',"
+                + " 'Ленинградская область, г. Выборг, ул. Крепостная, д. 12, кв. 34')", tenantId);
+        jdbc.update("INSERT INTO public_data_consents(tenant_id, widget_id, fields, document_version) VALUES (?, ?,"
+                + " 'phone,operator_name,operator_contact,operator_inn,operator_address', 1)", tenantId, widgetId);
+        jdbc.update("INSERT INTO users(tenant_id, username, password_hash, display_name, role, email,"
+                        + " legal_reconsent_required) VALUES (?, ?, ?, 'До документов', 'OWNER', ?, TRUE)",
+                tenantId, RECONSENT_LOGIN, new BCryptPasswordEncoder().encode(PASSWORD), RECONSENT_LOGIN);
         LocalDate from = LocalDate.now().plusDays(2);
         jdbc.update("INSERT INTO calendar_blocks(tenant_id, unit_type_id, from_date, to_date, block_type)"
                 + " VALUES (?, ?, ?, ?, 'MAINTENANCE')", tenantId, unitTypeId, from, from.plusDays(3));
