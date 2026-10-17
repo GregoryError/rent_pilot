@@ -104,9 +104,17 @@
         <div id="consent-block" style="display:none; margin: 12px 0; padding: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; font-size: 0.85rem; line-height: 1.5;">
             <label style="display: flex; align-items: flex-start; gap: 8px; cursor: pointer;">
                 <input type="checkbox" id="consentCheck" onchange="onConsentChange()" style="margin-top: 3px; flex-shrink: 0;">
-                <span>Даю <a href="/legal/feedback-consent" target="_blank" style="color: var(--accent);">согласие на обработку персональных данных</a> при отправке отзыва с указанием имени</span>
+                <span><th:block th:text="|Даю согласие хосту${hostSuffix} на обработку моего имени (сохраняется первая буква) и текста отзыва.|">Даю согласие хосту на обработку моего имени (сохраняется первая буква) и текста отзыва.</th:block>
+                    <a href="/legal/review" target="_blank" rel="noopener" style="color: var(--accent);">Подробнее</a></span>
             </label>
         </div>
+
+        <p style="margin: 12px 0; font-size: 0.85rem; line-height: 1.5; color: var(--muted);">
+            Имя указывать не обязательно. Если укажете — сохраним только первую букву. Не пишите в отзыве
+            телефоны, адреса и данные других людей.
+            <th:block th:text="|Отзыв получит хост${hostSuffix}.|">Отзыв получит хост.</th:block>
+            <a href="/legal/review" target="_blank" rel="noopener" style="color: var(--accent);">Подробнее</a>
+        </p>
 
         <button class="btn" onclick="finish()" id="submitBtn">Отправить отзыв</button>
         <button class="btn btn-skip" onclick="finishAnonymous()">Отправить анонимно</button>

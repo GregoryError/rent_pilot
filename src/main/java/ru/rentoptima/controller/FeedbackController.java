@@ -56,6 +56,15 @@ public class FeedbackController {
     private final FeedbackQuestionRepository questionRepo;
     private final FeedbackAnswerRepository answerRepo;
     private final SiteSettings site;
+    private final ru.rentoptima.legal.GuestOperators operators;
+    private final ru.rentoptima.legal.LegalDocuments legalDocs;
+
+    /** « Иванов И. И.» для «Даю согласие хосту…»; пусто — просто «хосту». Текст — th:text, экранируется. */
+    private String hostSuffix(Property property) {
+        if (property.getTenantId() == null) return "";
+        String name = operators.hostName(property.getTenantId());
+        return name == null || name.isBlank() ? "" : " " + name;
+    }
 
     @GetMapping("/feedback/{code}")
     public String feedbackPage(@PathVariable String code, Model model) {
@@ -65,6 +74,7 @@ public class FeedbackController {
         String sessionId = UUID.randomUUID().toString();
         model.addAttribute("property", property);
         model.addAttribute("sessionId", sessionId);
+        model.addAttribute("hostSuffix", hostSuffix(property));
         return "pages/feedback/index";
     }
 
@@ -83,6 +93,7 @@ public class FeedbackController {
         model.addAttribute("property", property);
         model.addAttribute("sessionId", UUID.randomUUID().toString());
         model.addAttribute("cardCode", code);
+        model.addAttribute("hostSuffix", hostSuffix(property));
         return "pages/feedback/card";
     }
 
@@ -138,7 +149,9 @@ public class FeedbackController {
                     "error", "Для указания имени требуется согласие на обработку персональных данных"));
         }
         if (hasName) {
+            // Время и редакция /legal/review, на которую дано согласие (чекбокс появляется при вводе имени)
             response.setAgreedToConsentAt(LocalDateTime.now());
+            response.setConsentVersion(legalDocs.currentVersion(ru.rentoptima.legal.LegalDocuments.REVIEW));
         }
 
         boolean wasCompleted = Boolean.TRUE.equals(response.getCompleted());

@@ -273,11 +273,22 @@ class OnboardingIntegrationTest {
                 .param("city", "Приозёрск").param("basePrice", "6000"));
         assertThat(page(u, "/onboarding")).contains("Ваша страница бронирования", "value=\"Домик у озера\"", "value=\"6000\"");
 
+        // Без сведений об операторе и согласия на показ страница не создаётся
+        mvc.perform(multipart("/onboarding/page").with(user(u)).with(csrf()).param("title", "Домик у озера"))
+                .andExpect(redirectedUrl("/onboarding?step=page"));
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM booking_widgets WHERE tenant_id = ?", Integer.class,
+                u.getTenantId())).isZero();
+        assertThat(page(u, "/onboarding")).contains("Сведения о вас для гостей", "/legal/consent-public");
+
         mvc.perform(multipart("/onboarding/page")
                         .file(new MockMultipartFile("files", "not-a-photo.txt", "text/plain", "привет".getBytes(UTF8)))
                         .with(user(u)).with(csrf()).param("title", "Домик у озера").param("price", "6500")
-                        .param("contactPhone", "+7 900 000-00-00").param("contactTelegram", "@host"))
+                        .param("contactPhone", "+7 900 000-00-00").param("contactTelegram", "@host")
+                        .param("operatorName", "Иванова Мария").param("operatorContact", "maria@example.com")
+                        .param("operatorConsent", "true"))
                 .andExpect(redirectedUrl("/onboarding?step=page"));
+        assertThat(jdbc.queryForObject("SELECT fields FROM public_data_consents WHERE tenant_id = ?", String.class,
+                u.getTenantId())).isEqualTo("phone,telegram,operator_name,operator_contact");
         String slug = jdbc.queryForObject("SELECT slug FROM booking_widgets WHERE tenant_id = ?", String.class, u.getTenantId());
         assertThat(jdbc.queryForObject("SELECT contact_telegram FROM booking_widgets WHERE slug = ?", String.class, slug))
                 .isEqualTo("@host");
@@ -445,7 +456,9 @@ class OnboardingIntegrationTest {
         String step = page(u, "/onboarding?step=page");
         assertThat(step).contains("Ваша страница бронирования", "Вернуться в кабинет")
                 .doesNotContain("Пропустить, настрою сам", "wz-progress__bar");
-        mvc.perform(multipart("/onboarding/page").with(user(u)).with(csrf()).param("title", "Студия у парка"));
+        mvc.perform(multipart("/onboarding/page").with(user(u)).with(csrf()).param("title", "Студия у парка")
+                .param("operatorName", "Иванова Мария").param("operatorContact", "maria@example.com")
+                .param("operatorConsent", "true"));
         Long widgetId = jdbc.queryForObject("SELECT id FROM booking_widgets WHERE tenant_id = ?", Long.class, u.getTenantId());
         mvc.perform(post("/onboarding/page/continue").with(user(u)).with(csrf())).andExpect(redirectedUrl("/calendar/grid"));
         assertThat(states.findById(u.getUserId()).orElseThrow().getWizardStatus()).isEqualTo("DONE");

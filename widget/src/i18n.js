@@ -59,8 +59,13 @@ const ru = {
     emailHint: 'Необязательно. Пришлём подтверждение.',
     note: 'Комментарий для хозяина',
     optional: 'необязательно',
-    consent: 'Согласен на обработку контактных данных для связи по этой брони.',
-    policy: 'Политика конфиденциальности',
+    nameHint: 'Сохраним только первую букву',
+    noteHint: 'Не указывайте паспортные данные и другие лишние сведения',
+    consentA: 'Даю ',
+    consentLink: 'согласие',
+    consentB: ' хосту{host} на обработку моих персональных данных для ответа на заявку. Мне больше 18 лет.',
+    passNote: 'Заявку получит хост{host}. Сервис OptiRent передаёт её по поручению хоста и не участвует в бронировании и оплате.',
+    policy: 'Политика OptiRent',
     request: 'Отправить заявку',
     book: 'Забронировать',
     sending: 'Отправляем…',
@@ -113,12 +118,13 @@ const ru = {
         NAME: 'Укажите, как к вам обращаться',
         PHONE: 'Укажите телефон для связи',
         EMAIL: 'Проверьте адрес электронной почты',
-        CONSENT: 'Нужно согласие на обработку контактных данных',
+        CONSENT: 'Нужно согласие на обработку персональных данных',
         PROMO_INVALID: 'Такого промокода нет',
         PROMO_EXPIRED: 'Срок действия промокода истёк',
         PROMO_EXHAUSTED: 'Промокод больше не действует',
         PRICE_CHANGED: 'Стоимость изменилась. Проверьте сумму и отправьте ещё раз.',
-        RATE_LIMIT: 'Слишком много заявок. Попробуйте позже.'
+        RATE_LIMIT: 'Слишком много заявок. Попробуйте позже.',
+        OPERATOR_MISSING: 'Бронирование на этой странице пока не работает. Свяжитесь с хозяином напрямую.'
     }
 };
 
@@ -180,8 +186,13 @@ const en = {
     emailHint: 'Optional. We will send a confirmation.',
     note: 'Note for the host',
     optional: 'optional',
-    consent: 'I agree to the processing of my contact details for this booking.',
-    policy: 'Privacy policy',
+    nameHint: 'We keep only the first letter',
+    noteHint: 'Please do not include passport details or other unnecessary information',
+    consentA: 'I give my ',
+    consentLink: 'consent',
+    consentB: ' to the host{host} to process my personal data in order to answer this request. I am over 18.',
+    passNote: 'The request goes to the host{host}. OptiRent passes it on the host\'s behalf and takes no part in the booking or payment.',
+    policy: 'OptiRent privacy policy',
     request: 'Send request',
     book: 'Book',
     sending: 'Sending…',
@@ -234,12 +245,13 @@ const en = {
         NAME: 'Please enter your name',
         PHONE: 'Please enter a phone number',
         EMAIL: 'Please check the email address',
-        CONSENT: 'Your consent to process contact details is required',
+        CONSENT: 'Your consent to process personal data is required',
         PROMO_INVALID: 'This promo code does not exist',
         PROMO_EXPIRED: 'This promo code has expired',
         PROMO_EXHAUSTED: 'This promo code is no longer valid',
         PRICE_CHANGED: 'The price has changed. Please check the total and send again.',
-        RATE_LIMIT: 'Too many requests. Please try again later.'
+        RATE_LIMIT: 'Too many requests. Please try again later.',
+        OPERATOR_MISSING: 'Booking on this page is not available yet. Please contact the host directly.'
     }
 };
 
@@ -256,7 +268,8 @@ export function translator(lang) {
     const d = dict[lang] || ru;
     const t = (key, vars) => {
         let s = d[key] ?? ru[key] ?? key;
-        if (vars) for (const k in vars) s = s.replace('{' + k + '}', vars[k]);
+        // Функцией, а не строкой: «$&» в имени хозяина не должно стать шаблоном замены
+        if (vars) for (const k in vars) s = s.replace('{' + k + '}', () => vars[k]);
         return s;
     };
     /** «3 ночи», «1 night» — число со словом в нужной форме. */

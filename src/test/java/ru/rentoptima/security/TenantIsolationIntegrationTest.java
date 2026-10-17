@@ -256,6 +256,13 @@ class TenantIsolationIntegrationTest {
         notFound(post(w + "/card/promo").param("discountValue", "10"));
         notFound(post(w + "/card/regenerate"));
         notFound(post(w + "/card/wifi-qr").param("ssid", "net"));
+        // Сведения об операторе и согласие на показ: ни сведений, ни записи журнала по чужой странице
+        notFound(post(w + "/public-data").param("operatorName", "Взлом").param("operatorContact", "x@x.ru")
+                .param("consent", "true"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM public_data_consents WHERE widget_id = ?", Integer.class,
+                o.widget())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM guest_operators WHERE name = 'Взлом'", Integer.class))
+                .isZero();
         notFound(post("/settings/widgets/create").param("title", "Взлом").param("unitTypeId", o.unitType().toString()));
         assertThat(snapshot()).isEqualTo(before);
     }

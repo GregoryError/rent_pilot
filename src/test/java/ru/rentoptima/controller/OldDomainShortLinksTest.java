@@ -96,7 +96,9 @@ class OldDomainShortLinksTest {
         when(unitTypeRepo.findById(9L)).thenReturn(Optional.of(ut));
         when(propertyRepo.findById(3L)).thenReturn(Optional.of(new Property()));
         return new FeedbackController(propertyRepo, unitTypeRepo, bookingRepo, cards, widgets, rateLimiter,
-                telegram, feedbackRepo, questionRepo, answerRepo, PROD);
+                telegram, feedbackRepo, questionRepo, answerRepo, PROD,
+                org.mockito.Mockito.mock(ru.rentoptima.legal.GuestOperators.class),
+                org.mockito.Mockito.mock(ru.rentoptima.legal.LegalDocuments.class));
     }
 
     @Test

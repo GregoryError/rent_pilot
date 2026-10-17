@@ -220,7 +220,7 @@
 
         <div class="card">
             <div class="card__title">Контакты для гостя</div>
-            <div class="text-sm muted" style="margin-bottom: var(--sp-4);">Гость увидит их после бронирования, а если блок «Контакты» включён — и до. Все поля необязательные.</div>
+            <div class="text-sm muted" style="margin-bottom: var(--sp-4);">Все поля необязательные. Гости увидят их, только когда вы дадите согласие на показ — в блоке «Что видят гости» ниже: после брони — всегда, до брони — если в конструкторе включён блок «Контакты».</div>
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--sp-4);">
                 <div class="form-group">
                     <label class="form-label">Телефон</label>
@@ -277,6 +277,64 @@
         </div>
 
         <button type="submit" class="btn btn-primary" style="margin-bottom: var(--sp-6);">Сохранить</button>
+    </form>
+
+    <!-- Сведения об операторе для гостей и согласие на показ (patches/INTEGRATION_LEGAL.md, п. 9–10) -->
+    <form method="post" th:action="@{'/settings/widgets/' + ${w.id} + '/public-data'}" class="card" id="public-data">
+        <div class="card__title">Что видят гости</div>
+        <p class="text-sm" th:style="|color: ${pub.statusColor}; margin-bottom: var(--sp-3);|"
+           th:text="${pub.statusText}">Форма заявки работает.</p>
+        <div class="text-sm muted" style="margin-bottom: var(--sp-4);">
+            Для гостей вы — оператор их персональных данных. Эти сведения увидят гости в тексте согласия.
+            Без них форма бронирования не включится. Сведения одни для всех ваших страниц бронирования.
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-4);">
+            <div class="form-group">
+                <label class="form-label" for="op-name">ФИО или наименование</label>
+                <input type="text" id="op-name" name="operatorName" maxlength="255" required data-pd="ФИО или наименование оператора"
+                       th:value="${pub.info?.name}" class="form-input form-input--sm" placeholder="Иванов Иван Иванович">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="op-contact">Контакт для обращений по персональным данным</label>
+                <input type="text" id="op-contact" name="operatorContact" maxlength="255" required data-pd="контакт для обращений по персональным данным"
+                       th:value="${pub.info?.contact}" class="form-input form-input--sm" placeholder="e-mail или телефон">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="op-inn">ИНН · необязательно</label>
+                <input type="text" id="op-inn" name="operatorInn" inputmode="numeric" maxlength="12" data-pd="ИНН"
+                       th:value="${pub.info?.inn}" class="form-input form-input--sm">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="op-address">Адрес · необязательно</label>
+                <input type="text" id="op-address" name="operatorAddress" maxlength="500" data-pd="адрес"
+                       th:value="${pub.info?.address}" class="form-input form-input--sm">
+            </div>
+        </div>
+        <label class="flex gap-2 text-sm" style="align-items: flex-start; margin: var(--sp-2) 0 var(--sp-4);">
+            <input type="checkbox" name="consent" value="true" style="margin-top: 3px; flex: none;">
+            <span>
+                Согласен на показ гостям этих данных: <b id="pd-list" th:attr="data-contacts=${pub.contactLabels}" th:text="${pub.currentLabels}">телефон</b>.
+                Они станут видны всем, кто откроет страницу.
+                <a href="/legal/consent-public" target="_blank" rel="noopener">Текст согласия</a>
+            </span>
+        </label>
+        <div class="form-hint" th:if="${!#strings.isEmpty(pub.consentedLabels)}" th:text="|Сейчас разрешено: ${pub.consentedLabels}.|"
+             style="margin-top: calc(-1 * var(--sp-2)); margin-bottom: var(--sp-4);"></div>
+        <button type="submit" class="btn btn-primary">Сохранить сведения</button>
+        <script>
+            // Список рядом с чекбоксом — из того, что сейчас заполнено: контакты (сохранены выше) + сведения
+            (function () {
+                var list = document.getElementById('pd-list');
+                var inputs = document.querySelectorAll('#public-data [data-pd]');
+                function update() {
+                    var parts = list.dataset.contacts ? [list.dataset.contacts] : [];
+                    inputs.forEach(function (i) { if (i.value.trim()) parts.push(i.dataset.pd); });
+                    list.textContent = parts.length ? parts.join(', ') : 'нечего показывать';
+                }
+                inputs.forEach(function (i) { i.addEventListener('input', update); });
+                update();
+            })();
+        </script>
     </form>
 
     <div class="card" id="photos">

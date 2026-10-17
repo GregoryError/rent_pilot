@@ -24,6 +24,7 @@ import java.util.Map;
 public class WidgetConfigService {
 
     private final WidgetPhotoService photos;
+    private final ru.rentoptima.legal.GuestOperators operators;
     private final ObjectMapper json = new ObjectMapper();
 
     /**
@@ -65,14 +66,16 @@ public class WidgetConfigService {
         body.put("metrikaId", w.getMetrikaId());
         body.put("amenities", WidgetLayout.amenities(w.getAmenities()));
         body.put("mapUrl", WidgetLayout.mapUrl(w.getMapUrl()));
-        // Контакты до брони отдаём, только если хозяин оставил блок «Контакты» видимым
+        // Контакты до брони отдаём, только если хозяин оставил блок «Контакты» видимым и дал
+        // согласие на их показ (ст. 10.1 152-ФЗ; поля без согласия — null)
         if (!WidgetLayout.hidden(layout, "contacts")) {
-            Map<String, Object> contacts = new LinkedHashMap<>();
-            contacts.put("phone", w.getContactPhone());
-            contacts.put("telegram", w.getContactTelegram());
-            contacts.put("whatsapp", w.getContactWhatsapp());
-            body.put("contacts", contacts);
+            body.put("contacts", operators.visibleContacts(w));
         }
+        // Хозяин — оператор данных гостя: его имя в согласии у формы, ссылка на полный текст
+        Map<String, Object> host = new LinkedHashMap<>();
+        host.put("name", operators.widgetHostName(w));
+        host.put("consentUrl", baseUrl + "/legal/guest-consent/" + w.getSlug());
+        body.put("host", host);
         return body;
     }
 

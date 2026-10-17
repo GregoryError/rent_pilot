@@ -17,6 +17,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import ru.rentoptima.entity.Booking;
 import ru.rentoptima.entity.BookingWidget;
+import ru.rentoptima.legal.GuestOperators;
+import ru.rentoptima.legal.LegalDocuments;
 import ru.rentoptima.entity.Channel;
 import ru.rentoptima.entity.PromoCode;
 import ru.rentoptima.entity.Property;
@@ -85,6 +87,8 @@ public class WidgetAdminController {
     private final IndexNowService indexNow;
     private final WidgetCreator widgetCreator;
     private final SiteSettings site;
+    private final GuestOperators operators;
+    private final LegalDocuments legalDocs;
 
     private static final Map<String, String> BLOCK_LABELS = Map.ofEntries(
             Map.entry("gallery", "Фотографии"), Map.entry("title", "Название и цена «от»"),
@@ -173,7 +177,89 @@ public class WidgetAdminController {
         model.addAttribute("photoRows", photoRows);
         model.addAttribute("photosLeft", WidgetPhotoService.MAX_PHOTOS - uploaded.size());
         model.addAttribute("webpOff", !photoProcessor.webpAvailable());
+        model.addAttribute("pub", publicData(w));
         return "pages/settings/widget-edit";
+    }
+
+    /**
+     * Блок «Что видят гости»: сведения об операторе (одни на аккаунт), согласие на показ
+     * контактов и этих сведений, работает ли форма заявки. Тексты и цвета — здесь.
+     */
+    record PublicDataView(GuestOperators.Info info, String statusText, String statusColor, String contactLabels,
+                          String currentLabels, String consentedLabels, boolean needsConsent) {
+    }
+
+    PublicDataView publicData(BookingWidget w) {
+        GuestOperators.Status st = operators.status(w);
+        String text;
+        String color;
+        if (!st.accepting()) {
+            text = "Форма заявки не работает: заполните сведения об операторе и дайте согласие на их показ гостям.";
+            color = "var(--red)";
+        } else if (st.inGrace()) {
+            text = "До " + st.graceUntil().toLocalDate().format(DAY_WORDS) + " форма заявки работает с временным текстом"
+                    + " согласия гостя. Заполните сведения и дайте согласие — иначе после этой даты заявки"
+                    + " перестанут приниматься.";
+            color = "var(--amber)";
+        } else if (st.needsConsent()) {
+            text = "Форма заявки работает. Новые поля гости не увидят, пока вы не дадите согласие на их показ.";
+            color = "var(--amber)";
+        } else {
+            text = "Форма заявки работает. Гости видят: " + st.shownLabels() + ".";
+            color = "var(--green)";
+        }
+        Set<GuestOperators.Field> contacts = java.util.EnumSet.noneOf(GuestOperators.Field.class);
+        contacts.addAll(st.current());
+        contacts.retainAll(java.util.EnumSet.of(GuestOperators.Field.PHONE, GuestOperators.Field.TELEGRAM,
+                GuestOperators.Field.WHATSAPP));
+        String contactLabels = contacts.stream().map(f -> f.label).collect(java.util.stream.Collectors.joining(", "));
+        String consented = st.consented().stream().map(f -> f.label).collect(java.util.stream.Collectors.joining(", "));
+        return new PublicDataView(st.info(), text, color, contactLabels, st.currentLabels(), consented,
+                st.needsConsent());
+    }
+
+    private static final DateTimeFormatter DAY_WORDS = DateTimeFormatter.ofPattern("d MMMM yyyy",
+            java.util.Locale.forLanguageTag("ru"));
+
+    /**
+     * Сведения об операторе для гостей и согласие на показ гостям (ст. 10.1 152-ФЗ). Согласие —
+     * на поля, которые заполнены и включены к показу после сохранения; запись в журнал.
+     */
+    @PostMapping("/{id}/public-data")
+    public String savePublicData(@PathVariable Long id,
+                                 @RequestParam(required = false) String operatorName,
+                                 @RequestParam(required = false) String operatorContact,
+                                 @RequestParam(required = false) String operatorInn,
+                                 @RequestParam(required = false) String operatorAddress,
+                                 @RequestParam(required = false, defaultValue = "false") boolean consent,
+                                 RedirectAttributes redirect) {
+        BookingWidget w = ownWidget(id);
+        String back = "redirect:/settings/widgets/" + id + "#public-data";
+        String name = clean(operatorName, 255);
+        String contact = clean(operatorContact, 255);
+        String inn = clean(operatorInn, 12);
+        if (inn != null && !inn.matches("\\d{10}|\\d{12}")) {
+            redirect.addFlashAttribute("error", "ИНН — 10 или 12 цифр. Можно оставить пустым");
+            return back;
+        }
+        if (name == null || contact == null) {
+            redirect.addFlashAttribute("error", "Укажите ФИО или наименование и контакт для обращений — без них"
+                    + " форма заявки не работает");
+            return back;
+        }
+        operators.saveInfo(w.getTenantId(), new GuestOperators.Info(name, contact, inn, clean(operatorAddress, 500)));
+        if (consent) {
+            Set<GuestOperators.Field> fields = operators.recordConsent(w, AuthContext.userId(),
+                    AuthContext.current().getUsername(), legalDocs.currentVersion(LegalDocuments.CONSENT_PUBLIC));
+            redirect.addFlashAttribute("success", "Сохранено. Гости видят: "
+                    + fields.stream().map(f -> f.label).collect(java.util.stream.Collectors.joining(", ")) + ".");
+        } else if (operators.status(w).needsConsent()) {
+            redirect.addFlashAttribute("success", "Сведения сохранены. Гости увидят их после согласия на показ"
+                    + " — отметьте его и сохраните ещё раз.");
+        } else {
+            redirect.addFlashAttribute("success", "Сохранено");
+        }
+        return back;
     }
 
     /**
@@ -503,6 +589,9 @@ public class WidgetAdminController {
         if (slugError != null) problems.add("Адрес страницы не изменён. " + slugError);
         if (mapError != null) problems.add(mapError);
         if (accentWarning != null) problems.add(accentWarning);
+        if (operators.status(w).needsConsent()) {
+            problems.add("Новые контакты гости увидят после согласия на показ — блок «Что видят гости» ниже");
+        }
         if (problems.isEmpty()) {
             redirect.addFlashAttribute("success", "Сохранено");
         } else {

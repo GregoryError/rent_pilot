@@ -139,11 +139,14 @@ class WidgetHelpersTest {
         b.setGuestName("И.");
         b.setGuestPhone("+79001234567");
 
-        String ics = WidgetGuestCalendar.write(w, b);
+        w.setContactPhone("+7 900 555-66-77");
+        String ics = WidgetGuestCalendar.write(w, b, null);
 
         assertThat(ics).contains("DTSTART:20261113T140000\r\n", "DTEND:20261115T120000\r\n",
                 "SUMMARY:Лофт\\; у парка\\, центр\r\n", "STATUS:CONFIRMED", "K7M29QXA");
-        assertThat(ics).doesNotContain("+79001234567");
+        // Телефон гостя — никогда; телефон хозяина — только разрешённый к показу (согласие на распространение)
+        assertThat(ics).doesNotContain("+79001234567", "555-66-77");
+        assertThat(WidgetGuestCalendar.write(w, b, "+7 900 555-66-77")).contains("555-66-77");
         assertThat(ics.lines()).allSatisfy(line ->
                 assertThat(line.getBytes(java.nio.charset.StandardCharsets.UTF_8).length).isLessThanOrEqualTo(75));
     }

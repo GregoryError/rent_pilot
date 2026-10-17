@@ -276,6 +276,26 @@
                     </div>
                 </div>
                 <div class="form-hint" th:text="${t['page.contacts.hint']}"></div>
+                <!--/* Сведения об операторе для гостей и согласие на показ (patches/INTEGRATION_LEGAL.md, п. 9–10) */-->
+                <h2 class="wz-subtitle" th:text="${t['page.operator.title']}">Сведения о вас для гостей</h2>
+                <div class="form-hint" th:text="${t['page.operator.hint']}"></div>
+                <div class="wz-row">
+                    <div class="form-group">
+                        <label class="form-label" for="wz-opname" th:text="${t['page.operator.name']}">ФИО или наименование</label>
+                        <input type="text" id="wz-opname" name="operatorName" class="form-input" required maxlength="255"
+                               autocomplete="name" th:value="${operatorName}">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="wz-opcontact" th:text="${t['page.operator.contact']}">Контакт</label>
+                        <input type="text" id="wz-opcontact" name="operatorContact" class="form-input" required maxlength="255"
+                               th:value="${operatorContact}">
+                    </div>
+                </div>
+                <label class="wz-check">
+                    <input type="checkbox" name="operatorConsent" value="true" required>
+                    <span><th:block th:text="${t['page.operator.consent']}">Согласен</th:block>
+                        <a href="/legal/consent-public" target="_blank" rel="noopener" th:text="${t['page.operator.link']}">Текст согласия</a></span>
+                </label>
                 <div class="wz-actions">
                     <a class="btn btn-ghost" th:if="${backStep != null}" th:href="@{/onboarding(step=${backStep})}" th:text="${t['common.back']}">Назад</a>
                     <button type="submit" class="btn btn-primary" th:text="${t['page.create']}">Создать страницу</button>

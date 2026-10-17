@@ -12,6 +12,8 @@
         .pin-input { font-size: 2rem; letter-spacing: 0.5rem; text-align: center; width: 100%; padding: 1rem; box-sizing: border-box; }
         .error { color: var(--rose); margin-top: 0.5rem; font-size: 0.85rem; }
         .info { color: var(--text-muted); margin-top: 1rem; font-size: 0.85rem; }
+        .hk-note { margin-top: 1.25rem; font-size: 0.8rem; line-height: 1.5; color: var(--text-secondary); }
+        .hk-note a { color: var(--accent); }
     </style>
 </head>
 <body>
@@ -28,6 +30,11 @@
         <button type="submit" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">Войти</button>
         <div class="error" th:if="${error}">Неверный PIN</div>
     </form>
+    <p class="hk-note" th:unless="${pinNotSet}">
+        <th:block th:text="|Страница расписания хоста${hostSuffix}.|">Страница расписания хоста.</th:block>
+        Доступ — по PIN, который выдал хост. Ваши данные обрабатывает хост; OptiRent хранит их по его поручению.
+        <a href="/legal/privacy" target="_blank" rel="noopener">Политика OptiRent</a>
+    </p>
 </div>
 </body>
 </html>

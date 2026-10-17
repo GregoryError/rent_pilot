@@ -94,6 +94,7 @@ public class WidgetCardService {
     private final PromoCodeRepository promoRepo;
     private final WidgetPhotoService photos;
     private final EncryptionUtil encryption;
+    private final ru.rentoptima.legal.GuestOperators operators;
 
     // --- Настройки карточки
 
@@ -365,10 +366,9 @@ public class WidgetCardService {
             node.put("url", photos.previewUrl(p, baseUrl));
         }
 
+        // На карточку — только контакты, показ которых хозяин разрешил (согласие на распространение)
         ObjectNode contacts = data.putObject("contacts");
-        contacts.put("phone", w.getContactPhone());
-        contacts.put("telegram", w.getContactTelegram());
-        contacts.put("whatsapp", w.getContactWhatsapp());
+        operators.visibleContacts(w).forEach((k, v) -> contacts.put(k, (String) v));
 
         JsonNode theme = WidgetLayout.normalize(w.getConfigJson()).path("theme");
         ObjectNode t = data.putObject("theme");

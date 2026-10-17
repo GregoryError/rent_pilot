@@ -81,6 +81,7 @@ public class WidgetApiController {
     private final WidgetConfigService configs;
     private final WidgetFunnelService funnel;
     private final EmailVerificationService verification;
+    private final ru.rentoptima.legal.GuestOperators operators;
     private final SiteSettings site;
 
     @GetMapping("/config")
@@ -184,8 +185,13 @@ public class WidgetApiController {
         BookingWidget w = require(slug);
         String ip = http.getRemoteAddr();
         // Хозяин новой страницы не подтвердил почту — заявки не принимаются (себе — можно, для проверки)
-        if (verification.pageInactive(w.getTenantId()) && !w.getTenantId().equals(AuthContext.tenantIdOrNull())) {
+        boolean own = w.getTenantId().equals(AuthContext.tenantIdOrNull());
+        if (verification.pageInactive(w.getTenantId()) && !own) {
             return error(HttpStatus.FORBIDDEN, WidgetError.PAGE_INACTIVE, w);
+        }
+        // Нет сведений об операторе для гостей (или разрешения их показать) — заявок нет; себе — можно
+        if (!operators.status(w).accepting() && !own) {
+            return error(HttpStatus.FORBIDDEN, WidgetError.OPERATOR_MISSING, w);
         }
 
         // Honeypot: поле скрыто от людей, заполняют его только боты. Отвечаем «успехом»,
@@ -254,11 +260,8 @@ public class WidgetApiController {
         pay.put("kind", payment.kind());
         pay.put("redirectUrl", payment.redirectUrl());
         body.put("payment", pay);
-        Map<String, Object> contacts = new LinkedHashMap<>();
-        contacts.put("phone", w.getContactPhone());
-        contacts.put("telegram", w.getContactTelegram());
-        contacts.put("whatsapp", w.getContactWhatsapp());
-        body.put("contacts", contacts);
+        // Только контакты, показ которых хозяин разрешил: ответ видит любой, кто отправил форму
+        body.put("contacts", operators.visibleContacts(w));
         body.put("rules", w.getRules());
         return ResponseEntity.ok(body);
     }
@@ -271,7 +274,7 @@ public class WidgetApiController {
                 .filter(x -> WidgetBookingService.STATUS_PENDING.equals(x.getStatus())
                         || WidgetBookingService.STATUS_BOOKED.equals(x.getStatus()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        String ics = WidgetGuestCalendar.write(w, b);
+        String ics = WidgetGuestCalendar.write(w, b, (String) operators.visibleContacts(w).get("phone"));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("text/calendar; charset=UTF-8"))
                 .header("Content-Disposition", "attachment; filename=\"booking-" + b.getPublicCode() + ".ics\"")
