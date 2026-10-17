@@ -15,7 +15,8 @@ import ru.rentoptima.service.UnitVocabulary;
  *   <li>{@code simpleUnits} — у хозяина один объект на одну единицу, и шаблоны не показывают
  *       понятие «категория номеров» ({@link UnitVocabulary});</li>
  *   <li>{@code housing} — слово для жилья хозяина в нужных формах
- *       ({@link ru.rentoptima.housing.HousingVocabulary}).</li>
+ *       ({@link ru.rentoptima.housing.HousingVocabulary});</li>
+ *   <li>{@code aiChatEnabled} — показывать ли AI-чат ({@link ru.rentoptima.service.AiChatFlag}).</li>
  * </ul>
  */
 @ControllerAdvice
@@ -24,6 +25,7 @@ public class CabinetModelAdvice {
 
     private final UnitVocabulary vocabulary;
     private final ru.rentoptima.housing.HousingVocabulary housingVocabulary;
+    private final ru.rentoptima.service.AiChatFlag aiChat;
     private final ru.rentoptima.legal.GuestOperators operators;
     private final ru.rentoptima.repository.BookingWidgetRepository widgetRepo;
 
@@ -48,6 +50,12 @@ public class CabinetModelAdvice {
                 + (pending.size() == 1 ? " перестанет" : " перестанут") + " принимать заявки, если не заполнить сведения об операторе для гостей"
                 + " и не дать согласие на их показ.",
                 "/settings/widgets/" + first.getId() + "#public-data");
+    }
+
+    /** AI-чат в меню и плавающая кнопка — только когда он включён (APP_AI_CHAT_ENABLED). */
+    @ModelAttribute("aiChatEnabled")
+    public boolean aiChatEnabled() {
+        return aiChat.enabled();
     }
 
     private static boolean page(HttpServletRequest request) {

@@ -266,7 +266,9 @@ class FirstRunIntegrationTest {
         assertThat(nav).contains("Шахматка", "Площадки", "Цены", "Страница бронирования", "Заявки с сайта", "Настройки")
                 .doesNotContain("Добавить квартиру").doesNotContain("Импорт");
         String more = nav.substring(nav.indexOf("id=\"nav-more\""), nav.indexOf("</details>"));
-        assertThat(more).contains("Календарь цен", "Расходы", "Отзывы", "Сотрудники", "AI-чат", "Перенос данных");
+        // «AI-чат» — только при APP_AI_CHAT_ENABLED=true (aiChatOffByDefault)
+        assertThat(more).contains("Календарь цен", "Расходы", "Отзывы", "Сотрудники", "Перенос данных")
+                .doesNotContain("AI-чат");
         assertThat(nav).doesNotContain("id=\"nav-more\" open");
         // открыт раздел из «Ещё» — группа раскрыта
         String expenses = page(u, "/expenses");
@@ -328,7 +330,8 @@ class FirstRunIntegrationTest {
                 "/settings", "/settings/properties", "/settings/integrations"}) {
             pages.put(p, false);
         }
-        for (String p : new String[]{"/calendar", "/expenses", "/feedback-admin", "/feedback", "/staff", "/chat",
+        // /chat — только при APP_AI_CHAT_ENABLED=true; по умолчанию его нет (aiChatOffByDefault)
+        for (String p : new String[]{"/calendar", "/expenses", "/feedback-admin", "/feedback", "/staff",
                 "/settings/transfer"}) {
             pages.put(p, true);
         }
@@ -340,6 +343,20 @@ class FirstRunIntegrationTest {
         }
         // «Сменить пароль» — в блоке аккаунта, подсвечен там
         assertThat(page(u, "/account/password")).contains("sidebar__account-link is-active");
+    }
+
+    @Test
+    @DisplayName("AI-чат по умолчанию выключен: адреса — 404, в меню и на страницах его нет")
+    void aiChatOffByDefault() throws Exception {
+        TenantUserDetails u = account();
+        apartment(u);
+        mvc.perform(get("/chat").with(user(u))).andExpect(status().isNotFound());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/chat")
+                        .with(user(u)).with(org.springframework.security.test.web.servlet.request
+                                .SecurityMockMvcRequestPostProcessors.csrf())
+                        .contentType("application/json").content("{\"message\":\"привет\",\"history\":[]}"))
+                .andExpect(status().isNotFound());
+        assertThat(page(u, "/dashboard")).doesNotContain("href=\"/chat\"", "floating-chat", "AI-чат");
     }
 
     @org.junit.jupiter.params.ParameterizedTest(name = "{0}")

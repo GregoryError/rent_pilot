@@ -126,7 +126,7 @@
                        class="nav-item">
                         <span>☺</span> Сотрудники
                     </a>
-                    <a th:href="@{/chat}"
+                    <a th:href="@{/chat}" th:if="${aiChatEnabled}"
                        th:classappend="${activePage == 'chat'} ? 'nav-item--active'"
                        class="nav-item">
                         <span>◬</span> AI-чат
@@ -243,6 +243,8 @@
     </main>
 </div>
 
+<!--/* Плавающий чат — только при APP_AI_CHAT_ENABLED=true (AiChatFlag) */-->
+<th:block th:if="${aiChatEnabled}">
 <!-- Floating AI Chat -->
 <div id="floating-chat">
     <!-- Trigger button -->
@@ -601,6 +603,7 @@ async function fcSend() {
 }
 
 </script>
+</th:block>
 
 <script>
     // Меню на узком экране

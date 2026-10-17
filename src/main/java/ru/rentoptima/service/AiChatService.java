@@ -30,6 +30,7 @@ public class AiChatService {
     private final ru.rentoptima.repository.PropertyRepository propertyRepo;
     private final PricingEngine pricingEngine;
     private final EffectivePriceService effectivePrice;
+    private final AiChatFlag aiChat;
 
     /** Первая квартира тенанта: город и цена в подсказке AI берутся у неё, а не из настроек. */
     private java.util.Optional<ru.rentoptima.entity.UnitType> firstUnit(Long tenantId) {
@@ -57,6 +58,9 @@ public class AiChatService {
             Pattern.compile("<action>\\s*(\\{.*?\\})\\s*</action>", Pattern.DOTALL);
 
     public ChatResponse chat(Long tenantId, String userMessage, List<Map<String, String>> history) {
+        if (!aiChat.enabled()) {
+            return new ChatResponse("AI-чат выключен.", 0, java.util.List.of());
+        }
         String apiKey = settings.getValue(tenantId, "anthropic_api_key");
         if (apiKey == null || apiKey.isBlank()) {
 
@@ -135,9 +139,9 @@ public class AiChatService {
                 tenantId, now.minusDays(30), now.plusDays(30));
         StringBuilder recentStr = new StringBuilder();
         for (Booking b : recent) {
-            recentStr.append(String.format("  %s → %s | %s | %s | %s₽%n",
-                    b.getCheckIn(), b.getCheckOut(), b.getGuestName(),
-                    b.getSource(), b.getAmount()));
+            // Без данных гостей: даже инициал в AI-сервис не уходит
+            recentStr.append(String.format("  %s → %s | %s | %s₽%n",
+                    b.getCheckIn(), b.getCheckOut(), b.getSource(), b.getAmount()));
         }
 
         return String.format("""
@@ -247,7 +251,7 @@ public class AiChatService {
                 tenantId, today, to);
 
         java.util.Set<LocalDate> bookedDates = new java.util.HashSet<>();
-        java.util.Map<LocalDate, String> checkoutsByDate = new java.util.HashMap<>();
+        java.util.Set<LocalDate> checkouts = new java.util.HashSet<>();
 
         for (Booking b : bookings) {
             LocalDate d = b.getCheckIn();
@@ -255,8 +259,7 @@ public class AiChatService {
                 bookedDates.add(d);
                 d = d.plusDays(1);
             }
-            checkoutsByDate.put(b.getCheckOut(),
-                    b.getGuestName() != null ? b.getGuestName() : "?");
+            checkouts.add(b.getCheckOut());
         }
 
         // Цена дня — как в шахматке: плановая на дату → выходные → будни
@@ -276,8 +279,8 @@ public class AiChatService {
             String status;
             if (bookedDates.contains(d)) {
                 status = "занято";
-            } else if (checkoutsByDate.containsKey(d)) {
-                status = "свободно (день выезда " + checkoutsByDate.get(d) + ")";
+            } else if (checkouts.contains(d)) {
+                status = "свободно (день выезда)";
             } else {
                 status = "свободно";
             }

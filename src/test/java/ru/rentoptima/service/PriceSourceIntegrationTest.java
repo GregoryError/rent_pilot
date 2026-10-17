@@ -134,6 +134,40 @@ class PriceSourceIntegrationTest {
     }
 
     @Test
+    @DisplayName("подсказка AI-советнику обезличена: нет названия и адреса объекта, имени и e-mail хозяина, данных гостей")
+    void advisorPromptHasNoPersonalData() {
+        jdbc.update("UPDATE properties SET name = 'Квартира Галиевых на Баумана', address = 'ул. Баумана, д. 12, кв. 5'"
+                + " WHERE id = ?", property.getId());
+        jdbc.update("UPDATE users SET display_name = 'Тимур Галиев' WHERE tenant_id = ?", property.getTenantId());
+        jdbc.update("INSERT INTO bookings(tenant_id, property_id, check_in, check_out, nights, amount, status, source,"
+                        + " guest_name, guest_phone, notes) VALUES (?, ?, current_date - 5, current_date - 2, 3, 13500,"
+                        + " 'BOOKED', 'AVITO', 'Ж.', '+79001234567', 'Комментарий: паспорт 4010')",
+                property.getTenantId(), property.getId());
+        // Отзыв с оценкой и текстом: раньше текст отзывов уходил в подсказку
+        Long scale = jdbc.queryForObject("INSERT INTO feedback_questions(tenant_id, question_text, question_type,"
+                + " sort_order, active) VALUES (?, 'Общая оценка', 'SCALE', 1, true) RETURNING id", Long.class,
+                property.getTenantId());
+        Long text = jdbc.queryForObject("INSERT INTO feedback_questions(tenant_id, question_text, question_type,"
+                + " sort_order, active) VALUES (?, 'Комментарий', 'TEXT', 2, true) RETURNING id", Long.class,
+                property.getTenantId());
+        Long response = jdbc.queryForObject("INSERT INTO feedback_responses(property_id, session_id, guest_name,"
+                + " completed) VALUES (?, ?, 'Ж.', true) RETURNING id", Long.class, property.getId(),
+                "s-" + UUID.randomUUID());
+        jdbc.update("INSERT INTO feedback_answers(response_id, question_id, numeric_value) VALUES (?, ?, 9)", response, scale);
+        jdbc.update("INSERT INTO feedback_answers(response_id, question_id, text_value) VALUES (?, ?,"
+                + " 'Хозяйка Гульнара очень милая')", response, text);
+        Property fresh = propertyRepo.findById(property.getId()).orElseThrow();
+        List<PricingEngine.PricingRecommendation> recs = engine.calculateRecommendations(
+                fresh, LocalDate.now(), LocalDate.now().plusDays(14));
+
+        String prompt = advisor.buildPrompt(fresh, recs, fresh.getTenantId(), null);
+
+        assertThat(prompt).contains("город: Казань", "Тип жилья: Квартира", "единиц в категории: 1", "4500 ₽/ночь")
+                .doesNotContain("Галиев", "Баумана", "кв. 5", owner.getUsername(), "@example.com",
+                        "Ж.", "+7900", "паспорт", "AVITO", "Гульнара", "ОТЗЫВЫ");
+    }
+
+    @Test
     @DisplayName("подсказка AI-чату: цена и город жилья, цена дня как в шахматке")
     void chatPromptUsesApartmentPrice() {
         String prompt = chat.buildSystemPrompt(property.getTenantId());

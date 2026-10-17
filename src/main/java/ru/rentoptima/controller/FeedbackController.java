@@ -184,7 +184,6 @@ public class FeedbackController {
             }
         }
 
-        StringBuilder summary = new StringBuilder();
         for (FeedbackQuestion q : questions) {
             FeedbackAnswer a = new FeedbackAnswer();
             a.setResponseId(response.getId());
@@ -206,14 +205,12 @@ public class FeedbackController {
             if (a.getNumericValue() != null
                     || (a.getTextValue() != null && !a.getTextValue().isBlank())) {
                 answerRepo.save(a);
-                summary.append(q.getQuestionText()).append(": ")
-                        .append(a.getNumericValue() != null ? a.getNumericValue() + " из 10" : a.getTextValue()).append("\n");
             }
         }
 
         // Хозяину — один раз, когда гость дошёл до конца, а не на каждый сохранённый шаг
         if (!wasCompleted && Boolean.TRUE.equals(response.getCompleted())) {
-            notifyHost(property, response, summary.toString(), http);
+            notifyHost(property, response, http);
         }
         return ResponseEntity.ok(Map.of("status", "saved"));
     }
@@ -230,26 +227,32 @@ public class FeedbackController {
         return staying.size() == 1 ? staying.get(0).getId() : null;
     }
 
-    private void notifyHost(Property property, FeedbackResponse response, String summary, HttpServletRequest http) {
+    private void notifyHost(Property property, FeedbackResponse response, HttpServletRequest http) {
         try {
             Long tenantId = property.getTenant().getId();
             if (!telegram.isConfigured(tenantId)) return;
-            boolean card = FeedbackResponse.SOURCE_CARD.equals(response.getSource());
-            String baseUrl = site.linkBase(http);
-            StringBuilder sb = new StringBuilder(card
-                    ? "💬 OptiRent: сообщение от гостя — с карточки для гостей\n"
-                    : "💬 OptiRent: новый отзыв гостя\n");
-            sb.append(property.getName()).append("\n");
-            if (card) {
-                sb.append(response.getBookingId() != null
-                        ? "Гость сейчас проживает.\n" : "Бронь определить не удалось.\n");
-            }
-            sb.append(summary.length() > 1500 ? summary.substring(0, 1500) + "…\n" : summary);
-            sb.append("Все отзывы: ").append(baseUrl).append("/feedback-admin");
-            telegram.send(tenantId, sb.toString());
+            telegram.send(tenantId, notifyText(property.getName(), response, site.linkBase(http)));
         } catch (Exception e) {
             log.warn("Не удалось уведомить об отзыве по объекту {}: {}", property.getId(), e.getMessage());
         }
+    }
+
+    /**
+     * Сообщение хозяину в Telegram — без текста отзыва, оценок и имени (patches/INTEGRATION_LEGAL.md,
+     * п. 4): вид события, объект и ссылка. Сам отзыв — в кабинете.
+     */
+    static String notifyText(String propertyName, FeedbackResponse response, String baseUrl) {
+        boolean card = FeedbackResponse.SOURCE_CARD.equals(response.getSource());
+        StringBuilder sb = new StringBuilder(card
+                ? "💬 OptiRent: сообщение от гостя — с карточки для гостей\n"
+                : "💬 OptiRent: новый отзыв гостя\n");
+        sb.append(propertyName).append("\n");
+        if (card) {
+            sb.append(response.getBookingId() != null
+                    ? "Гость сейчас проживает.\n" : "Бронь определить не удалось.\n");
+        }
+        sb.append("Прочитать: ").append(baseUrl).append("/feedback-admin");
+        return sb.toString();
     }
 
     /** Оценка 1–10; всё остальное — нет оценки. */
