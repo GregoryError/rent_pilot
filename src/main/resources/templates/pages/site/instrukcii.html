@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head th:replace="~{fragments/public :: head}"></head>
+<body>
+<th:block th:replace="~{fragments/public :: header}"></th:block>
+<nav th:replace="~{fragments/public :: crumbs}"></nav>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Инструкции: как подключить площадки к&nbsp;календарю</h1>
+    <p class="hero-sub">Общий порядок подключения площадки к OptiRent по iCal и отдельные страницы по площадкам — где взять ссылку экспорта, куда вставить ссылку импорта, как часто обновляется календарь.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Общий порядок</div>
+    <h2>Подключение любой площадки по iCal</h2>
+    <ol class="steps">
+      <li class="step">
+        <div class="step-num" aria-hidden="true">1</div>
+        <div class="step-body">
+          <div class="step-title">Скопируйте ссылку календаря на площадке</div>
+          <div class="step-text">В кабинете площадки, в настройках объявления или календаря, найдите экспорт или синхронизацию календаря. Ссылка заканчивается на <code>.ics</code> или содержит слово ical.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num" aria-hidden="true">2</div>
+        <div class="step-body">
+          <div class="step-title">Добавьте канал в OptiRent</div>
+          <div class="step-text">Раздел «Площадки» → «Подключить канал»: название площадки, квартира и скопированная ссылка. Через минуту занятые даты появятся в шахматке.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num" aria-hidden="true">3</div>
+        <div class="step-body">
+          <div class="step-title">Отдайте площадке ссылку из OptiRent</div>
+          <div class="step-text">У канала появится «URL экспорта». Вставьте его на площадке в поле импорта календаря — так она узнает о бронях с других площадок и о ваших ручных записях.</div>
+        </div>
+      </li>
+      <li class="step">
+        <div class="step-num" aria-hidden="true">4</div>
+        <div class="step-body">
+          <div class="step-title">Проверьте</div>
+          <div class="step-text">Закройте в шахматке свободный день вручную и посмотрите, закрылся ли он на площадке. На это уйдёт от десяти минут до часа — столько площадки ждут между обновлениями.</div>
+        </div>
+      </li>
+    </ol>
+    <p class="note">У каждого канала в OptiRent своя ссылка экспорта. Не вставляйте одну и ту же ссылку на две площадки: площадка получит обратно собственные брони.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">По площадкам</div>
+    <h2>Инструкции по площадкам</h2>
+    <ul class="cards">
+      <li th:each="g : ${guides}"><a class="card-link" th:href="${g.path}"><strong th:text="${g.name}">Авито</strong><span>Ссылка экспорта, ссылка импорта, особенности.</span></a></li>
+    </ul>
+    <p class="section-text section-text--gap">Площадки нет в списке? Если она умеет отдавать и принимать календарь iCal, общий порядок выше подойдёт и для неё.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Полезно знать</div>
+    <h2>Что важно про iCal</h2>
+    <ul class="list">
+      <li><strong>Обновление не мгновенное.</strong> OptiRent опрашивает площадку раз в 30 минут (можно чаще, от 15), а площадки забирают календарь раз в 10–60 минут, некоторые реже.</li>
+      <li><strong>Передаётся только занятость.</strong> Имени гостя, суммы и телефона в календаре площадки обычно нет — в шахматке будет просто «занято».</li>
+      <li><strong>Удалённая запись не всегда открывает дату на площадке.</strong> Некоторые площадки не снимают блокировку сами — дату приходится открыть в их кабинете вручную.</li>
+    </ul>
+    <a class="more" th:href="@{/sinhronizaciya}">Подробнее о синхронизации →</a>
+  </div>
+</section>
+
+<section th:replace="~{fragments/public :: cta('Ещё не подключили календарь?', 'Регистрация — минута. Бесплатно.')}"></section>
+
+</main>
+
+<footer th:replace="~{fragments/public :: footer}"></footer>
+</body>
+</html>

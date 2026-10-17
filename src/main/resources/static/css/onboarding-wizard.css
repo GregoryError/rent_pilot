@@ -1,0 +1,204 @@
+/* Мастер первой настройки (/onboarding). Опирается на переменные и кнопки core.css. */
+.wz-body { background: var(--bg-root); }
+
+.wz-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: calc(var(--sp-3) + env(safe-area-inset-top)) calc(var(--sp-5) + env(safe-area-inset-right))
+             var(--sp-3) calc(var(--sp-5) + env(safe-area-inset-left));
+}
+.wz-top__logo { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: var(--weight-semibold); }
+.wz-skip, .wz-link {
+    min-height: 44px;
+    padding: 0 var(--sp-2);
+    background: none;
+    border: none;
+    font: inherit;
+    font-size: var(--text-sm);
+    color: var(--text-secondary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+}
+.wz-skip:hover, .wz-link:hover { color: var(--text-primary); }
+
+.wz {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: var(--sp-4) calc(var(--sp-5) + env(safe-area-inset-right))
+             calc(var(--sp-16) + env(safe-area-inset-bottom)) calc(var(--sp-5) + env(safe-area-inset-left));
+}
+
+/* Шкала прогресса */
+.wz-progress { margin-bottom: var(--sp-8); }
+.wz-progress__bar { display: flex; gap: var(--sp-2); list-style: none; }
+.wz-progress__step { flex: 1; min-width: 0; padding-top: var(--sp-2); border-top: 4px solid var(--border); font-size: var(--text-xs); color: var(--text-muted); }
+.wz-progress__step span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wz-progress__step.is-done { border-color: var(--accent-dim); }
+.wz-progress__step.is-current { border-color: var(--accent); color: var(--text-primary); font-weight: var(--weight-semibold); }
+.wz-progress__label { margin-top: var(--sp-3); font-size: var(--text-sm); color: var(--text-secondary); }
+
+.wz-title { font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: -0.03em; line-height: var(--leading-tight); text-wrap: balance; }
+.wz-lead { margin-top: var(--sp-3); font-size: var(--text-lg); color: var(--text-secondary); max-width: 60ch; }
+.wz-muted { color: var(--text-secondary); }
+.wz-small { font-size: var(--text-sm); }
+
+.wz-error, .wz-result {
+    margin: var(--sp-4) 0;
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--amber);
+    border-radius: var(--radius-sm);
+    background: var(--amber-dim);
+    color: var(--text-primary);
+}
+.wz-result--ok { border-color: var(--green); background: var(--green-dim); }
+.wz-result__actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-3); }
+
+.wz-card {
+    margin-top: var(--sp-6);
+    padding: var(--sp-6);
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-lg);
+}
+.wz-card h2 { font-size: var(--text-lg); font-weight: var(--weight-semibold); }
+.wz-card .form-input { font-size: 16px; min-height: 48px; }
+.wz-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); }
+
+.wz-actions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--sp-3); margin-top: var(--sp-6); }
+.wz-actions--start { justify-content: flex-start; margin-top: var(--sp-4); }
+.wz-actions--center { justify-content: center; }
+.wz-actions .btn, .wz-result .btn, .wz-ourlink .btn, .wz-linkform .btn { min-height: 48px; justify-content: center; font-size: var(--text-base); }
+
+/* Шаг 1: две большие карточки */
+.wz-choices { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4); margin-top: var(--sp-8); }
+.wz-choice {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    padding: var(--sp-6);
+    text-align: left;
+    font: inherit;
+    color: var(--text-secondary);
+    background: var(--bg-surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: border-color var(--duration) var(--ease), transform var(--duration) var(--ease);
+}
+.wz-choice:hover, .wz-choice:focus-visible { border-color: var(--accent); }
+.wz-choice:active { transform: scale(0.99); }
+.wz-choice strong { font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: 1.3; color: var(--text-primary); }
+.wz-choice__icon { color: var(--accent); }
+.wz-choices .wz-link { grid-column: 1 / -1; justify-self: center; font-size: var(--text-base); }
+
+/* Шаг «Площадки»: плитки */
+.wz-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: var(--sp-3); margin-top: var(--sp-6); }
+.wz-tile { position: relative; display: block; cursor: pointer; }
+.wz-tile input[type="checkbox"] { position: absolute; opacity: 0; width: 100%; height: 100%; inset: 0; margin: 0; cursor: pointer; }
+.wz-tile__box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--sp-3);
+    min-height: 120px;
+    padding: var(--sp-5) var(--sp-3);
+    text-align: center;
+    background: var(--bg-surface);
+    border: 2px solid var(--border);
+    border-radius: var(--radius-lg);
+}
+.wz-tile input:checked + .wz-tile__box { border-color: var(--accent); background: var(--accent-glow); }
+.wz-tile input:focus-visible + .wz-tile__box { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wz-tile__letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    color: #fff;
+    font-weight: var(--weight-semibold);
+    font-size: var(--text-lg);
+}
+.wz-tile__logo { border-radius: 10px; }
+.wz-tile__name { font-weight: var(--weight-medium); color: var(--text-primary); }
+/* Название «другой» площадки — только когда плитка отмечена */
+.wz-tile__other { position: relative; display: none; margin-top: var(--sp-2); font-size: 16px; }
+.wz-tile input:checked ~ .wz-tile__other { display: block; }
+
+/* Шаг «Ссылки»: карточка площадки, два действия */
+.wz-platform__head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
+.wz-platform__head h2 { flex: 1; min-width: 0; }
+.wz-status { padding: var(--sp-1) var(--sp-3); border-radius: 100px; font-size: var(--text-xs); font-weight: var(--weight-semibold); background: var(--bg-raised); color: var(--text-secondary); }
+.wz-status--ok { background: var(--green-dim); color: var(--green); }
+.wz-action { display: flex; gap: var(--sp-4); margin-top: var(--sp-6); padding-top: var(--sp-6); border-top: 1px solid var(--border-subtle); }
+.wz-action__num {
+    display: flex; align-items: center; justify-content: center; flex: none;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--accent); color: #fff; font-weight: var(--weight-semibold);
+}
+.wz-action__body { flex: 1; min-width: 0; }
+.wz-action__body h3 { font-size: var(--text-base); font-weight: var(--weight-semibold); margin-bottom: var(--sp-1); }
+.wz-linkform { margin-top: var(--sp-4); }
+.wz-linkform__row { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.wz-linkform__row .form-input { flex: 1 1 240px; }
+.wz-ourlink { display: flex; flex-wrap: wrap; align-items: stretch; gap: var(--sp-2); margin-top: var(--sp-4); }
+.wz-ourlink__url {
+    flex: 1 1 240px;
+    min-width: 0;
+    padding: var(--sp-3) var(--sp-4);
+    font-family: var(--font-mono);
+    font-size: var(--text-base);
+    font-weight: var(--weight-semibold);
+    overflow-wrap: anywhere;
+    background: var(--bg-raised);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-sm);
+    user-select: all;
+}
+.wz-where { margin-top: var(--sp-4); }
+.wz-where summary { min-height: 44px; align-content: center; cursor: pointer; color: var(--accent); font-weight: var(--weight-medium); }
+.wz-where ol { margin: var(--sp-2) 0 var(--sp-3) var(--sp-5); color: var(--text-secondary); }
+.wz-where li { margin: var(--sp-1) 0; }
+.wz-where p { color: var(--text-secondary); margin-bottom: var(--sp-2); overflow-wrap: anywhere; }
+.wz-shot { display: block; max-width: 100%; height: auto; margin: var(--sp-3) 0; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.wz-notes { margin-top: var(--sp-6); padding: var(--sp-4); border-radius: var(--radius-sm); background: var(--bg-raised); font-size: var(--text-sm); color: var(--text-secondary); }
+.wz-notes strong { color: var(--text-primary); }
+.wz-notes ul { margin: var(--sp-2) 0 0 var(--sp-5); }
+.wz-notes li { margin: var(--sp-1) 0; }
+.wz-later { margin-top: var(--sp-3); text-align: right; }
+
+.wz-done { text-align: center; padding-top: var(--sp-10); }
+.wz-done .wz-lead { margin-left: auto; margin-right: auto; }
+.wz-done__mark { color: var(--green); margin-bottom: var(--sp-4); }
+
+@media (max-width: 640px) {
+    .wz { padding-left: calc(var(--sp-4) + env(safe-area-inset-left)); padding-right: calc(var(--sp-4) + env(safe-area-inset-right)); }
+    .wz-top { padding-left: calc(var(--sp-4) + env(safe-area-inset-left)); padding-right: calc(var(--sp-3) + env(safe-area-inset-right)); }
+    .wz-title { font-size: var(--text-xl); }
+    .wz-lead { font-size: var(--text-base); }
+    .wz-choices, .wz-row { grid-template-columns: 1fr; }
+    .wz-card { padding: var(--sp-4); }
+    .wz-tiles { grid-template-columns: 1fr 1fr; }
+    .wz-action { flex-direction: column; gap: var(--sp-3); }
+    .wz-actions .btn, .wz-linkform .btn, .wz-ourlink .btn, .wz-result .btn { flex: 1 1 100%; }
+    /* на шкале остаются только полоски: подписи шагов не помещаются */
+    .wz-progress__step span { display: none; }
+    .wz-progress__step { padding-top: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wz-choice { transition: none; }
+}
+
+.wz-skip--link { display: inline-flex; align-items: center; }
+
+/* «Что вы сдаёте?» в мастере */
+.wz-kinds{border:0;margin:0 0 var(--sp-4);padding:0;display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.wz-kinds legend{margin-bottom:var(--sp-2)}
+.wz-kind{display:inline-flex;align-items:center;gap:var(--sp-2);min-height:44px;padding:0 var(--sp-3);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer}
+.wz-kind:has(input:checked){border-color:var(--accent);background:var(--accent-glow)}

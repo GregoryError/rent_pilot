@@ -2,22 +2,30 @@
 <html xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
-<head><title>Dashboard</title></head>
+<head><title>Главная</title></head>
 <body>
 <div layout:fragment="content">
 
-    <div class="page-header flex justify-between items-center">
+    <section th:replace="~{fragments/onboarding :: steps}"></section>
+
+    <div class="dash-header">
         <div>
-            <h1 class="page-title">Dashboard</h1>
-            <p class="page-subtitle">Показатели системы</p>
+            <h1 class="page-title">Главная</h1>
+            <p class="page-subtitle" th:if="${!hasProperties}">Прогноз, занятость и подсказки</p>
+            <p class="page-subtitle" th:if="${hasProperties}">
+                Прогноз и занятость за месяц
+                <button type="button" id="grid-conflicts" class="tag tag--red grid-conflicts"
+                        th:if="${grid.conflictCount > 0}"
+                        title="Перейти к первому конфликту"
+                        th:text="'Конфликты: ' + ${grid.conflictCount} + ' дн.'">Конфликты: 2 дн.</button>
+            </p>
         </div>
-        <div style="display: flex; align-items: center; justify-content: center; gap: 1rem; margin-bottom: 1.5rem;">
-            <a th:href="@{/dashboard(m=${prevMonth})}" class="btn btn-sm">‹ Пред</a>
-            <span style="font-family: var(--font-mono); font-size: 1.1rem; text-transform: capitalize;"
-                  th:text="${monthLabel}">Октябрь 2026</span>
-            <a th:href="@{/dashboard(m=${nextMonth})}" class="btn btn-sm">След ›</a>
+        <div class="dash-month" th:if="${hasProperties}">
+            <a th:href="@{/dashboard(m=${prevMonth})}" class="btn btn-ghost" title="Предыдущий месяц">←</a>
+            <span class="dash-month__label" th:text="${monthLabel}">Октябрь 2026</span>
+            <a th:href="@{/dashboard(m=${nextMonth})}" class="btn btn-ghost" title="Следующий месяц">→</a>
         </div>
-        <div th:switch="${autopilotMode}">
+        <div th:if="${hasProperties}" th:switch="${autopilotMode}">
             <span th:case="'OFF'" class="autopilot-badge autopilot-badge--off"><span
                     class="autopilot-badge__dot"></span> Автопилот выкл</span>
             <span th:case="'SOFT'" class="autopilot-badge autopilot-badge--soft"><span
@@ -25,6 +33,154 @@
             <span th:case="'FULL'" class="autopilot-badge autopilot-badge--full"><span
                     class="autopilot-badge__dot"></span> Автопилот: полный</span>
         </div>
+    </div>
+
+    <!--/* Жилья нет: считать нечего — одно пустое состояние и кнопка в мастер. Пока раскрыт чек-лист
+         «Первые шаги», карточки нет: его первый пункт — то же «Добавить жильё» */-->
+    <div class="card" th:if="${!hasProperties and (firstSteps == null or firstSteps.collapsed or firstSteps.celebrate)}">
+        <div th:replace="~{fragments/onboarding :: empty('home', '/onboarding?step=property')}"></div>
+    </div>
+
+    <th:block th:if="${hasProperties}">
+    <!-- Hero-метрики месяца -->
+    <div class="hero-row">
+        <div class="hero">
+            <div class="hero__label">
+                Прогноз выручки
+                <span th:replace="~{fragments/hint :: hint(${housing.fill('Сумма броней с заездом в этом месяце. Занятые ночи без суммы посчитаны по цене %gen% — это оценка.')})}"></span>
+                <span class="est-badge" th:if="${hero.revenueEstimated}">оценка</span>
+            </div>
+            <div class="hero__value" th:text="${hero.revenue}">84 000 ₽</div>
+            <div class="hero__note" th:text="${hero.revenueNote}">по броням 60 000 ₽ + оценка 24 000 ₽</div>
+        </div>
+        <div class="hero">
+            <div class="hero__label">Занятость <span th:replace="~{fragments/hint :: hint('Какая доля ночей месяца занята — бронями и блокировками площадок.')}"></span></div>
+            <div class="hero__value" th:text="${hero.occupancy}">72%</div>
+            <div class="hero__note" th:text="${hero.occupancyNote}">22 из 31 ночей</div>
+        </div>
+        <div class="hero">
+            <div class="hero__label">Броней <span th:replace="~{fragments/hint :: hint('Брони с заездом в этом месяце.')}"></span></div>
+            <div class="hero__value" th:text="${hero.stays}">7</div>
+            <div class="hero__note">с заездом в этом месяце</div>
+        </div>
+        <div class="hero">
+            <div class="hero__label">
+                Потенциал
+                <span th:replace="~{fragments/hint :: hint('Сколько принесут ещё свободные ночи этого месяца, если продать их по вашим ценам.')}"></span>
+                <span class="est-badge">оценка</span>
+            </div>
+            <div class="hero__value" th:text="${hero.potential}">28 000 ₽</div>
+            <div class="hero__note" th:text="${hero.potentialNote}">свободно ночей: 9, по вашим ценам</div>
+        </div>
+    </div>
+
+    <!-- Статусы площадок -->
+    <div class="channel-strip" th:if="${!#lists.isEmpty(channelChips)}">
+        <span>Площадки:</span>
+        <span th:each="ch : ${channelChips}" th:class="${ch.cssClasses}">
+            <span class="channel-chip__dot"></span>
+            <span class="channel-chip__name" th:text="${ch.name}">Суточно</span>
+            <span th:text="${ch.status}">обновлён 12 мин назад</span>
+        </span>
+        <a th:href="@{/settings/channels}">Настроить</a>
+    </div>
+
+    <!-- Шахматка месяца -->
+    <div class="dash-section">
+        <div class="dash-section__title">
+            <span>Шахматка</span>
+            <a class="text-sm" th:href="@{/calendar/grid}">Открыть на 160 дней →</a>
+        </div>
+
+        <div th:replace="~{fragments/occupancy-grid :: empty(${grid})}"></div>
+
+        <th:block th:with="prevUrl=@{/dashboard(m=${prevMonth})}, nextUrl=@{/dashboard(m=${nextMonth})}">
+            <div th:replace="~{fragments/occupancy-grid :: shell(${grid}, ${prevUrl}, ${nextUrl})}"></div>
+        </th:block>
+
+        <div th:replace="~{fragments/occupancy-grid :: legend(${grid})}"></div>
+
+        <dialog th:replace="~{fragments/occupancy-grid :: dialog('', '', ${currentMonth})}"></dialog>
+    </div>
+
+    <div class="dash-cols">
+        <!-- Выручка по дням -->
+        <div class="card">
+            <div class="card__header">
+                <div class="card__title">
+                    Выручка по дням
+                    <span th:replace="~{fragments/hint :: hint(${housing.fill('Будущие дни и ночи без суммы посчитаны по цене %gen% — это оценка.')})}"></span>
+                    <span class="est-badge">оценка</span>
+                </div>
+                <span class="rev-chart__max" th:if="${hasRevenue}" th:text="'макс. ' + ${revenueMax}">макс. 4 200 ₽</span>
+            </div>
+            <p class="muted text-sm" th:unless="${hasRevenue}">
+                В этом месяце пока нет занятых ночей с суммой или плановой ценой.
+            </p>
+            <div th:if="${hasRevenue}" id="rev-chart">
+                <div class="rev-chart__readout" id="rev-chart-readout">Наведите на столбец — покажем сумму за день</div>
+                <div class="rev-chart__plot">
+                    <div th:each="b : ${revenueBars}" th:class="${b.cssClasses}"
+                         th:data-readout="${b.readout}">
+                        <div class="rev-chart__seg rev-chart__seg--actual"
+                             th:if="${b.hasActual}" th:style="${b.actualStyle}"></div>
+                        <div class="rev-chart__seg rev-chart__seg--estimated"
+                             th:if="${b.hasEstimated}" th:style="${b.estimatedStyle}"></div>
+                    </div>
+                </div>
+                <div class="rev-chart__axis">
+                    <span th:each="b : ${revenueBars}" th:text="${b.axisLabel}">5</span>
+                </div>
+                <div class="rev-chart__legend">
+                    <span><i class="rev-chart__swatch rev-chart__seg--actual"></i> по суммам броней</span>
+                    <span><i class="rev-chart__swatch rev-chart__seg--estimated"></i> оценка по плановой цене</span>
+                    <span><i class="rev-chart__swatch" style="border: 1px dashed var(--accent);"></i> будущие дни</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Потенциал оптимизации -->
+        <div class="card">
+            <div class="card__header">
+                <div class="card__title">
+                    Потенциал оптимизации
+                    <span th:replace="~{fragments/hint :: hint('Сравнение ваших цен на свободные ночи с рекомендованными. Расчёт системы, не гарантия.')}"></span>
+                    <span class="est-badge">оценка</span>
+                </div>
+            </div>
+            <p class="muted text-sm" th:if="${optimization == null}">
+                Сравнивать пока не с чем: в этом месяце нет свободных будущих ночей
+                с вашей ценой и рекомендацией системы.
+            </p>
+            <div th:if="${optimization != null}">
+                <div class="opt__row">
+                    <div class="opt__row-head">
+                        <span>Ваши цены</span><strong th:text="${optimization.userTotal}">28 000 ₽</strong>
+                    </div>
+                    <div class="opt__track"><div class="opt__bar" th:style="${optimization.userStyle}"></div></div>
+                </div>
+                <div class="opt__row">
+                    <div class="opt__row-head">
+                        <span>Рекомендованные</span><strong th:text="${optimization.recommendedTotal}">33 500 ₽</strong>
+                    </div>
+                    <div class="opt__track"><div class="opt__bar opt__bar--rec" th:style="${optimization.recommendedStyle}"></div></div>
+                </div>
+                <div class="opt__uplift">
+                    <span th:text="${optimization.uplift}">+5 500 ₽</span>
+                    <span th:class="${optimization.upliftCss}"
+                          th:text="'ночей: ' + ${optimization.nights}">ночей: 9</span>
+                </div>
+                <p class="text-sm muted" th:text="${optimization.verdict}"></p>
+                <p class="text-sm" style="margin-top: var(--sp-3);">
+                    <a th:href="@{/pricing}">Рекомендации по дням →</a>
+                </p>
+                <p class="form-hint">Система только советует: цены на площадках вы меняете сами.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="dash-section__title" style="margin-top: var(--sp-10);">
+        <span>Факт по броням за месяц</span>
     </div>
 
     <!-- KPI Row -->
@@ -35,8 +191,8 @@
                     <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
                 </svg>
             </div>
-            <div class="kpi__label">Доход</div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.revenue(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">
+            <div class="kpi__label">Доход <span th:replace="~{fragments/hint :: hint('Сумма броней с заездом в этом месяце — там, где сумма указана.')}"></span></div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.revenue(), 1, 'WHITESPACE', 0, 'COMMA')} + ' ₽'">
                 —
             </div>
         </div>
@@ -47,8 +203,8 @@
                     <path d="M20 12V8H6a2 2 0 010-4h12v4M4 6v12a2 2 0 002 2h14v-4M18 12a2 2 0 000 4h4v-4z"/>
                 </svg>
             </div>
-            <div class="kpi__label">Чистый доход</div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(netIncome, 1, 'COMMA', 0, 'POINT')} + ' ₽'">—
+            <div class="kpi__label">Чистый доход <span th:replace="~{fragments/hint :: hint('Доход минус уборки и другие расходы этого месяца.')}"></span></div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(netIncome, 1, 'WHITESPACE', 0, 'COMMA')} + ' ₽'">—
             </div>
             <div class="kpi__delta muted" style="font-size:var(--text-xs)">Доход минус расходы</div>
         </div>
@@ -59,8 +215,8 @@
                     <path d="M3 12l2-2 2 2 4-4 4 4 4-4 2 2M3 20h18"/>
                 </svg>
             </div>
-            <div class="kpi__label">Заполняемость</div>
-            <div class="kpi__value" th:text="${kpi.occupancy()} + '%'">—</div>
+            <div class="kpi__label">Заполняемость <span th:replace="~{fragments/hint :: hint('Доля ночей месяца, занятых бронями. Блокировки площадок без брони сюда не входят.')}"></span></div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.occupancy(), 1, 'WHITESPACE', 1, 'COMMA')} + ' %'">—</div>
         </div>
 
         <div class="kpi">
@@ -70,8 +226,8 @@
                     <path d="M12 6v6l4 2"/>
                 </svg>
             </div>
-            <div class="kpi__label">Ср. длительность</div>
-            <div class="kpi__value" th:text="${kpi.avgNights()} + ' н.'">—</div>
+            <div class="kpi__label">Ср. длительность <span th:replace="~{fragments/hint :: hint('Сколько ночей в среднем длится бронь с заездом в этом месяце.')}"></span></div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.avgNights(), 1, 'WHITESPACE', 1, 'COMMA')} + ' н.'">—</div>
         </div>
 
         <div class="kpi" th:if="${avgRating != null}">
@@ -81,7 +237,7 @@
                 </svg>
             </div>
             <div class="kpi__label">Средний рейтинг</div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(avgRating, 1, 2) + ' / 10'}"></div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(avgRating, 1, 'WHITESPACE', 2, 'COMMA') + ' / 10'}"></div>
             <div class="kpi__hint">за последние 90 дней</div>
         </div>
 
@@ -91,11 +247,11 @@
                     <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
                 </svg>
             </div>
-            <div class="kpi__label">Net RevPAR</div>
-            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.netRevPar(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">
+            <div class="kpi__label">Доход на ночь в календаре <span th:replace="~{fragments/hint :: hint('Доход минус уборки, делённый на все ночи месяца — и занятые, и свободные. Сколько в среднем приносит каждая ночь.')}"></span></div>
+            <div class="kpi__value" th:text="${#numbers.formatDecimal(kpi.netRevPar(), 1, 'WHITESPACE', 0, 'COMMA')} + ' ₽'">
                 —
             </div>
-            <div class="kpi__delta muted" style="font-size:var(--text-xs)">Чистый доход / день</div>
+            <div class="kpi__delta muted" style="font-size:var(--text-xs)">чистыми, после уборки</div>
         </div>
 
         <div class="kpi">
@@ -104,27 +260,35 @@
                     <path d="M3 6l3 12h12l3-12M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2"/>
                 </svg>
             </div>
-            <div class="kpi__label">Расход на уборку</div>
+            <div class="kpi__label">Расход на уборку <span th:replace="~{fragments/hint :: hint('Стоимость уборки из настроек, умноженная на число выездов.')}"></span></div>
             <div class="kpi__value"
-                 th:text="${#numbers.formatDecimal(kpi.cleaningCost(), 1, 'COMMA', 0, 'POINT')} + ' ₽'">—
+                 th:text="${#numbers.formatDecimal(kpi.cleaningCost(), 1, 'WHITESPACE', 0, 'COMMA')} + ' ₽'">—
             </div>
             <div class="kpi__delta muted" style="font-size:var(--text-xs)"
                  th:text="${kpi.checkouts()} + ' выездов'"></div>
         </div>
     </div>
 
-    <!-- Booking Pace -->
+    <!-- Темп бронирований -->
     <div class="card" th:if="${pace != null}">
         <div class="card__header">
-            <div class="card__title">Booking Pace — следующий месяц</div>
+            <div class="card__title">
+                <span th:text="'Темп бронирований: ' + ${pace.month()}">Темп бронирований: Ноябрь</span>
+                <span th:replace="~{fragments/hint :: hint('Насколько уже занят следующий месяц по сравнению с обычной занятостью прошлых месяцев.')}"></span>
+            </div>
             <span th:if="${pace.status() == 'BEHIND'}" class="tag tag--red">Отставание</span>
             <span th:if="${pace.status() == 'NORMAL'}" class="tag tag--amber">В норме</span>
             <span th:if="${pace.status() == 'AHEAD'}" class="tag tag--green">Опережение</span>
+            <span th:if="${pace.status() == 'NO_DATA'}" class="tag tag--muted">Мало данных</span>
         </div>
-        <p class="text-sm">
+        <p class="text-sm muted" th:if="${pace.status() == 'NO_DATA'}">
+            Сравнение появится, когда наберётся три полных месяца броней: до этого обычную занятость
+            не из чего посчитать.
+        </p>
+        <p class="text-sm" th:unless="${pace.status() == 'NO_DATA'}">
             <span th:text="${pace.month()}"></span>:
-            текущая загрузка <strong th:text="${pace.currentOccupancy()} + '%'"></strong>,
-            историческая норма <strong th:text="${pace.historicalAvg()} + '%'"></strong>
+            текущая загрузка <strong th:text="${#numbers.formatDecimal(pace.currentOccupancy(), 1, 'WHITESPACE', 1, 'COMMA')} + ' %'"></strong>,
+            историческая норма <strong th:text="${#numbers.formatDecimal(pace.historicalAvg(), 1, 'WHITESPACE', 1, 'COMMA')} + ' %'"></strong>
         </p>
     </div>
 
@@ -228,17 +392,12 @@ async function cancelOverride(btn) {
         <div class="card__header">
             <div class="card__title">Объекты</div>
         </div>
-        <div th:if="${#lists.isEmpty(properties)}" class="muted text-sm">
-            Нет объектов. <a th:href="@{/settings}">Добавьте в настройках</a>, затем <a th:href="@{/import}">импортируйте
-            бронирования</a>.
-        </div>
-        <div class="table-wrap" th:unless="${#lists.isEmpty(properties)}">
+        <div class="table-wrap">
             <table>
                 <thead>
                 <tr>
                     <th>Название</th>
                     <th>Город</th>
-                    <th>RC ID</th>
                     <th>Статус</th>
                 </tr>
                 </thead>
@@ -246,13 +405,31 @@ async function cancelOverride(btn) {
                 <tr th:each="prop : ${properties}">
                     <td th:text="${prop.name}"></td>
                     <td th:text="${prop.city}"></td>
-                    <td class="mono muted" th:text="${prop.rcObjectId ?: '—'}"></td>
                     <td><span class="tag tag--green">Активен</span></td>
                 </tr>
                 </tbody>
             </table>
         </div>
     </div>
+    </th:block>
 </div>
+
+<th:block layout:fragment="scripts">
+    <script th:src="@{/js/grid.js}"></script>
+    <script>
+        // График выручки: строка-подсказка вместо tooltip
+        (function() {
+            const chart = document.getElementById('rev-chart');
+            const readout = document.getElementById('rev-chart-readout');
+            if (!chart || !readout) return;
+            const hint = readout.textContent;
+            chart.addEventListener('mouseover', (e) => {
+                const col = e.target.closest('.rev-chart__col');
+                if (col) readout.textContent = col.dataset.readout;
+            });
+            chart.addEventListener('mouseleave', () => { readout.textContent = hint; });
+        })();
+    </script>
+</th:block>
 </body>
 </html>

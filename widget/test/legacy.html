@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Старые способы вставки и фрейм</title>
+    <!--
+        Проверка обратной совместимости. Запуск — как у host.html: приложение на одном
+        порту, эта папка на другом, её адрес — в разрешённых сайтах виджета.
+        legacy.html?secret=<secret>&slug=<slug>&base=http://localhost:8080
+    -->
+</head>
+<body>
+<h1>Старая вставка скриптом</h1>
+<div id="optirent-widget"></div>
+<h1>Фрейм с авто-высотой</h1>
+<div id="frame-box"></div>
+<p id="after">Текст после фрейма — не должен наезжать на него.</p>
+<script>
+    var q = new URLSearchParams(location.search);
+    var base = q.get('base') || 'http://localhost:8080';
+    document.getElementById('optirent-widget').setAttribute('data-secret', q.get('secret') || '');
+    var old = document.createElement('script');
+    old.async = true;
+    old.src = base + '/widget.js';
+    document.body.appendChild(old);
+
+    // Тот же код, что выдаёт конструктор для Tilda и Wix
+    var slug = q.get('slug') || 'demo';
+    var frame = document.createElement('iframe');
+    frame.id = 'optirent-' + slug;
+    frame.src = base + '/b/' + slug + '/embed';
+    frame.title = 'Бронирование';
+    frame.style.cssText = 'width:100%;border:0';
+    frame.height = 760;
+    document.getElementById('frame-box').appendChild(frame);
+    addEventListener('message', function (e) {
+        if (e.origin === base && e.data && e.data.optirent === slug) frame.style.height = e.data.height + 'px';
+    });
+</script>
+</body>
+</html>

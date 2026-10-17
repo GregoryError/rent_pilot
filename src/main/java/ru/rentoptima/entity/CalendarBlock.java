@@ -1,0 +1,160 @@
+package ru.rentoptima.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+/**
+ * Блокировка дат: ручная бронь, ремонт, личное использование, hold, iCal-импорт.
+ * Отличается от Booking тем, что не имеет цены/гостя/деталей — это просто
+ * пометка "unit type занят в эти даты".
+ * <p>
+ * Экспортируется во все iCal-каналы этого unit_type для защиты от овербукинга,
+ * с исключением самого канала-источника (anti-echo).
+ * <p>
+ * Ключ идемпотентности для iCal-импорта: (channel_id, external_uid).
+ * Уникальный индекс на паре — в V17.
+ */
+@Entity
+@Table(name = "calendar_blocks")
+@Getter
+@Setter
+@NoArgsConstructor
+public class CalendarBlock {
+
+    /**
+     * Префикс UID, под которым ручная запись уходит в iCal-экспорт:
+     * {@code optirent-manual-<id>@optirent.ru}. По нему импорт узнаёт собственное
+     * эхо, вернувшееся от площадки, которая сохраняет исходный UID.
+     */
+    public static final String MANUAL_UID_PREFIX = "optirent-manual-";
+
+    /**
+     * Префикс UID заявки и брони с виджета: {@code optirent-widget-<UUID заявки>@optirent.ru}.
+     * UID один на всю жизнь заявки — и пока даты держит резерв, и после подтверждения.
+     */
+    public static final String WIDGET_UID_PREFIX = "optirent-widget-";
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
+
+    @Column(name = "unit_type_id", nullable = false)
+    private Long unitTypeId;
+
+    /**
+     * Канал-источник блокировки:
+     * - null для ручных броней и MAINTENANCE/OWNER_USE/HOLD (заводит человек в UI)
+     * - id iCal-канала для CHANNEL_SYNC (импорт с площадки)
+     * - id канала виджета для HOLD по заявке и WIDGET_BOOKING (см. {@link #isWidgetOwned()})
+     */
+    @Column(name = "channel_id")
+    private Long channelId;
+
+    /**
+     * UID из внешнего iCal (VEVENT.UID) — ключ идемпотентности при повторных импортах.
+     * null для ручных блокировок.
+     */
+    @Column(name = "external_uid", length = 255)
+    private String externalUid;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "block_type", nullable = false, length = 20)
+    private BlockType blockType;
+
+    @Column(name = "from_date", nullable = false)
+    private LocalDate fromDate;
+
+    @Column(name = "to_date", nullable = false)
+    private LocalDate toDate;
+
+    private String reason;
+
+    @Column(columnDefinition = "TEXT")
+    private String note;
+
+    @Column(name = "created_by_user_id")
+    private Long createdByUserId;
+
+    /**
+     * Хост открыл эти даты вручную: блокировка с площадки остаётся в базе, но
+     * занятостью не считается (см. V25). Для ручных записей не используется.
+     */
+    @Column(nullable = false)
+    private Boolean ignored = false;
+
+    /**
+     * Ручная запись удалена хостом (мягко, см. V26): занятостью не считается, но ещё
+     * 90 дней уходит в экспорт со STATUS:CANCELLED и держит свои эхо-связи. null — жива.
+     */
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
+    /**
+     * Блокировка канала, совпавшая по датам с ручной записью: вероятно, её эхо,
+     * вернувшееся от площадки под чужим UID (см. V27). Пока та ручная запись жива,
+     * тень не показывается и не считается занятостью; после её удаления остаётся
+     * обычной блокировкой — на случай, если это всё-таки настоящая бронь.
+     */
+    @Column(name = "shadow_of_manual_id")
+    private Long shadowOfManualId;
+
+    /** Для HOLD по заявке с виджета: когда резерв снимается сам. null — бессрочно. */
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt = LocalDateTime.now();
+
+    public enum BlockType {
+        MANUAL_BOOKING,   // Ручная бронь (например через звонок)
+        MAINTENANCE,      // Ремонт, уборка после ЧП
+        OWNER_USE,        // Хозяин заехал сам
+        HOLD,             // Резерв (например ожидание оплаты)
+        CHANNEL_SYNC,     // Импортировано из iCal внешнего канала
+        /**
+         * Якорь подтверждённой брони с виджета. Занятость даёт сама бронь, поэтому
+         * AvailabilityService такой блок не считает и не показывает; нужен он, чтобы к
+         * брони, как к ручной записи, привязывались эхо-связи и тени.
+         */
+        WIDGET_BOOKING
+    }
+
+    /** Запись завёл человек в UI: нет ни канала-источника, ни внешнего UID. */
+    public boolean isHandMade() {
+        return channelId == null && (externalUid == null || externalUid.isBlank());
+    }
+
+    /**
+     * Блок заявки или брони с виджета: резерв (HOLD) либо якорь подтверждённой брони.
+     * HOLD, заведённый хозяином в шахматке, сюда не относится — у него нет канала.
+     */
+    public boolean isWidgetOwned() {
+        return channelId != null
+                && (blockType == BlockType.HOLD || blockType == BlockType.WIDGET_BOOKING);
+    }
+
+    /**
+     * Запись появилась у нас, а не пришла с площадки: ручная либо с виджета. Такие
+     * записи уходят в экспорт под UID-маркером, а их копии, вернувшиеся от площадок,
+     * считаются эхом.
+     */
+    public boolean isOwn() {
+        return isHandMade() || isWidgetOwned();
+    }
+
+    /** UID события несёт наш маркер — это эхо собственной записи. */
+    public static boolean isOwnUid(String uid) {
+        return uid != null && (uid.startsWith(MANUAL_UID_PREFIX) || uid.startsWith(WIDGET_UID_PREFIX));
+    }
+}

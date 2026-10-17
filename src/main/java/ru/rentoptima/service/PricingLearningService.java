@@ -118,10 +118,12 @@ public class PricingLearningService {
     /**
      * Плановый анализ. Крутится ежедневно, но запускает работу
      * только когда пришёл срок по настройке frequency.
+     * Обходит всех тенантов с записанными решениями: без решений анализировать нечего,
+     * а решения пишутся только при включённом обучении.
      */
     @Scheduled(cron = "0 30 3 * * *")  // 03:30 UTC ежедневно
     public void scheduledAnalysis() {
-        for (var tenantId : List.of(1L)) { // TODO multi-tenant
+        for (var tenantId : decisionRepo.findTenantIds()) {
             if (!isLearningEnabled(tenantId)) continue;
             if (!isDueForAnalysis(tenantId)) continue;
             try {
@@ -142,7 +144,8 @@ public class PricingLearningService {
         }
     }
 
-    @Transactional
+    // Без @Transactional: метод приватный и вызывается изнутри класса, прокси его не видит.
+    // Изменяющие запросы транзакционны в репозитории; вызов AI идёт вне транзакции.
     private String runAnalysis(Long tenantId) throws Exception {
         // 1. Помечаем просроченные pending → MISSED
         int marked = decisionRepo.markMissed(tenantId, LocalDate.now());

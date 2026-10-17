@@ -47,3 +47,4 @@ docker compose exec db psql -U rentoptima -c "SELECT id, name, housekeeper_code,
 ## Меню
 
 Добавь в главное меню (layout.html) пункт "Отзывы" ведущий на `/feedback-admin`, если ещё нет.
+

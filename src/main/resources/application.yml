@@ -28,13 +28,38 @@ spring:
     prefix: classpath:/templates/
     suffix: .html
 
+  # SMTP (Unisender Go). Пока SMTP_HOST и MAIL_FROM не заданы, письма молча пропускаются
+  # (EmailService). Шифрование и таймауты — в MailConfig, режим — app.mail.security.
+  mail:
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+
   servlet:
     multipart:
       max-file-size: 20MB
-      max-request-size: 20MB
+      max-request-size: 100MB
+
+  # Адреса /css и /js получают хэш содержимого (core-<hash>.css): их можно кэшировать
+  # надолго, а после деплоя браузер сам берёт новую версию. /w.js и /widget.js — без хэша:
+  # их адреса вставлены на сайты хозяев.
+  web:
+    resources:
+      chain:
+        strategy:
+          content:
+            enabled: true
+            paths: /css/**,/js/**
 
 server:
   port: 8080
+  # Сжатие ответов: бандл виджета и JSON его API. Если перед приложением сжимает nginx,
+  # это ничего не ломает — уже сжатое он не трогает.
+  compression:
+    enabled: true
+    min-response-size: 1024
+    mime-types: text/html,text/css,application/javascript,text/javascript,application/json,text/calendar
   servlet:
     session:
       timeout: 24h
@@ -45,9 +70,43 @@ logging:
     org.springframework.security: INFO
 
 app:
-  realty-calendar:
-    base-url: ${RC_BASE_URL:https://realtycalendar.ru}
-    locale: ru
+  # Окружение. Индексируется поисковиками только prod; всё остальное (и пустое значение)
+  # отдаёт X-Robots-Tag: noindex на всех ответах и robots.txt «Disallow: /».
+  environment: ${APP_ENVIRONMENT:dev}
+
+  site:
+    # Канонический адрес сайта на prod: canonical, sitemap.xml, IndexNow
+    base-url: ${APP_BASE_URL:https://optirent.ru}
+    # Коды подтверждения Яндекс.Вебмастера и Google Search Console (значение content
+    # из meta-тега). Пусто — тег не выводится.
+    yandex-verification: ${YANDEX_VERIFICATION:}
+    google-verification: ${GOOGLE_VERIFICATION:}
+    # Ключ IndexNow (8–128 символов: латиница, цифры, дефис). Пусто — уведомления не шлются.
+    indexnow-key: ${INDEXNOW_KEY:}
+    # Счётчик Яндекс.Метрики сайта (главная, посадочные). Грузится только после согласия
+    # посетителя в баннере о cookie. Пусто — ни Метрики, ни баннера.
+    metrika-id: ${METRIKA_ID:}
+
+  # Удалённые ручные записи ещё 90 дней уходят в iCal-экспорт со STATUS:CANCELLED.
+  # false — не отдавать (если площадка не читает STATUS и закрывает даты по ним).
+  ical:
+    export-cancelled: ${APP_ICAL_EXPORT_CANCELLED:true}
+
+  # Каталог загруженных фотографий страниц бронирования. В docker — том /data/uploads.
+  uploads:
+    dir: ${APP_UPLOADS_DIR:uploads}
+    cwebp: ${APP_CWEBP:cwebp}
+
+  mail:
+    # Отправитель: «OptiRent <no-reply@optirent.ru>». Пусто — письма не отправляются.
+    from: ${MAIL_FROM:}
+    # Куда отвечать: на адрес отправителя письма не принимаются. Пусто — без Reply-To.
+    reply-to: ${MAIL_REPLY_TO:}
+    # starttls (порт 587) или ssl (порт 465). Пусто — по порту.
+    security: ${SMTP_SECURITY:}
+    # 1 — без ссылки отписки Unisender в письмах. Ставить, только когда поддержка Unisender
+    # включила skip_unsubscribe для аккаунта.
+    skip-unsubscribe: ${MAIL_SKIP_UNSUBSCRIBE:false}
 
 encryption:
   key: ${ENCRYPTION_KEY:}

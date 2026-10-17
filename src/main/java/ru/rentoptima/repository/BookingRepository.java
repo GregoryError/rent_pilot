@@ -12,27 +12,7 @@ import java.util.Optional;
 
 public interface BookingRepository extends JpaRepository<Booking, Long> {
 
-    // Find by RC ID scoped to property (safer for multi-property)
-    @Query("""
-        SELECT b FROM Booking b
-        WHERE b.property.id = :propertyId
-          AND b.rcBookingId = :rcBookingId
-    """)
-    Optional<Booking> findByPropertyIdAndRcBookingId(Long propertyId, String rcBookingId);
-
-    // Legacy — used by WebhookService
-    Optional<Booking> findByRcBookingId(String rcBookingId);
-
-    // For sync: find all local RC-linked bookings for a property
-    @Query("""
-        SELECT b FROM Booking b
-        WHERE b.property.id = :propertyId
-          AND b.rcBookingId IS NOT NULL
-          AND b.status = 'BOOKED'
-    """)
-    List<Booking> findByPropertyIdAndRcBookingIdIsNotNull(Long propertyId);
-
-    // Match manual (imported) booking by guest+dates for RC linking
+    // Match manual (imported) booking by guest+dates
     @Query("""
         SELECT b FROM Booking b
         WHERE b.property.id = :propertyId
@@ -87,17 +67,93 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @Query("SELECT SUM(b.nights) FROM Booking b WHERE b.tenant.id = :tenantId AND b.status = 'BOOKED' AND b.checkIn BETWEEN :from AND :to")
     Long sumNightsInRange(Long tenantId, LocalDate from, LocalDate to);
 
+    /** Заезд самой ранней действующей брони — с какого момента у тенанта есть история. */
+    @Query("SELECT MIN(b.checkIn) FROM Booking b WHERE b.tenant.id = :tenantId AND b.status = 'BOOKED'")
+    LocalDate findFirstCheckIn(Long tenantId);
+
     @Query("SELECT COUNT(b) FROM Booking b WHERE b.tenant.id = :tenantId AND b.status = 'BOOKED' AND b.checkIn BETWEEN :from AND :to")
     long countBookingsInRange(Long tenantId, LocalDate from, LocalDate to);
 
     @Query("SELECT AVG(b.nights) FROM Booking b WHERE b.tenant.id = :tenantId AND b.status = 'BOOKED' AND b.checkIn BETWEEN :from AND :to")
     Double avgNightsInRange(Long tenantId, LocalDate from, LocalDate to);
 
+    /**
+     * Удаляет историю, перенесённую из RealtyCalendar (файлом — data_source пуст у старых
+     * переносов — или прежней прямой интеграцией, 'RC'). Ручные брони, заявки с сайта и брони с
+     * площадок не трогает: раньше «Очистить данные» удаляла все брони объекта.
+     */
     @Modifying
-    @Query("DELETE FROM Booking b WHERE b.tenant.id = :tenantId AND b.property.id = :propertyId")
-    int deleteByTenantIdAndPropertyId(Long tenantId, Long propertyId);
+    @Query("DELETE FROM Booking b WHERE b.tenant.id = :tenantId AND b.property.id = :propertyId"
+            + " AND (b.dataSource IS NULL OR b.dataSource = 'RC')")
+    int deleteTransferredByTenantIdAndPropertyId(Long tenantId, Long propertyId);
 
     List<Booking> findByTenantIdAndStatusAndCheckInBetween(
             Long tenantId, String status, LocalDate from, LocalDate to);
+
+    /** Активные брони по нескольким unit_type в окне [from, to). Для AvailabilityService. */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.unitTypeId IN :unitTypeIds
+          AND b.status = 'BOOKED'
+          AND b.checkOut > :from
+          AND b.checkIn < :to
+        ORDER BY b.checkIn
+    """)
+    List<Booking> findActiveByUnitTypesInRange(java.util.List<Long> unitTypeIds,
+                                               LocalDate from, LocalDate to);
+
+    Optional<Booking> findByChannelIdAndExternalId(Long channelId, String externalId);
+
+    /** Заявки с виджета, ожидающие решения хоста. */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.tenant.id = :tenantId
+          AND b.dataSource = 'WIDGET'
+          AND b.status = 'PENDING'
+        ORDER BY b.createdAt
+    """)
+    List<Booking> findPendingWidgetRequests(Long tenantId);
+
+    /** Недавняя история заявок с виджета: подтверждённые, отклонённые, истёкшие. */
+    List<Booking> findTop20ByTenantIdAndDataSourceAndStatusNotOrderByCreatedAtDesc(
+            Long tenantId, String dataSource, String status);
+
+    /**
+     * Брони категории, по которым гость сейчас проживает: день заезда и день выезда
+     * включительно. Для привязки обратной связи с карточки в квартире.
+     */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.unitTypeId = :unitTypeId
+          AND b.status = 'BOOKED'
+          AND b.checkIn <= :day
+          AND b.checkOut >= :day
+    """)
+    List<Booking> findStaying(Long unitTypeId, LocalDate day);
+
+    /** Заявки и брони виджета, созданные начиная с указанного момента. Для статистики виджета. */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.tenant.id = :tenantId
+          AND b.channelId = :channelId
+          AND b.dataSource = 'WIDGET'
+          AND b.createdAt >= :since
+        ORDER BY b.createdAt DESC
+    """)
+    List<Booking> findWidgetBookingsSince(Long tenantId, Long channelId, java.time.LocalDateTime since);
+
+    /** Заведённые в UI брони категории, пересекающие окно [from, to). Для отмены из шахматки. */
+    @Query("""
+        SELECT b FROM Booking b
+        WHERE b.tenant.id = :tenantId
+          AND b.unitTypeId = :unitTypeId
+          AND b.status = 'BOOKED'
+          AND b.dataSource = 'MANUAL'
+          AND b.checkOut > :from
+          AND b.checkIn < :to
+        ORDER BY b.checkIn
+    """)
+    List<Booking> findManualOverlapping(Long tenantId, Long unitTypeId,
+                                        LocalDate from, LocalDate to);
 
 }

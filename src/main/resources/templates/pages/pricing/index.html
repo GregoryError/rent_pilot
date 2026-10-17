@@ -2,61 +2,81 @@
 <html xmlns:th="http://www.thymeleaf.org"
       xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
       layout:decorate="~{fragments/layout}">
-<head><title>Ценообразование</title></head>
+<head><title>Цены</title></head>
 <body>
 <div layout:fragment="content">
 
     <div class="page-header">
-        <h1 class="page-title">Ценообразование</h1>
-        <p class="page-subtitle">Рекомендации движка, мониторинг конкурентов</p>
+        <h1 class="page-title">Цены</h1>
+        <p class="page-subtitle">Подсказки, когда поднять или снизить цену, и цены соседей</p>
     </div>
 
-    <!-- KPI -->
+    <!--/* Жилья нет: пустое состояние и кнопка в мастер */-->
+    <div class="card" th:if="${!hasProperties}">
+        <div th:replace="~{fragments/onboarding :: empty('pricing', '/onboarding?step=property')}"></div>
+    </div>
+
+    <th:block th:if="${hasProperties}">
+    <div class="card pricing-note" th:if="${needsPrice}">
+        <span th:text="${propHousing.fill('У %gen% не задана цена за ночь — рекомендовать не от чего.')}">Не задана цена за ночь.</span>
+        <a th:href="@{/settings/properties}" th:text="${propHousing.fill('Задать цену %gen%')}">Задать цену</a>
+    </div>
+    <div class="card pricing-note pricing-note--warn" th:if="${boundsWarning != null}">
+        <span th:text="${boundsWarning}">Цена выше максимальной цены в настройках</span>
+        <a th:href="@{/settings}">Открыть настройки</a>
+    </div>
+
+    <!--/* KPI: цена — объекта, её задают мастер и «Объекты»; рекомендации считаются от неё */-->
     <div class="kpi-row">
         <div class="kpi">
-            <div class="kpi__label">Будни (база)</div>
-            <div class="kpi__value" th:text="${settings['weekday_base_price']} + ' ₽'"></div>
+            <div class="kpi__label"><span th:text="${propHousing.fill('Цена %gen% в будни')}">Цена в будни</span> <span th:replace="~{fragments/hint :: hint('Цена за ночь, которую вы задали сами. Её видят гости на странице бронирования, от неё считаются подсказки.')}"></span></div>
+            <div class="kpi__value" th:text="${weekdayPrice}"></div>
+            <div class="kpi__hint" th:if="${severalUnits}" th:text="'по категории «' + ${pricedUnitName} + '»'"></div>
         </div>
         <div class="kpi">
-            <div class="kpi__label">Выходные (база)</div>
-            <div class="kpi__value" th:text="${settings['weekend_base_price']} + ' ₽'"></div>
+            <div class="kpi__label">Выходные (ночи с пт и с сб)</div>
+            <div class="kpi__value" th:text="${weekendPrice}"></div>
         </div>
         <div class="kpi">
-            <div class="kpi__label">Ср. цена конкурентов</div>
+            <div class="kpi__label">Ср. цена конкурентов <span th:replace="~{fragments/hint :: hint('Средняя цена за ночь у объявлений, которые вы добавили ниже.')}"></span></div>
             <div class="kpi__value" th:text="${avgCompetitorPrice != null ? avgCompetitorPrice + ' ₽' : '—'}"></div>
         </div>
         <div class="kpi">
-            <div class="kpi__label">Автопилот</div>
-            <div class="kpi__value" style="font-size: var(--text-lg)" th:text="${settings['autopilot_mode']}"></div>
+            <div class="kpi__label">Автопилот <span th:replace="~{fragments/hint :: hint('Автопилот только пересчитывает подсказки по расписанию. Цены на площадках он не меняет — это делаете вы.')}"></span></div>
+            <div class="kpi__value" style="font-size: var(--text-lg)"
+                 th:text="${settings['autopilot_mode'] == 'FULL'} ? 'Полный' : (${settings['autopilot_mode'] == 'SOFT'} ? 'Осторожный' : 'Выключен')">Выключен</div>
         </div>
     </div>
 
     <!-- Pricing recommendations -->
     <div class="card">
         <div class="card__header">
-            <div class="card__title">Рекомендации движка — следующие 60 дней</div>
-            <span class="text-sm muted">Обновляется каждый час</span>
+            <div class="card__title">Подсказки по цене на 60 дней</div>
+            <span class="text-sm muted">Считаются при открытии страницы</span>
         </div>
-        <div class="table-wrap">
+        <p class="muted text-sm" th:if="${#lists.isEmpty(recommendations)}">
+            Рекомендовать нечего: все ближайшие 60 дней уже заняты бронями. Новые подсказки появятся,
+            когда освободятся даты.
+        </p>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(recommendations)}">
             <table>
                 <thead>
                     <tr>
                         <th>Дата</th>
                         <th>День</th>
-                        <th class="text-right">База</th>
-                        <th class="text-right">Рекомендация</th>
-                        <th class="text-right">Δ</th>
-                        <th>Мин. срок</th>
-                        <th class="text-right">Net/ночь</th>
-                        <th>Причина</th>
-                        <th>Уверенность</th>
+                        <th class="text-right">Ваша цена <span th:replace="~{fragments/hint :: hint(${propHousing.fill('Цена %gen% на этот день — как в шахматке и на странице бронирования.')})}"></span></th>
+                        <th class="text-right">Подсказка</th>
+                        <th class="text-right">Разница</th>
+                        <th>Мин. срок <span th:replace="~{fragments/hint :: hint('Сколько ночей минимум стоит просить за бронь с заездом в этот день.')}"></span></th>
+                        <th class="text-right">Чистыми за ночь <span th:replace="~{fragments/hint :: hint('Подсказанная цена минус стоимость уборки из настроек.')}"></span></th>
+                        <th>Почему</th>
+                        <th>Уверенность <span th:replace="~{fragments/hint :: hint('Насколько система уверена в подсказке: чем ближе дата, тем точнее.')}"></span></th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr th:each="rec : ${recommendations}"
-                        th:if="${rec.status().name() != 'BOOKED'}"
-                        th:classappend="${rec.status().name() == 'GAP' ? 'style=background:rgba(248,113,113,0.05)' : ''}">
-                        <td class="mono" th:text="${rec.date()}"></td>
+                        th:classappend="${rec.status().name() == 'GAP'} ? 'rec-gap'">
+                        <td class="mono" th:text="${#temporals.format(rec.date(), 'd MMM', new java.util.Locale('ru'))}"></td>
                         <td class="text-sm muted" th:text="${#temporals.format(rec.date(), 'EEE', new java.util.Locale('ru'))}"></td>
                         <td class="text-right mono muted" th:text="${rec.currentPrice()} + ' ₽'"></td>
                         <td class="text-right mono" style="font-weight:600" th:text="${rec.recommendedPrice()} + ' ₽'"></td>
@@ -95,7 +115,7 @@
                     <tbody>
                         <tr th:each="cp : ${latestPrices}">
                             <td th:text="${cp.name()}"></td>
-                            <td><span class="tag tag--muted" th:text="${cp.platform()}"></span></td>
+                            <td><span class="tag tag--muted" th:text="${platformNames[cp.platform()] ?: cp.platform()}"></span></td>
                             <td class="text-right mono" th:text="${cp.price()} + ' ₽'"></td>
                             <td class="text-sm muted" th:text="${#temporals.format(cp.scrapedAt(), 'dd.MM HH:mm')}"></td>
                         </tr>
@@ -122,17 +142,17 @@
                     <input type="text" name="name" class="form-input form-input--sm" style="width:200px" placeholder="Квартира на Крепостной" required>
                 </div>
                 <div class="form-group" style="margin-bottom:0">
-                    <label class="form-label">URL</label>
+                    <label class="form-label">Ссылка на объявление</label>
                     <input type="url" name="url" class="form-input form-input--sm" style="width:350px" placeholder="https://avito.ru/..." required>
                 </div>
                 <div class="form-group" style="margin-bottom:0">
                     <label class="form-label">Площадка</label>
                     <select name="platform" class="form-input form-input--sm" style="width:140px">
                         <option value="">Авто</option>
-                        <option value="avito">Avito</option>
+                        <option value="avito">Авито</option>
                         <option value="sutochno">Суточно</option>
-                        <option value="cian">CIAN</option>
-                        <option value="ostrovok">Ostrovok</option>
+                        <option value="cian">Циан</option>
+                        <option value="ostrovok">Островок</option>
                     </select>
                 </div>
                 <div class="form-group" style="margin-bottom:0">
@@ -147,13 +167,13 @@
         </div>
         <div class="table-wrap">
             <table>
-                <thead><tr><th>Конкурент</th><th>Площадка</th><th>URL</th><th>Последний парсинг</th><th></th></tr></thead>
+                <thead><tr><th>Конкурент</th><th>Площадка</th><th>Ссылка</th><th>Цена обновлена</th><th></th></tr></thead>
                 <tbody>
                     <tr th:each="l : ${listings}">
                         <td th:text="${l.competitorName}"></td>
-                        <td><span class="tag tag--muted" th:text="${l.platform}"></span></td>
+                        <td><span class="tag tag--muted" th:text="${platformNames[l.platform] ?: l.platform}"></span></td>
                         <td class="text-sm"><a th:href="${l.url}" target="_blank" style="color:var(--accent)">Ссылка ↗</a></td>
-                        <td class="text-sm muted" th:text="${l.lastScrapedAt != null ? #temporals.format(l.lastScrapedAt, 'dd.MM HH:mm') : 'Не парсился'}"></td>
+                        <td class="text-sm muted" th:text="${l.lastScrapedAt != null ? #temporals.format(l.lastScrapedAt, 'dd.MM HH:mm') : 'Ещё не обновлялась'}"></td>
                         <td style="text-align:right; white-space:nowrap;">
                             <form th:action="@{'/pricing/competitors/' + ${l.id} + '/scrape'}" method="post" style="display:inline">
                                 <button type="submit" class="btn btn-ghost" style="padding:var(--sp-1) var(--sp-3); font-size:var(--text-xs);">Обновить</button>
@@ -171,6 +191,7 @@
             </table>
         </div>
     </div>
+    </th:block>
 
 </div>
 </body>

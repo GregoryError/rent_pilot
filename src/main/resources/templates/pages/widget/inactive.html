@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title th:text="${title} + ' — скоро заработает'">Страница бронирования</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <h1 class="login-title page-soon__title" th:text="${title}">Квартира у моря</h1>
+            <p class="login-note">
+                Страница бронирования скоро заработает: хозяин заканчивает настройку.
+                Загляните чуть позже или свяжитесь с хозяином напрямую.
+            </p>
+            <p class="form-hint">Страница сделана в <a th:href="@{/}">OptiRent</a>.</p>
+        </div>
+    </div>
+</body>
+</html>

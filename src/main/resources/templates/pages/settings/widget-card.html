@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Карточка для гостей</title>
+    <link rel="preload" as="font" type="font/woff2" crossorigin th:each="f : ${fontFiles}" th:href="${f}">
+    <link rel="stylesheet" th:href="@{/css/widget-card.css}">
+    <style th:utext="${fontCss}"></style>
+    <style>
+        .wc { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: var(--sp-5); align-items: start; }
+        @media (max-width: 1100px) { .wc { grid-template-columns: minmax(0, 1fr); } }
+        .wc-panel { display: grid; gap: var(--sp-4); }
+        .wc-panel .card { margin: 0; }
+        .wc-formats { display: grid; gap: var(--sp-2); }
+        .wc-formats label { display: flex; gap: var(--sp-2); align-items: flex-start; padding: var(--sp-2) var(--sp-3);
+                            border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+        .wc-formats small { display: block; color: var(--text-secondary); font-size: var(--text-xs); }
+        .wc-photos { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+        .wc-photos label { cursor: pointer; }
+        .wc-photos img { display: block; width: 72px; height: 48px; object-fit: cover; border-radius: var(--radius-sm); border: 2px solid transparent; }
+        .wc-photos input:checked + img, .wc-photos input:checked + span { border-color: var(--accent); }
+        .wc-photos input { position: absolute; opacity: 0; }
+        .wc-photos span { display: grid; place-items: center; width: 72px; height: 48px; border: 2px solid var(--border);
+                          border-radius: var(--radius-sm); font-size: var(--text-xs); color: var(--text-secondary); }
+        .wc-photos input:focus-visible + img, .wc-photos input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .wc-stage { position: sticky; top: var(--sp-4); }
+        .wc-view { border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg-raised);
+                   padding: var(--sp-5); overflow: auto; max-height: calc(100vh - 200px); }
+        .wc-view .pc { margin: 0 auto; box-shadow: 0 1px 3px rgba(0,0,0,.18), 0 8px 24px rgba(0,0,0,.08); }
+        .wc-note { border: 1px solid var(--amber); border-radius: var(--radius); padding: var(--sp-3) var(--sp-4);
+                   background: var(--bg-surface); margin-bottom: var(--sp-4); }
+        .wc-warn { color: var(--amber); font-size: var(--text-sm); margin-top: var(--sp-2); }
+        .wc-off { opacity: .5; }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+    <div th:replace="~{fragments/verify :: page-note}"></div>
+
+    <div class="page-header flex justify-between items-center" style="gap: var(--sp-3); flex-wrap: wrap;">
+        <div>
+            <h1 class="page-title">Карточка для гостей</h1>
+            <p class="page-subtitle"><span th:text="${w.title}">Квартира на Садовой</span> · QR на прямое бронирование и промокод на повторный визит</p>
+        </div>
+        <a class="btn btn-ghost" th:href="@{'/settings/widgets/' + ${w.id}}">← К настройкам</a>
+    </div>
+
+    <div class="wc-note" role="note">
+        <strong>Карточка — для гостей, которые уже у вас живут.</strong>
+        Оставьте её у гостей на виду. Не публикуйте эту ссылку в объявлениях на площадках — их правила это запрещают.
+    </div>
+
+    <div class="wc" id="card-designer" th:attr="data-wifi-url=@{'/settings/widgets/' + ${w.id} + '/card/wifi-qr'}">
+        <script type="application/json" id="card-data" th:utext="${cardData}"></script>
+
+        <div class="wc-panel">
+            <form method="post" th:action="@{'/settings/widgets/' + ${w.id} + '/card'}" id="card-form" class="wc-panel" style="margin: 0;">
+                <input type="hidden" name="texts" id="card-texts">
+
+                <div class="card">
+                    <div class="card__title" style="margin-bottom: var(--sp-3);">Формат</div>
+                    <div class="wc-formats">
+                        <label><input type="radio" name="format" value="CARD">
+                            <span>Визитка 90 × 50 мм<small>10 штук на листе A4, с метками реза</small></span></label>
+                        <label><input type="radio" name="format" value="A6">
+                            <span>Открытка A6<small>105 × 148 мм — на стол или тумбочку</small></span></label>
+                        <label><input type="radio" name="format" value="A5">
+                            <span>Листок A5<small>148 × 210 мм — на холодильник или стену</small></span></label>
+                    </div>
+                    <div class="form-group" id="paper-group" style="margin: var(--sp-3) 0 0;">
+                        <label class="form-label" for="card-paper">Бумага в принтере</label>
+                        <select name="paper" id="card-paper" class="form-input form-input--sm"></select>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card__title" style="margin-bottom: var(--sp-3);">Промокод</div>
+                    <select name="promoCodeId" id="card-promo" class="form-input form-input--sm" aria-label="Промокод на карточке"></select>
+                    <div class="wc-warn" id="promo-warn" hidden></div>
+                    <div class="form-hint">Скидка применяется сама, когда гость открывает страницу по QR. Новый промокод можно создать ниже.</div>
+                </div>
+
+                <div class="card">
+                    <div class="card__title" style="margin-bottom: var(--sp-3);">Язык и тексты</div>
+                    <div class="form-group">
+                        <label class="form-label" for="card-lang">Язык карточки</label>
+                        <select name="lang" id="card-lang" class="form-input form-input--sm">
+                            <option value="ru">Русский</option>
+                            <option value="en">Английский</option>
+                            <option value="both">Оба на одной карточке</option>
+                        </select>
+                    </div>
+                    <div data-lang-fields="ru">
+                        <div class="form-group"><label class="form-label" for="t-ru-title">Заголовок</label>
+                            <input type="text" id="t-ru-title" data-text="ru.title" maxlength="80" class="form-input form-input--sm"></div>
+                        <div class="form-group"><label class="form-label" for="t-ru-subtitle">Подзаголовок</label>
+                            <textarea id="t-ru-subtitle" data-text="ru.subtitle" maxlength="200" rows="2" class="form-input form-input--sm"></textarea></div>
+                        <div class="form-group"><label class="form-label" for="t-ru-caption">Подпись под QR</label>
+                            <input type="text" id="t-ru-caption" data-text="ru.caption" maxlength="80" class="form-input form-input--sm"></div>
+                    </div>
+                    <div data-lang-fields="en">
+                        <div class="form-group"><label class="form-label" for="t-en-title">Заголовок — по-английски</label>
+                            <input type="text" id="t-en-title" data-text="en.title" maxlength="80" class="form-input form-input--sm"></div>
+                        <div class="form-group"><label class="form-label" for="t-en-subtitle">Подзаголовок — по-английски</label>
+                            <textarea id="t-en-subtitle" data-text="en.subtitle" maxlength="200" rows="2" class="form-input form-input--sm"></textarea></div>
+                        <div class="form-group"><label class="form-label" for="t-en-caption">Подпись под QR — по-английски</label>
+                            <input type="text" id="t-en-caption" data-text="en.caption" maxlength="80" class="form-input form-input--sm"></div>
+                    </div>
+                    <div class="form-hint">Подзаголовок сам подстраивается под выбранный промокод, пока вы его не изменили.</div>
+                </div>
+
+                <div class="card" id="photo-card">
+                    <div class="card__title">Фото</div>
+                    <div class="text-sm muted" style="margin-bottom: var(--sp-3);" id="photo-hint">Необязательно. Одно из фото страницы бронирования.</div>
+                    <div class="wc-photos" id="card-photos" role="radiogroup" aria-label="Фото на карточке"></div>
+                </div>
+
+                <div class="card">
+                    <div class="card__title">Wi-Fi</div>
+                    <div class="text-sm muted" style="margin-bottom: var(--sp-3);">
+                        Необязательно. Гость наводит камеру — телефон подключается сам. Пароль хранится у нас зашифрованным и никуда, кроме этой карточки, не попадает.
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3);">
+                        <div class="form-group" style="margin: 0;"><label class="form-label" for="card-ssid">Имя сети</label>
+                            <input type="text" name="wifiSsid" id="card-ssid" maxlength="32" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" class="form-input form-input--sm"></div>
+                        <div class="form-group" style="margin: 0;"><label class="form-label" for="card-pass">Пароль</label>
+                            <input type="text" name="wifiPassword" id="card-pass" maxlength="63" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" class="form-input form-input--sm"></div>
+                    </div>
+                    <div class="form-hint" id="wifi-hint" hidden>На визитке Wi-Fi печатается только текстом — второй QR на неё не помещается.</div>
+                </div>
+
+                <div class="card">
+                    <div class="card__title" style="margin-bottom: var(--sp-3);">Ещё на карточке</div>
+                    <div class="form-group">
+                        <label><input type="checkbox" name="showContacts" value="true" id="card-contacts"> Контакты хозяина</label>
+                        <div class="form-hint" id="contacts-hint"></div>
+                    </div>
+                    <div class="form-group" id="feedback-group">
+                        <label><input type="checkbox" name="showFeedback" value="true" id="card-feedback"> QR для обратной связи</label>
+                        <div class="form-hint" id="feedback-hint">Гость пишет вам напрямую, если что-то не так. Это частное сообщение, не публичный отзыв; ответы — в разделе «Отзывы».</div>
+                    </div>
+                    <div data-feedback-fields>
+                        <div class="form-group" data-lang-fields="ru"><label class="form-label" for="t-ru-feedback">Подпись у QR обратной связи</label>
+                            <textarea id="t-ru-feedback" data-text="ru.feedback" maxlength="200" rows="2" class="form-input form-input--sm"></textarea></div>
+                        <div class="form-group" data-lang-fields="en"><label class="form-label" for="t-en-feedback">Подпись у QR обратной связи — по-английски</label>
+                            <textarea id="t-en-feedback" data-text="en.feedback" maxlength="200" rows="2" class="form-input form-input--sm"></textarea></div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label><input type="checkbox" name="mono" value="true" id="card-mono"> Для чёрно-белого принтера</label>
+                        <div class="form-hint">Всё чёрное на белом. QR-коды чёрные всегда, каким бы ни был цвет темы.</div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2);">
+                    <button type="submit" class="btn btn-ghost">Сохранить</button>
+                    <button type="submit" class="btn btn-primary" name="print" value="true">Печать</button>
+                </div>
+                <div class="form-hint">«Печать» сохранит карточку и откроет лист для принтера. В окне печати поставьте масштаб 100 % и поля «Нет».</div>
+            </form>
+
+            <div class="card">
+                <div class="card__title">Текст для гостя</div>
+                <div class="text-sm muted" style="margin-bottom: var(--sp-3);">Отправьте после выезда в мессенджер. Переходы по этой ссылке видны в статистике отдельно от карточки.</div>
+                <textarea readonly id="card-message" rows="4" class="form-input form-input--sm"></textarea>
+                <button type="button" class="btn btn-ghost" th:disabled="${pageInactive}" data-copy="card-message" style="margin-top: var(--sp-2);">Скопировать текст для гостя</button>
+            </div>
+
+            <details class="card">
+                <summary class="card__title" style="cursor: pointer;">Создать промокод на повторный визит</summary>
+                <form method="post" th:action="@{'/settings/widgets/' + ${w.id} + '/card/promo'}" style="margin: var(--sp-3) 0 0;"
+                      onsubmit="return confirm('Создать промокод? Несохранённые изменения карточки будут потеряны — сначала сохраните их.');">
+                    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3);">
+                        <div class="form-group" style="margin: 0;"><label class="form-label" for="np-value">Скидка</label>
+                            <input type="number" inputmode="numeric" name="discountValue" id="np-value" required min="1" step="1" value="10" class="form-input form-input--sm"></div>
+                        <div class="form-group" style="margin: 0;"><label class="form-label" for="np-type">В чём</label>
+                            <select name="discountType" id="np-type" class="form-input form-input--sm">
+                                <option value="PERCENT">проценты</option><option value="AMOUNT">рубли</option></select></div>
+                        <div class="form-group" style="margin: 0;"><label class="form-label" for="np-until">Действует до</label>
+                            <input type="date" name="validUntil" id="np-until" th:value="${defaultUntil}" class="form-input form-input--sm"></div>
+                        <div class="form-group" style="margin: 0;"><label class="form-label" for="np-max">Сколько раз</label>
+                            <input type="number" inputmode="numeric" name="maxUses" id="np-max" min="1" placeholder="без лимита" class="form-input form-input--sm"></div>
+                        <div class="form-group" style="margin: 0; grid-column: 1 / -1;"><label class="form-label" for="np-code">Код</label>
+                            <input type="text" name="code" id="np-code" autocapitalize="characters" autocorrect="off" spellcheck="false" autocomplete="off" maxlength="40" placeholder="подберём сами, например SNOVA10" class="form-input form-input--sm"></div>
+                    </div>
+                    <button type="submit" class="btn btn-ghost" style="margin-top: var(--sp-3);">Создать и выбрать</button>
+                </form>
+            </details>
+
+            <div class="card">
+                <div class="card__title" style="margin-bottom: var(--sp-3);">QR отдельно и ссылка</div>
+                <div style="display: flex; gap: var(--sp-2); flex-wrap: wrap;">
+                    <a class="btn btn-ghost" th:href="@{'/settings/widgets/' + ${w.id} + '/card/qr.svg'(kind='card')}">Скачать QR (SVG)</a>
+                    <a class="btn btn-ghost" th:href="@{'/settings/widgets/' + ${w.id} + '/card/qr.svg'(kind='feedback')}">QR обратной связи</a>
+                </div>
+                <div class="form-hint">Для своего макета. Печатайте QR не меньше 25 мм и только чёрным по белому.</div>
+                <form method="post" th:action="@{'/settings/widgets/' + ${w.id} + '/card/regenerate'}" style="margin: var(--sp-4) 0 0;"
+                      onsubmit="return confirm('Перевыпустить ссылку? Уже напечатанные карточки будут открывать страницу бронирования, но без промокода.');">
+                    <button type="submit" class="btn btn-ghost" style="color: var(--amber);">Перевыпустить ссылку</button>
+                    <div class="form-hint">Если карточка попала не в те руки. Старый QR не сломается — просто перестанет давать скидку.</div>
+                </form>
+            </div>
+        </div>
+
+        <div class="wc-stage">
+            <div class="text-sm muted" style="margin-bottom: var(--sp-2);" id="card-size">Превью в натуральную величину</div>
+            <div class="wc-view" id="card-view"></div>
+            <div class="wc-warn" id="card-warn" role="status" hidden></div>
+        </div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="scripts">
+    <script th:src="@{/js/widget-card.js}"></script>
+    <script th:src="@{/js/widget-card-settings.js}"></script>
+</th:block>
+</body>
+</html>

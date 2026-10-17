@@ -1,0 +1,12 @@
+{
+  "name": "optirent-mobile-check",
+  "private": true,
+  "type": "module",
+  "description": "Проверка вёрстки OptiRent на узких экранах: нет горизонтальной прокрутки страницы",
+  "scripts": {
+    "check": "node check.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "23.11.1"
+  }
+}

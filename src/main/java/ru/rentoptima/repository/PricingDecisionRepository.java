@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 import ru.rentoptima.entity.PricingDecision;
 
 import java.time.LocalDate;
@@ -32,13 +33,19 @@ public interface PricingDecisionRepository extends JpaRepository<PricingDecision
     List<PricingDecision> findForAnalysis(@Param("tenantId") Long tenantId,
                                           @Param("fromTime") java.time.LocalDateTime fromTime);
 
+    // Tenants with logged decisions — candidates for the scheduled analysis
+    @Query("SELECT DISTINCT d.tenantId FROM PricingDecision d ORDER BY d.tenantId")
+    List<Long> findTenantIds();
+
     // Mark past pending decisions as MISSED (target date is in the past, no booking arrived)
+    @Transactional
     @Modifying
     @Query("UPDATE PricingDecision d SET d.outcome = 'MISSED' " +
            "WHERE d.tenantId = :tenantId AND d.outcome IS NULL AND d.targetDate < :today")
     int markMissed(@Param("tenantId") Long tenantId, @Param("today") LocalDate today);
 
     // Cleanup after analysis
+    @Transactional
     @Modifying
     @Query("DELETE FROM PricingDecision d WHERE d.tenantId = :tenantId")
     int deleteAllByTenant(@Param("tenantId") Long tenantId);

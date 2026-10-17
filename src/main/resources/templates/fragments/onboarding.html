@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--/*
+    Онбординг в кабинете: чек-лист «Первые шаги» и пустые состояния страниц.
+      steps  — чек-лист (модель: firstSteps, см. OnboardingChecklist); нет модели — нет блока
+      empty  — пустая страница: иллюстрация, что здесь будет, одна кнопка
+    Тексты — onboarding/texts_ru.yml. Стили — static/css/onboarding.css и core.css (.empty-state).
+*/-->
+
+<section th:fragment="steps" th:if="${firstSteps != null}" id="first-steps"
+         th:class="${firstSteps.collapsed} ? 'onb-steps is-collapsed' : 'onb-steps'"
+         th:attr="data-celebrate=${firstSteps.celebrate} ? 'true'" aria-labelledby="first-steps-title">
+    <th:block th:with="t=${ot}">
+        <!-- Все пункты выполнены: поздравление вместо списка, в следующий раз блока уже не будет -->
+        <div class="onb-steps__done" th:if="${firstSteps.celebrate}">
+            <div class="onb-confetti" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <h2 id="first-steps-title" th:text="${t['first.done.title']}">Всё готово!</h2>
+            <p th:text="${t['first.done.text']}"></p>
+        </div>
+
+        <th:block th:unless="${firstSteps.celebrate}">
+            <header class="onb-steps__head">
+                <h2 id="first-steps-title" th:text="${t['first.title']}">Первые шаги</h2>
+                <span class="onb-steps__count" th:text="${firstSteps.progress}">2 из 6</span>
+                <form method="post" th:action="@{/onboarding/steps}" class="onb-steps__tools">
+                    <button type="submit" name="action" th:value="${firstSteps.collapsed} ? 'expand' : 'collapse'"
+                            class="onb-steps__tool" data-steps-toggle
+                            th:attr="aria-expanded=${!firstSteps.collapsed},data-collapse=${t['first.collapse']},data-expand=${t['first.expand']}"
+                            th:text="${firstSteps.collapsed} ? ${t['first.expand']} : ${t['first.collapse']}">Свернуть</button>
+                    <button type="submit" name="action" value="hide" class="onb-steps__tool"
+                            th:text="${t['first.hide']}">Скрыть</button>
+                </form>
+            </header>
+            <ol class="onb-steps__list">
+                <li th:each="item : ${firstSteps.items}" th:class="${item.cssClass}">
+                    <span class="onb-steps__check" aria-hidden="true"></span>
+                    <span class="onb-steps__text">
+                        <span th:text="${item.title}">Добавить объект</span>
+                        <span class="sr-only" th:if="${item.done}"> — сделано</span>
+                        <small th:if="${item.note != null}">
+                            <span th:text="${item.note}">Отметится само.</span>
+                            <a th:if="${item.guideHref != null}" th:href="${item.guideHref}" target="_blank" rel="noopener"
+                               th:text="${t['notice.stale.guide']}">Открыть инструкцию</a>
+                        </small>
+                    </span>
+                    <a th:if="${!item.done and item.href != null}" th:href="${item.href}" class="btn btn-ghost onb-steps__do"
+                       th:text="${item.action}">Сделать</a>
+                </li>
+            </ol>
+        </th:block>
+    </th:block>
+</section>
+
+<!--/* Пустая страница. kind — ключ текстов empty.<kind>.* и рисунка; href пуст — без кнопки. */-->
+<div th:fragment="empty(kind, href)" class="empty-state" th:with="t=${ot}">
+    <svg class="empty-state__art" viewBox="0 0 120 90" width="120" height="90" aria-hidden="true" focusable="false"
+         fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <th:block th:switch="${kind}">
+            <g th:case="'grid'"><rect x="14" y="14" width="92" height="62" rx="8"/><path d="M14 32h92M40 14v62M62 32v44M84 32v44M40 54h66"/><rect class="empty-state__accent" x="44" y="36" width="36" height="14" rx="3"/></g>
+            <g th:case="'platforms'"><rect x="10" y="18" width="34" height="22" rx="6"/><rect x="76" y="18" width="34" height="22" rx="6"/><rect class="empty-state__accent" x="40" y="54" width="40" height="24" rx="6"/><path d="M27 40l22 14M93 40 71 54"/></g>
+            <g th:case="'bookings'"><rect x="20" y="20" width="80" height="54" rx="8"/><path d="M20 30l40 26 40-26"/><circle class="empty-state__accent" cx="96" cy="22" r="9"/></g>
+            <g th:case="'expenses'"><rect x="30" y="10" width="60" height="72" rx="6"/><path d="M42 28h36M42 42h36M42 56h20"/><circle class="empty-state__accent" cx="78" cy="62" r="10"/></g>
+            <g th:case="'reviews'"><path d="M18 22a8 8 0 0 1 8-8h68a8 8 0 0 1 8 8v34a8 8 0 0 1-8 8H56L38 78V64H26a8 8 0 0 1-8-8z"/><path class="empty-state__accent" d="M60 26l4 8 9 1-7 6 2 9-8-5-8 5 2-9-7-6 9-1z"/></g>
+            <g th:case="*"><path d="M16 74h88M28 74V46M50 74V30M72 74V52"/><rect class="empty-state__accent" x="86" y="20" width="14" height="54" rx="3"/></g>
+        </th:block>
+    </svg>
+    <h2 class="empty-state__title" th:text="${t['empty.' + kind + '.title']}">Здесь пока пусто</h2>
+    <p class="empty-state__text" th:text="${t['empty.' + kind + '.text']}">Что здесь будет.</p>
+    <a th:if="${href != null}" th:href="${href}" class="btn btn-primary" th:text="${t['empty.' + kind + '.button']}">Сделать</a>
+</div>
+
+</body>
+</html>

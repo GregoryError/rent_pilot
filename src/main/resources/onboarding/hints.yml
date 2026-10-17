@@ -1,0 +1,34 @@
+# Подсказки по ходу работы: появляются по одной, когда человек сам дошёл до нужного места.
+# Овал и бабл — те же, что в туре, кнопка одна: «Понятно».
+#
+# Новая подсказка — запись здесь и текст в texts_ru.yml (ключ hint.<id>). Код не меняется.
+#
+#   id      — имя подсказки и ключ текста
+#   page    — адрес страницы; * — один любой отрезок пути (/settings/widgets/*/design)
+#   target  — CSS-селектор элемента, который обводим. Нет такого элемента на странице —
+#             подсказка ждёт своего случая и не считается показанной
+#   watch   — true: элемент появляется позже (в окне, после действия) — ждать его появления
+#
+# Правила показа общие и заданы в коде (OnboardingHints): не больше одной подсказки за
+# открытие страницы и двух за день, каждая — один раз; пока идёт тур, подсказок нет.
+
+- id: first-booking
+  page: /calendar/grid
+  target: ".grid__cell--colored"
+
+- id: not-fetched
+  page: /settings/channels
+  target: "[data-hint='not-fetched']"
+
+- id: designer-devices
+  page: /settings/widgets/*/design
+  target: ".dz-stage .dz-tabs"
+
+- id: first-conflict
+  page: /settings/integrations
+  target: "[data-hint='conflict']"
+
+- id: manual-delete
+  page: /calendar/grid
+  target: ".action-entries__delete"
+  watch: true

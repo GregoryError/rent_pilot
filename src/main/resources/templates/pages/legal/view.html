@@ -3,10 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${page.title} + ' — RentOptima'">Legal</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title th:text="${page.title} + ' — OptiRent'">Legal</title>
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: social(${page.title} + ' — OptiRent', ${description}, ${canonical}, null)}"></th:block>
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
     <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
     <style>
         body {
             max-width: 720px;
@@ -15,6 +17,13 @@
             background: var(--bg-root);
             color: var(--text-primary);
             line-height: 1.7;
+            overflow-wrap: anywhere;
+        }
+        @media (max-width: 640px) {
+            body { padding: 1.25rem 1rem; }
+            .content h1 { font-size: 1.45rem; }
+            .content h2 { font-size: 1.2rem; }
+            .header a { min-height: 44px; display: inline-flex; align-items: center; }
         }
         .header {
             display: flex;
@@ -47,8 +56,8 @@
 <body>
 
 <div class="header">
-    <img src="/static/images/logo-icon.svg" alt="" style="width: 24px; height: 24px;">
-    <span style="font-weight: 600;">RentOptima</span>
+    <svg th:replace="~{fragments/logo :: mark(24)}"></svg>
+    <span style="font-weight: 600;">OptiRent</span>
     <a href="/" style="margin-left: auto;">← На главную</a>
 </div>
 

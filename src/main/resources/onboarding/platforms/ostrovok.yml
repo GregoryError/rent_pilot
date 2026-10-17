@@ -1,0 +1,18 @@
+id: ostrovok
+order: 4
+name: Островок
+cabinet: Островка
+letter: О
+color: "#0B84D8"
+logo:
+domains: [ostrovok.ru]
+domains_draft: true
+draft: true
+from_platform:
+  steps: []
+  screenshot:
+to_platform:
+  steps: []
+  screenshot:
+refresh: 10–60 минут
+notes: []

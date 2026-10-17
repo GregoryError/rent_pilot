@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<!--
+    Каркас публичных страниц сайта (главная, посадочные, инструкции).
+      head    — мета, canonical, OG, значки, микроразметка, стили
+      header  — шапка: логотип → /, разделы, «Войти»
+      crumbs  — хлебные крошки (если у страницы они есть)
+      cta     — призыв в конце страницы
+      footer  — подвал со ссылками на разделы
+
+    Данные страницы кладёт SiteController: page (заголовок, описание, путь), canonical,
+    ogImage, jsonLd (готовые строки JSON-LD), crumbs.
+-->
+<head th:fragment="head">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${page.title}">OptiRent</title>
+    <th:block th:replace="~{fragments/site :: social(${page.title}, ${page.description}, ${canonical}, ${ogImage})}"></th:block>
+    <!-- Черновик (SitePages: indexed = false) в поиск не идёт -->
+    <meta name="robots" content="noindex, follow" th:unless="${page.indexed}">
+    <meta name="theme-color" content="#ffffff">
+    <th:block th:replace="~{fragments/site :: verification}"></th:block>
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/site.css}">
+    <script type="application/ld+json" th:each="ld : ${jsonLd}" th:utext="${ld}"></script>
+    <!-- Метрика сайта — только после согласия в баннере (consent.js); нет счётчика — нет и баннера -->
+    <script defer th:if="${!#strings.isEmpty(site.metrikaId)}" th:src="@{/js/consent.js}"
+            th:attr="data-metrika=${site.metrikaId}"></script>
+</head>
+<body>
+
+<th:block th:fragment="header">
+<a class="skip" href="#main">К содержимому</a>
+<header class="nav">
+    <div class="wrap nav-inner">
+        <a th:href="@{/}" class="logo" aria-label="OptiRent — на главную">
+            <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <rect width="24" height="24" rx="6" fill="#2563eb"/>
+                <path d="M5 11.5 12 5.5l7 6" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M8.5 18v-2.5M12 18v-4.5M15.5 18v-6.5" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            OptiRent
+        </a>
+        <nav aria-label="Разделы сайта">
+            <ul class="nav-links">
+                <li><a class="nav-link" th:href="@{/kalendar-bronirovaniya}"
+                       th:attrappend="aria-current=${page.path == '/kalendar-bronirovaniya'} ? 'page'">Календарь</a></li>
+                <li><a class="nav-link" th:href="@{/sinhronizaciya}"
+                       th:attrappend="aria-current=${page.path == '/sinhronizaciya'} ? 'page'">Синхронизация</a></li>
+                <li><a class="nav-link" th:href="@{/modul-bronirovaniya}"
+                       th:attrappend="aria-current=${page.path == '/modul-bronirovaniya'} ? 'page'">Модуль бронирования</a></li>
+                <li><a class="nav-link" th:href="@{/instrukcii}"
+                       th:attrappend="aria-current=${page.path == '/instrukcii'} ? 'page'">Инструкции</a></li>
+                <li><a class="nav-link nav-login" th:href="@{/login}">Войти</a></li>
+            </ul>
+        </nav>
+    </div>
+</header>
+</th:block>
+
+<nav th:fragment="crumbs" class="crumbs" aria-label="Хлебные крошки" th:if="${crumbs != null}">
+    <div class="wrap">
+        <ol>
+            <li th:each="c, it : ${crumbs}">
+                <a th:unless="${it.last}" th:href="${c.path}" th:text="${c.name}">Главная</a>
+                <span th:if="${it.last}" aria-current="page" th:text="${c.name}">Страница</span>
+            </li>
+        </ol>
+    </div>
+</nav>
+
+<section th:fragment="cta(title, text)" class="cta-block">
+    <div class="wrap">
+        <h2 th:text="${title}">Готовы попробовать?</h2>
+        <p th:text="${text}">Регистрация — минута.</p>
+        <a th:href="@{/register}" class="btn btn-lg">Начать бесплатно</a>
+    </div>
+</section>
+
+<footer th:fragment="footer" class="footer">
+    <div class="wrap footer-inner">
+        <span class="footer-brand">OptiRent</span>
+        <ul class="footer-links">
+            <li><a th:href="@{/kalendar-bronirovaniya}">Календарь бронирования</a></li>
+            <li><a th:href="@{/sinhronizaciya}">Синхронизация площадок</a></li>
+            <li><a th:href="@{/modul-bronirovaniya}">Модуль бронирования</a></li>
+            <li><a th:href="@{/instrukcii}">Инструкции</a></li>
+            <li><a th:href="@{/legal/terms}">Условия</a></li>
+            <li><a th:href="@{/legal/privacy}">Конфиденциальность</a></li>
+            <li><a href="mailto:errorgrisha@gmail.com">Связаться</a></li>
+            <li th:if="${!#strings.isEmpty(site.metrikaId)}"><a href="#" data-cookie-settings>Настройки cookie</a></li>
+        </ul>
+    </div>
+</footer>
+
+</body>
+</html>

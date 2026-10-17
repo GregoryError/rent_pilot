@@ -1,0 +1,19 @@
+id: sutochno
+order: 3
+name: Суточно
+cabinet: Суточно
+letter: С
+color: "#C92F9B"
+logo:
+domains: [sutochno.ru]
+domains_draft: true
+draft: true
+from_platform:
+  steps: []
+  screenshot:
+to_platform:
+  steps: []
+  screenshot:
+refresh: 10–60 минут
+notes:
+  - Если объявление на Суточно уже подключено к другой программе синхронизации, поле для чужой ссылки в кабинете скрыто. Сначала отключите объявление от той программы — в кабинете Суточно или через их поддержку.

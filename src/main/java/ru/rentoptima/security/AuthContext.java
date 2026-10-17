@@ -21,6 +21,15 @@ public final class AuthContext {
         return current().getTenantId();
     }
 
+    /** Тенант вошедшего пользователя или null для анонима — для публичных страниц. */
+    public static Long tenantIdOrNull() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof TenantUserDetails details) {
+            return details.getTenantId();
+        }
+        return null;
+    }
+
     public static Long userId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof TenantUserDetails details) {

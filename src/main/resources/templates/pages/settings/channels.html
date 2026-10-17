@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head><title>Площадки</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Площадки</h1>
+            <p class="page-subtitle">Брони с площадок собираются в шахматке, ваша занятость уходит на площадки</p>
+        </div>
+        <!--/* Площадок ещё нет — кнопки в шапке не нужны: одна кнопка в пустом состоянии ниже */-->
+        <div style="display: flex; gap: var(--sp-3);" th:unless="${#lists.isEmpty(channels)}">
+            <a class="btn btn-ghost" th:href="@{/settings/channels/diagnostics}">Диагностика</a>
+            <button class="btn btn-primary" type="button" id="btn-add-channel"
+                    th:if="${hasUnitTypes}">+ Подключить площадку</button>
+            <!--/* Жилья ещё нет: площадку подключают к жилью — сначала мастер */-->
+            <a class="btn btn-primary" th:unless="${hasUnitTypes}"
+               th:href="@{/onboarding(step='platforms')}">+ Подключить площадку</a>
+        </div>
+    </div>
+
+    <div th:if="${error}" class="card"
+         style="border-left: 3px solid var(--red); background: var(--red-dim); margin-bottom: var(--sp-4);">
+        <div th:text="${error}" style="color: var(--red);"></div>
+    </div>
+
+    <div class="card" id="add-form" style="display:none;" th:if="${hasUnitTypes}">
+        <div class="card__title" style="margin-bottom: var(--sp-5);">Новая площадка</div>
+        <form th:action="@{/settings/channels}" method="post">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-4);">
+                <div class="form-group">
+                    <label class="form-label">Название *</label>
+                    <input type="text" name="name" class="form-input" required
+                           placeholder="Суточно — Садовая">
+                </div>
+                <!--/* Один объект на одну единицу — выбирать не из чего, понятия «категория» не показываем */-->
+                <input type="hidden" name="unitTypeId" th:if="${simpleUnits}" th:value="${unitTypes[0].id}">
+                <div class="form-group" th:unless="${simpleUnits}">
+                    <label class="form-label" th:text="${housing.fill('%Nom% или %cat% *')}">Жильё или категория *</label>
+                    <select name="unitTypeId" class="form-input" required>
+                        <option th:each="ut : ${unitTypes}"
+                                th:value="${ut.id}" th:text="${ut.label}">Садовая / Основной</option>
+                    </select>
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label class="form-label">Ссылка на календарь с площадки *</label>
+                    <input type="url" name="importUrl" class="form-input" required
+                           placeholder="https://sutochno.ru/ical/your-feed.ics">
+                    <div class="form-hint">
+                        Ссылка, которую площадка даёт в разделе «Синхронизация календарей» (обычно оканчивается на .ics).
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Как часто проверять, минут</label>
+                    <input type="number" inputmode="numeric" name="syncIntervalMinutes" class="form-input"
+                           value="30" min="15" max="1440">
+                    <div class="form-hint">Минимум 15. По умолчанию 30.</div>
+                </div>
+            </div>
+            <div style="display: flex; gap: var(--sp-3); margin-top: var(--sp-2);">
+                <button type="submit" class="btn btn-primary">Подключить</button>
+                <button type="button" class="btn btn-ghost" id="btn-cancel-add">Отмена</button>
+            </div>
+        </form>
+    </div>
+
+    <div th:if="${!hasUnitTypes and !#lists.isEmpty(channels)}" class="card">
+        <div class="card__title">Сначала добавьте категорию номеров</div>
+        <p class="muted" style="margin: var(--sp-3) 0 var(--sp-4) 0;">
+            Площадке нужно, к чему привязаться: в разделе «Объекты» добавьте хотя бы одну
+            категорию номеров к любому объекту.
+        </p>
+        <a class="btn btn-primary" th:href="@{/settings/properties}">К объектам</a>
+    </div>
+
+    <p class="form-hint" th:unless="${#lists.isEmpty(channels)}" style="margin: 0 0 var(--sp-4) 0;">
+        Брони каждой площадки закрашиваются в шахматке своим цветом. Чтобы поменять цвет,
+        нажмите на цветной квадрат слева от названия площадки.
+    </p>
+
+    <div th:each="c : ${channels}" class="card" th:id="|channel-${c.id}|">
+        <div class="flex justify-between items-center" style="margin-bottom: var(--sp-3);">
+            <div>
+                <div style="display: flex; align-items: center; gap: var(--sp-3);">
+                    <details class="color-picker">
+                        <summary title="Выбрать цвет площадки в шахматке">
+                            <span class="color-swatch" th:style="${c.colorStyle}" th:text="${c.letter}">С</span>
+                            <span class="color-picker__hint">цвет ▾</span>
+                        </summary>
+                        <form method="post" class="color-picker__panel"
+                              th:action="@{'/settings/channels/' + ${c.id} + '/color'}">
+                            <div class="color-picker__title">Цвет броней этой площадки в шахматке</div>
+                            <button type="submit" name="color" th:each="p : ${c.palette}"
+                                    th:value="${p.hex}" th:class="${p.cssClass}" th:style="${p.style}"
+                                    th:title="${p.hex}"></button>
+                        </form>
+                    </details>
+                    <div style="font-size: var(--text-lg); font-weight: var(--weight-semibold);"
+                         th:text="${c.name}">Площадка</div>
+                </div>
+                <div class="text-sm muted">
+                    <span th:text="${c.channelType}">ICAL</span>
+                    · <span th:text="${c.unitTypeLabel}">Садовая / Основной</span>
+                    · опрос каждые <span th:text="${c.syncIntervalMinutes}">30</span> мин
+                </div>
+            </div>
+            <span class="tag" th:classappend="${c.statusCssClass}" th:text="${c.statusText}">OK</span>
+        </div>
+        <!-- Площадка ни разу не обращалась за нашей ссылкой: скорее всего, её не вставили в кабинете -->
+        <div th:if="${neverFetched.contains(c.id)}" style="margin-bottom: var(--sp-3);">
+            <span class="tag tag--amber" data-hint="not-fetched">Площадка ещё не забирала ссылку</span>
+        </div>
+
+        <div class="text-sm" style="margin-bottom: var(--sp-4); color: var(--text-secondary);">
+            <div>
+                Последняя синхронизация:
+                <span th:text="${c.lastSyncRelative}">никогда</span>
+                <span class="muted" th:if="${c.lastSyncExact != null}" th:text="|(${c.lastSyncExact})|"></span>
+            </div>
+            <div th:if="${c.lastSyncImported != null and c.lastSyncImported > 0}">
+                Импортировано/обновлено: <span th:text="${c.lastSyncImported}">0</span>
+                <span th:if="${c.lastSyncRemoved != null and c.lastSyncRemoved > 0}">
+                    , снято: <span th:text="${c.lastSyncRemoved}">0</span>
+                </span>
+            </div>
+            <div th:if="${c.lastError != null and !c.lastError.isBlank()}"
+                 style="color: var(--red); margin-top: var(--sp-2);">
+                Ошибка: <span th:text="${c.lastError}"></span>
+            </div>
+        </div>
+
+        <!-- Итог проверки ссылки с площадки, вставленной в этой карточке -->
+        <div th:if="${linkResult != null and linkResult.channelId == c.id}" role="status"
+             th:class="${linkResult.saved} ? 'channel-link-result channel-link-result--ok' : 'channel-link-result'">
+            <span th:text="${linkResult.message}">Нашли 7 занятых периодов до марта.</span>
+            <form th:if="${linkResult.mismatch}" method="post" th:action="@{'/settings/channels/' + ${c.id} + '/import-url'}"
+                  style="margin: var(--sp-2) 0 0;">
+                <input type="hidden" name="url" th:value="${linkResult.url}">
+                <button type="submit" name="keep" value="true" class="btn btn-ghost">Сохранить всё равно</button>
+            </form>
+        </div>
+
+        <div class="form-group" th:if="${c.importUrl != null}">
+            <label class="form-label">URL импорта (откуда берём занятость)</label>
+            <div style="display: flex; gap: var(--sp-2);">
+                <input type="text" readonly th:id="${c.importUrlInputId}"
+                       th:value="${c.importUrl}"
+                       class="form-input form-input--sm" style="flex: 1;">
+                <button type="button" class="btn btn-ghost copy-btn"
+                        th:data-target="${c.importUrlInputId}">Копировать</button>
+            </div>
+            <details class="channel-link-replace" th:open="${linkResult != null and linkResult.channelId == c.id and !linkResult.saved}">
+                <summary class="text-sm">Заменить ссылку</summary>
+                <form method="post" th:action="@{'/settings/channels/' + ${c.id} + '/import-url'}">
+                    <div style="display: flex; gap: var(--sp-2); margin-top: var(--sp-2);">
+                        <input type="text" name="url" inputmode="url" autocomplete="off" autocapitalize="none"
+                               autocorrect="off" spellcheck="false" placeholder="https://"
+                               th:value="${linkResult != null and linkResult.channelId == c.id} ? ${linkResult.url} : ''"
+                               aria-label="Новая ссылка с площадки"
+                               class="form-input form-input--sm" style="flex: 1; min-width: 0;">
+                        <button type="submit" class="btn btn-ghost">Проверить и сохранить</button>
+                    </div>
+                </form>
+            </details>
+        </div>
+
+        <!-- Площадка заведена без ссылки с площадки (в мастере): её можно вставить здесь -->
+        <div class="form-group" th:if="${c.importUrl == null and c.channelType == 'ICAL'}">
+            <label class="form-label" th:for="|import-${c.id}|">URL импорта (откуда берём занятость)</label>
+            <form method="post" th:action="@{'/settings/channels/' + ${c.id} + '/import-url'}">
+                <div style="display: flex; gap: var(--sp-2);">
+                    <input type="text" name="url" th:id="|import-${c.id}|" inputmode="url" autocomplete="off"
+                           autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="https://"
+                           th:value="${linkResult != null and linkResult.channelId == c.id} ? ${linkResult.url} : ''"
+                           class="form-input form-input--sm" style="flex: 1; min-width: 0;">
+                    <button type="submit" class="btn btn-primary">Проверить и сохранить</button>
+                </div>
+            </form>
+            <div class="form-hint">
+                Ссылка на календарь из кабинета площадки. Пока её нет, OptiRent не видит брони с этой
+                площадки — только отдаёт ей свою ссылку ниже.
+                <a th:href="${guides.containsKey(c.id)} ? ${guides.get(c.id)} : @{/instrukcii}" target="_blank"
+                   rel="noopener">Где её взять</a>
+            </div>
+        </div>
+
+        <div class="form-group" th:if="${c.exportUrl != null}">
+            <label class="form-label">URL экспорта (отдаём площадкам)</label>
+            <div style="display: flex; gap: var(--sp-2); align-items: center;">
+                <input type="text" readonly th:id="${c.exportUrlInputId}"
+                       th:value="${c.exportUrl}"
+                       class="form-input form-input--sm" style="flex: 1;">
+                <button type="button" class="btn btn-ghost copy-btn"
+                        th:data-target="${c.exportUrlInputId}">Копировать</button>
+                <form style="display: inline;" method="post"
+                      th:action="@{'/settings/channels/' + ${c.id} + '/regenerate-secret'}"
+                      onsubmit="return confirm('Перевыпустить секрет? Старый URL сразу перестанет работать — площадкам придётся его обновить.');">
+                    <button type="submit" class="btn btn-ghost" style="color: var(--amber);">Перевыпустить</button>
+                </form>
+            </div>
+            <div class="form-hint">
+                Вставьте этот URL в раздел «Импорт календаря» площадки, чтобы она видела
+                занятость с других площадок.
+            </div>
+        </div>
+
+        <div style="display: flex; gap: var(--sp-3); margin-top: var(--sp-4); flex-wrap: wrap;">
+            <form style="display: inline;" method="post" th:if="${c.canSyncNow}"
+                  th:action="@{'/settings/channels/' + ${c.id} + '/sync'}">
+                <button type="submit" class="btn btn-primary">Синхронизировать сейчас</button>
+            </form>
+            <form style="display: inline;" method="post"
+                  th:action="@{'/settings/channels/' + ${c.id} + '/toggle'}">
+                <button type="submit" class="btn btn-ghost"
+                        th:text="${c.syncEnabled} ? 'Выключить авто-синхронизацию' : 'Включить авто-синхронизацию'">Toggle</button>
+            </form>
+            <form style="display: inline; margin-left: auto;" method="post"
+                  th:action="@{'/settings/channels/' + ${c.id} + '/delete'}"
+                  onsubmit="return confirm('Удалить площадку? Синхронизация остановится, а занятость, импортированная с этой площадки, будет снята с шахматки. Ручные записи и брони не затрагиваются.');">
+                <button type="submit" class="btn btn-ghost" style="color: var(--red);">Удалить площадку</button>
+            </form>
+        </div>
+    </div>
+
+    <div th:if="${#lists.isEmpty(channels)}" class="card">
+        <div th:replace="~{fragments/onboarding :: empty('platforms', '/onboarding?step=platforms')}"></div>
+    </div>
+
+</div>
+
+<th:block layout:fragment="scripts">
+    <script>
+        (function() {
+            const addForm = document.getElementById('add-form');
+            const btnAdd = document.getElementById('btn-add-channel');
+            const btnCancel = document.getElementById('btn-cancel-add');
+            if (btnAdd && addForm) {
+                btnAdd.addEventListener('click', () => { addForm.style.display = 'block'; });
+            }
+            if (btnCancel && addForm) {
+                btnCancel.addEventListener('click', () => { addForm.style.display = 'none'; });
+            }
+            document.querySelectorAll('.copy-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const target = btn.dataset.target;
+                    const input = document.getElementById(target);
+                    if (!input) return;
+                    navigator.clipboard.writeText(input.value).then(() => {
+                        const original = btn.textContent;
+                        btn.textContent = 'Скопировано';
+                        setTimeout(() => { btn.textContent = original; }, 2000);
+                    });
+                });
+            });
+        })();
+    </script>
+</th:block>
+</body>
+</html>

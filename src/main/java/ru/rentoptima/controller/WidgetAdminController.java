@@ -1,0 +1,737 @@
+package ru.rentoptima.controller;
+
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import ru.rentoptima.entity.Booking;
+import ru.rentoptima.entity.BookingWidget;
+import ru.rentoptima.entity.Channel;
+import ru.rentoptima.entity.PromoCode;
+import ru.rentoptima.entity.Property;
+import ru.rentoptima.entity.WidgetPhoto;
+import ru.rentoptima.entity.UnitType;
+import ru.rentoptima.repository.BookingRepository;
+import ru.rentoptima.repository.BookingWidgetRepository;
+import ru.rentoptima.repository.ChannelRepository;
+import ru.rentoptima.repository.PromoCodeRepository;
+import ru.rentoptima.repository.PropertyRepository;
+import ru.rentoptima.repository.UnitTypeRepository;
+import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
+import ru.rentoptima.seo.IndexNowService;
+import ru.rentoptima.service.WidgetCreator;
+import ru.rentoptima.config.WidgetCorsConfig;
+import ru.rentoptima.service.PhotoProcessor;
+import ru.rentoptima.service.WidgetBookingService;
+import ru.rentoptima.service.WidgetCalendar;
+import ru.rentoptima.service.WidgetCardService;
+import ru.rentoptima.service.WidgetConfigService;
+import ru.rentoptima.service.WidgetFunnelService;
+import ru.rentoptima.service.WidgetLayout;
+import ru.rentoptima.service.WidgetPhotoService;
+import ru.rentoptima.service.WidgetOrigins;
+import ru.rentoptima.service.WidgetSlug;
+import ru.rentoptima.seo.SiteSettings;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.security.SecureRandom;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Настройка страниц / виджетов бронирования (блок 4.9).
+ * Создание виджета заводит и его канал типа WIDGET — отдельно каналом управлять не нужно.
+ */
+@Controller
+@RequestMapping("/settings/widgets")
+@RequiredArgsConstructor
+public class WidgetAdminController {
+
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final int MAX_PHOTOS = 10;
+
+    private final BookingWidgetRepository widgetRepo;
+    private final ChannelRepository channelRepo;
+    private final UnitTypeRepository unitTypeRepo;
+    private final PropertyRepository propertyRepo;
+    private final PromoCodeRepository promoRepo;
+    private final WidgetPhotoService photos;
+    private final WidgetFunnelService funnelService;
+    private final BookingRepository bookingRepo;
+    private final PhotoProcessor photoProcessor;
+    private final WidgetCorsConfig cors;
+    private final IndexNowService indexNow;
+    private final WidgetCreator widgetCreator;
+    private final SiteSettings site;
+
+    private static final Map<String, String> BLOCK_LABELS = Map.ofEntries(
+            Map.entry("gallery", "Фотографии"), Map.entry("title", "Название и цена «от»"),
+            Map.entry("calendar", "Календарь"), Map.entry("guests", "Гости"),
+            Map.entry("summary", "Стоимость"), Map.entry("form", "Форма брони"),
+            Map.entry("description", "Описание"), Map.entry("amenities", "Удобства"),
+            Map.entry("rules", "Правила и отмена"), Map.entry("contacts", "Контакты"),
+            Map.entry("map", "На карте"));
+
+    private static final String[] WEEKDAYS = {"Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"};
+    private static final DateTimeFormatter DAY = DateTimeFormatter.ofPattern("dd.MM.yyyy");
+
+    @GetMapping
+    public String list(Model model, HttpServletRequest request) {
+        Long tenantId = AuthContext.tenantId();
+        Map<Long, String> unitLabels = unitLabels(tenantId);
+        String baseUrl = baseUrl(request);
+
+        List<WidgetRow> rows = new ArrayList<>();
+        for (BookingWidget w : widgetRepo.findByTenantIdAndActiveTrueOrderByCreatedAtAsc(tenantId)) {
+            rows.add(new WidgetRow(w.getId(), w.getTitle(),
+                    unitLabels.getOrDefault(w.getUnitTypeId(), "объект удалён"),
+                    baseUrl + "/b/" + w.getSlug(), "widget-link-" + w.getId()));
+        }
+        List<UnitOption> options = new ArrayList<>();
+        unitLabels.forEach((id, label) -> options.add(new UnitOption(id, label)));
+
+        model.addAttribute("activePage", "widgets");
+        model.addAttribute("widgets", rows);
+        model.addAttribute("unitTypes", options);
+        return "pages/settings/widgets";
+    }
+
+    @PostMapping("/create")
+    @Transactional
+    public String create(@RequestParam String title,
+                         @RequestParam Long unitTypeId,
+                         RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        Tenancy.own(unitTypeRepo.findById(unitTypeId), UnitType::getTenantId);
+        String cleanTitle = clean(title, 255);
+        if (cleanTitle == null) {
+            redirect.addFlashAttribute("error", "Укажите название");
+            return "redirect:/settings/widgets";
+        }
+
+        BookingWidget w = widgetCreator.create(tenantId, unitTypeId, cleanTitle);
+
+        redirect.addFlashAttribute("success", "Страница бронирования создана");
+        return "redirect:/settings/widgets/" + w.getId();
+    }
+
+    @GetMapping("/{id}")
+    public String view(@PathVariable Long id, Model model, HttpServletRequest request,
+                       RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = ownWidget(id);
+        String baseUrl = baseUrl(request);
+
+        model.addAttribute("activePage", "widgets");
+        model.addAttribute("w", w);
+        model.addAttribute("unitLabel", unitLabels(tenantId).getOrDefault(w.getUnitTypeId(), ""));
+        model.addAttribute("photosText", String.join("\n", WidgetConfigService.photoLinks(w)));
+        model.addAttribute("checkin", w.getCheckinTime().toString());
+        model.addAttribute("checkout", w.getCheckoutTime().toString());
+        model.addAttribute("directLink", baseUrl + "/b/" + w.getSlug());
+        model.addAttribute("jsCode", embedCode(baseUrl, w));
+        model.addAttribute("iframeCode", iframeCode(baseUrl, w));
+        model.addAttribute("holdHours", Math.max(1, (w.getHoldMinutes() + 59) / 60));
+        model.addAttribute("cleaningFee", w.getCleaningFee().setScale(0, RoundingMode.HALF_UP).toPlainString());
+        model.addAttribute("noCheckinDays", dayOptions(w.getNoCheckinDays()));
+        model.addAttribute("noCheckoutDays", dayOptions(w.getNoCheckoutDays()));
+        model.addAttribute("publicAddress", baseUrl + "/b/");
+        List<PromoRow> promos = new ArrayList<>();
+        for (PromoCode p : promoRepo.findByWidgetIdAndTenantIdOrderByCreatedAtDesc(w.getId(), tenantId)) {
+            promos.add(promoRow(p));
+        }
+        model.addAttribute("promos", promos);
+        List<PhotoRow> photoRows = new ArrayList<>();
+        List<WidgetPhoto> uploaded = photos.list(w.getId());
+        for (int i = 0; i < uploaded.size(); i++) {
+            WidgetPhoto p = uploaded.get(i);
+            photoRows.add(new PhotoRow(p.getId(), photos.previewUrl(p, baseUrl), i == 0 ? "Обложка" : "Фото " + (i + 1),
+                    i > 0, i < uploaded.size() - 1));
+        }
+        model.addAttribute("photoRows", photoRows);
+        model.addAttribute("photosLeft", WidgetPhotoService.MAX_PHOTOS - uploaded.size());
+        model.addAttribute("webpOff", !photoProcessor.webpAvailable());
+        return "pages/settings/widget-edit";
+    }
+
+    /**
+     * Статистика виджета: воронка по шагам, источники, заявки и выручка с прямых броней.
+     * Проценты и ширины полос считаются здесь — шаблон только выводит.
+     */
+    @GetMapping("/{id}/stats")
+    public String stats(@PathVariable Long id, @RequestParam(required = false, defaultValue = "30") int days,
+                        Model model, RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = ownWidget(id);
+        int period = days == 7 || days == 90 ? days : 30;
+        LocalDate to = LocalDate.now();
+        LocalDate from = to.minusDays(period - 1L);
+
+        Map<String, Long> funnel = funnelService.funnel(tenantId, id, from, to);
+        long views = funnel.get("view");
+        List<FunnelRow> steps = new ArrayList<>();
+        long previous = 0;
+        for (String step : WidgetFunnelService.STEPS) {
+            long count = funnel.get(step);
+            boolean first = steps.isEmpty();
+            steps.add(new FunnelRow(STEP_LABELS.get(step), count,
+                    first ? "" : percent(count, previous),
+                    first ? "" : percent(count, views),
+                    "width: " + (views == 0 ? 0 : Math.max(count > 0 ? 2 : 0, Math.round(100.0 * count / views))) + "%"));
+            previous = count;
+        }
+
+        List<SourceStat> sources = new ArrayList<>();
+        for (WidgetFunnelService.SourceRow row : funnelService.sources(tenantId, id, from, to)) {
+            sources.add(new SourceStat(sourceLabel(row.source()), row.views(), row.success(),
+                    percent(row.success(), row.views())));
+        }
+
+        // Заявки и брони — из самих броней, а не из событий: это точные числа
+        List<Booking> bookings = bookingRepo.findWidgetBookingsSince(tenantId, w.getChannelId(), from.atStartOfDay());
+        long requests = bookings.size();
+        long confirmed = 0;
+        BigDecimal revenue = BigDecimal.ZERO;
+        Map<String, BigDecimal> revenueBySource = new java.util.TreeMap<>();
+        for (Booking b : bookings) {
+            if (!WidgetBookingService.STATUS_BOOKED.equals(b.getStatus())) continue;
+            confirmed++;
+            BigDecimal amount = b.getAmount() == null ? BigDecimal.ZERO : b.getAmount();
+            revenue = revenue.add(amount);
+            revenueBySource.merge(b.getUtmSource() == null ? WidgetFunnelService.DIRECT : b.getUtmSource(),
+                    amount, BigDecimal::add);
+        }
+        List<RevenueRow> revenueRows = new ArrayList<>();
+        revenueBySource.forEach((source, amount) -> revenueRows.add(new RevenueRow(sourceLabel(source), rub(amount))));
+
+        Map<LocalDate, Long> byDay = funnelService.viewsByDay(tenantId, id, from, to);
+        long peak = byDay.values().stream().mapToLong(Long::longValue).max().orElse(0);
+        List<DayBar> bars = new ArrayList<>();
+        byDay.forEach((day, count) -> bars.add(new DayBar(day.format(DAY) + ": " + count,
+                "height: " + (peak == 0 ? 0 : Math.max(count > 0 ? 3 : 0, Math.round(100.0 * count / peak))) + "%")));
+
+        model.addAttribute("activePage", "widgets");
+        model.addAttribute("w", w);
+        model.addAttribute("days", period);
+        model.addAttribute("steps", steps);
+        model.addAttribute("hasEvents", views > 0);
+        model.addAttribute("sources", sources);
+        model.addAttribute("requests", requests);
+        model.addAttribute("confirmed", confirmed);
+        model.addAttribute("revenue", rub(revenue));
+        model.addAttribute("revenueRows", revenueRows);
+        model.addAttribute("bars", bars);
+        model.addAttribute("peak", peak);
+        model.addAttribute("periodLabel", from.format(DAY) + " — " + to.format(DAY));
+        return "pages/settings/widget-stats";
+    }
+
+    private static final Map<String, String> STEP_LABELS = Map.of(
+            "view", "Открыли виджет", "dates", "Выбрали даты", "form", "Начали заполнять форму",
+            "submit", "Отправили форму", "success", "Заявка или бронь создана");
+
+    private static String percent(long part, long whole) {
+        if (whole == 0) return "—";
+        double p = 100.0 * part / whole;
+        return (p >= 10 || p == 0 ? String.valueOf(Math.round(p)) : String.format(java.util.Locale.ROOT, "%.1f", p).replace('.', ',')) + " %";
+    }
+
+    private static String sourceLabel(String source) {
+        if (WidgetFunnelService.DIRECT.equals(source)) return "Прямые заходы и мессенджеры";
+        if (WidgetFunnelService.OTHER.equals(source)) return "Прочие";
+        if (WidgetCardService.SOURCE_CARD.equals(source)) return "Карточка для гостей";
+        if (WidgetCardService.SOURCE_MESSAGE.equals(source)) return "Сообщение гостю";
+        return source;
+    }
+
+    private static String rub(BigDecimal amount) {
+        return String.format(new java.util.Locale("ru", "RU"), "%,d", amount.setScale(0, RoundingMode.HALF_UP).longValue())
+                .replace('\u00a0', ' ') + " ₽";
+    }
+
+    public record FunnelRow(String label, long count, String fromPrevious, String fromFirst, String barStyle) {}
+
+    public record SourceStat(String source, long views, long success, String conversion) {}
+
+    public record RevenueRow(String source, String amount) {}
+
+    public record DayBar(String title, String style) {}
+
+    /** Прежний адрес предпросмотра — теперь это конструктор. */
+    @GetMapping("/{id}/preview")
+    public String preview(@PathVariable Long id) {
+        return "redirect:/settings/widgets/" + id + "/design";
+    }
+
+    /**
+     * Конструктор виджета: пресет, своя расстановка блоков, видимость, цвет, шрифт —
+     * с живым превью. Превью — тот же виджет во фрейме ({@link #designFrame}); несохранённые
+     * настройки страница передаёт ему напрямую (optirent-booking.preview).
+     */
+    @GetMapping("/{id}/design")
+    public String design(@PathVariable Long id, Model model, HttpServletRequest request,
+                         RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = ownWidget(id);
+        String baseUrl = baseUrl(request);
+        // Какие блоки есть чем заполнить: пустые конструктор помечает, чтобы хозяин не искал их в превью
+        List<String> empty = new ArrayList<>();
+        if (photos.list(w.getId()).isEmpty() && WidgetConfigService.photoLinks(w).isEmpty()) empty.add("gallery");
+        if (clean(w.getDescription(), 10) == null) empty.add("description");
+        if (WidgetLayout.amenities(w.getAmenities()).isEmpty()) empty.add("amenities");
+        if (clean(w.getRules(), 10) == null && clean(w.getCancellationPolicy(), 10) == null) empty.add("rules");
+        if (w.getContactPhone() == null && w.getContactTelegram() == null && w.getContactWhatsapp() == null) {
+            empty.add("contacts");
+        }
+        if (WidgetLayout.mapUrl(w.getMapUrl()) == null) empty.add("map");
+
+        ObjectNode data = JsonNodeFactory.instance.objectNode();
+        data.set("layout", WidgetLayout.normalize(w.getConfigJson()));
+        data.put("mode", w.getTheme());
+        ObjectNode labels = data.putObject("labels");
+        WidgetLayout.BLOCKS.forEach(b -> labels.put(b, BLOCK_LABELS.get(b)));
+        ArrayNode required = data.putArray("required");
+        WidgetLayout.REQUIRED.forEach(required::add);
+        ArrayNode emptyNode = data.putArray("empty");
+        empty.forEach(emptyNode::add);
+
+        model.addAttribute("activePage", "widgets");
+        model.addAttribute("w", w);
+        model.addAttribute("designData", data.toString());
+        model.addAttribute("pageLink", baseUrl + "/b/" + w.getSlug());
+        model.addAttribute("embedCode", embedCode(baseUrl, w));
+        model.addAttribute("iframeCode", iframeCode(baseUrl, w));
+        model.addAttribute("hasOrigins", !WidgetOrigins.parse(w.getAllowedOrigins()).isEmpty());
+        return "pages/settings/widget-design";
+    }
+
+    /** Код встраивания: скрипт и тег компонента. */
+    static String embedCode(String baseUrl, BookingWidget w) {
+        return "<script async src=\"" + baseUrl + "/w.js\"></script>\n"
+                + "<optirent-booking data-widget=\"" + w.getSlug() + "\"></optirent-booking>";
+    }
+
+    /**
+     * Запасной код для конструкторов сайтов, которые режут сторонние скрипты и теги:
+     * фрейм и короткий скрипт, подгоняющий его высоту по сообщениям от нашей страницы.
+     * Если и этот скрипт вырежут, фрейм останется фиксированной высоты с прокруткой.
+     */
+    static String iframeCode(String baseUrl, BookingWidget w) {
+        String id = "optirent-" + w.getSlug();
+        return "<iframe id=\"" + id + "\" src=\"" + baseUrl + "/b/" + w.getSlug() + "/embed\" title=\"Бронирование\""
+                + " style=\"width:100%;border:0\" height=\"760\" loading=\"lazy\"></iframe>\n"
+                + "<script>addEventListener('message',function(e){if(e.origin==='" + baseUrl + "'&&e.data&&e.data.optirent==='"
+                + w.getSlug() + "')document.getElementById('" + id + "').style.height=e.data.height+'px'})</script>";
+    }
+
+    /** Страница для фрейма превью: только виджет. Открывается лишь с нашего же домена. */
+    @GetMapping("/{id}/frame")
+    public String designFrame(@PathVariable Long id, Model model, jakarta.servlet.http.HttpServletResponse response) {
+        BookingWidget w = ownWidget(id);
+        response.setHeader("X-Frame-Options", "SAMEORIGIN");
+        model.addAttribute("w", w);
+        return "pages/settings/widget-design-frame";
+    }
+
+    @PostMapping("/{id}/design")
+    public String saveDesign(@PathVariable Long id,
+                             @RequestParam String config,
+                             @RequestParam(required = false, defaultValue = "light") String theme,
+                             RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = ownWidget(id);
+        ObjectNode normalized;
+        try {
+            if (config.length() > 20_000) throw new IllegalArgumentException("слишком длинно");
+            // Что бы ни прислала страница, в базу попадает только то, что пропустит normalize
+            normalized = WidgetLayout.normalize(new com.fasterxml.jackson.databind.ObjectMapper().readTree(config));
+        } catch (Exception e) {
+            redirect.addFlashAttribute("error", "Не удалось сохранить оформление. Обновите страницу и попробуйте ещё раз");
+            return "redirect:/settings/widgets/" + id + "/design";
+        }
+        w.setConfigJson(normalized);
+        w.setTheme("dark".equals(theme) || "auto".equals(theme) ? theme : "light");
+        w.setUpdatedAt(LocalDateTime.now());
+        widgetRepo.save(w);
+
+        redirect.addFlashAttribute("success", "Оформление сохранено");
+        String warning = WidgetLayout.accentWarning(normalized.path("theme").path("accent").asText(), w.getTheme());
+        if (warning != null) redirect.addFlashAttribute("error", warning);
+        return "redirect:/settings/widgets/" + id + "/design";
+    }
+
+    @PostMapping("/{id}/update")
+    public String update(@PathVariable Long id,
+                         @RequestParam String title,
+                         @RequestParam Integer minNights,
+                         @RequestParam Integer maxNights,
+                         @RequestParam Integer maxGuests,
+                         @RequestParam Integer bookingWindowDays,
+                         @RequestParam Integer holdHours,
+                         @RequestParam String checkinTime,
+                         @RequestParam String checkoutTime,
+                         @RequestParam(required = false, defaultValue = "light") String theme,
+                         @RequestParam(required = false, defaultValue = "false") boolean showPrice,
+                         @RequestParam(required = false, defaultValue = "false") boolean showPoweredBy,
+                         @RequestParam(required = false) String description,
+                         @RequestParam(required = false) String rules,
+                         @RequestParam(required = false) String cancellationPolicy,
+                         @RequestParam(required = false) String addressHint,
+                         @RequestParam(required = false) String photos,
+                         @RequestParam(required = false) String slug,
+                         @RequestParam(required = false, defaultValue = "REQUEST") String mode,
+                         @RequestParam(required = false) BigDecimal cleaningFee,
+                         @RequestParam(required = false) Integer weeklyDiscountPercent,
+                         @RequestParam(required = false) Integer monthlyDiscountPercent,
+                         @RequestParam(required = false) Integer prepaymentPercent,
+                         @RequestParam(required = false, defaultValue = "false") boolean petsAllowed,
+                         @RequestParam(required = false) List<Integer> noCheckinDays,
+                         @RequestParam(required = false) List<Integer> noCheckoutDays,
+                         @RequestParam(required = false) String allowedOrigins,
+                         @RequestParam(required = false) String contactPhone,
+                         @RequestParam(required = false) String contactTelegram,
+                         @RequestParam(required = false) String contactWhatsapp,
+                         @RequestParam(required = false) String metrikaId,
+                         @RequestParam(required = false) String amenities,
+                         @RequestParam(required = false) String mapUrl,
+                         @RequestParam(required = false, defaultValue = "false") boolean searchIndexed,
+                         RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = ownWidget(id);
+        String cleanTitle = clean(title, 255);
+        LocalTime in;
+        LocalTime out;
+        try {
+            in = LocalTime.parse(checkinTime);
+            out = LocalTime.parse(checkoutTime);
+        } catch (Exception e) {
+            redirect.addFlashAttribute("error", "Время заезда и выезда — в формате ЧЧ:ММ");
+            return "redirect:/settings/widgets/" + id;
+        }
+        if (cleanTitle == null) {
+            redirect.addFlashAttribute("error", "Укажите название");
+            return "redirect:/settings/widgets/" + id;
+        }
+
+        w.setTitle(cleanTitle);
+        w.setMinNights(clamp(minNights, 1, 365));
+        w.setMaxNights(Math.max(w.getMinNights(), clamp(maxNights, 1, 365)));
+        w.setMaxGuests(clamp(maxGuests, 1, 50));
+        w.setBookingWindowDays(clamp(bookingWindowDays, 7, 540));
+        w.setHoldMinutes(clamp(holdHours, 1, 168) * 60);
+        w.setMode(BookingWidget.MODE_INSTANT.equals(mode) ? BookingWidget.MODE_INSTANT : BookingWidget.MODE_REQUEST);
+        w.setCleaningFee(cleaningFee == null || cleaningFee.signum() < 0 ? BigDecimal.ZERO
+                : cleaningFee.min(BigDecimal.valueOf(1_000_000)).setScale(2, RoundingMode.HALF_UP));
+        w.setWeeklyDiscountPercent(clamp(weeklyDiscountPercent, 0, 90));
+        w.setMonthlyDiscountPercent(clamp(monthlyDiscountPercent, 0, 90));
+        w.setPrepaymentPercent(clamp(prepaymentPercent, 0, 100));
+        w.setPetsAllowed(petsAllowed);
+        w.setNoCheckinDays(WidgetCalendar.formatDays(noCheckinDays));
+        w.setNoCheckoutDays(WidgetCalendar.formatDays(noCheckoutDays));
+        w.setAllowedOrigins(WidgetOrigins.normalize(allowedOrigins));
+        w.setContactPhone(clean(contactPhone, 40));
+        w.setContactTelegram(clean(contactTelegram, 80));
+        w.setContactWhatsapp(clean(contactWhatsapp, 40));
+        // Номер счётчика — только цифры; всё остальное в настройки не попадает
+        String metrika = metrikaId == null ? "" : metrikaId.replaceAll("\\D", "");
+        w.setMetrikaId(metrika.isEmpty() || metrika.length() > 12 ? null : metrika);
+        w.setAmenities(clean(String.join("\n", WidgetLayout.amenities(amenities)), 2000));
+        w.setMapUrl(WidgetLayout.mapUrl(mapUrl));
+        String mapError = clean(mapUrl, 500) != null && w.getMapUrl() == null
+                ? "Ссылка на карту не сохранена: подойдёт https-ссылка на Яндекс Карты, 2ГИС или Google Maps" : null;
+
+        w.setCheckinTime(in);
+        w.setCheckoutTime(out);
+        w.setTheme("dark".equals(theme) || "auto".equals(theme) ? theme : "light");
+        w.setShowPrice(showPrice);
+        w.setShowPoweredBy(showPoweredBy);
+        w.setDescription(clean(description, 5000));
+        w.setRules(clean(rules, 5000));
+        w.setCancellationPolicy(clean(cancellationPolicy, 5000));
+        w.setAddressHint(clean(addressHint, 255));
+        w.setPhotosJson(parsePhotos(photos));
+        w.setSearchIndexed(searchIndexed);
+        w.setUpdatedAt(LocalDateTime.now());
+        String oldSlug = w.getSlug();
+
+        // Адрес меняем последним: если он занят или с ошибкой, остальное всё равно сохраняется
+        String slugError = null;
+        String newSlug = slug == null ? "" : slug.trim().toLowerCase(java.util.Locale.ROOT);
+        if (!newSlug.isEmpty() && !newSlug.equals(w.getSlug())) {
+            if (!WidgetSlug.valid(newSlug)) {
+                slugError = "Адрес страницы — от " + WidgetSlug.MIN + " до " + WidgetSlug.MAX
+                        + " символов: латинские буквы, цифры и дефис";
+            } else if (widgetRepo.existsBySlug(newSlug)) {
+                slugError = "Адрес «" + newSlug + "» уже занят";
+            } else {
+                w.setSlug(newSlug);
+            }
+        }
+        widgetRepo.save(w);
+        cors.evict();
+        // Поисковикам: страница изменилась (или снята с индексации — тогда они увидят noindex);
+        // по старому адресу после переименования теперь 404
+        if (oldSlug.equals(w.getSlug())) indexNow.submit("/b/" + w.getSlug());
+        else indexNow.submit("/b/" + oldSlug, "/b/" + w.getSlug());
+
+        // Тему меняют и здесь, а цвет — в конструкторе: проверяем их сочетание
+        String accentWarning = WidgetLayout.accentWarning(
+                WidgetLayout.normalize(w.getConfigJson()).path("theme").path("accent").asText(), w.getTheme());
+        List<String> problems = new ArrayList<>();
+        if (slugError != null) problems.add("Адрес страницы не изменён. " + slugError);
+        if (mapError != null) problems.add(mapError);
+        if (accentWarning != null) problems.add(accentWarning);
+        if (problems.isEmpty()) {
+            redirect.addFlashAttribute("success", "Сохранено");
+        } else {
+            redirect.addFlashAttribute("success", "Сохранено");
+            redirect.addFlashAttribute("error", String.join(". ", problems));
+        }
+        return "redirect:/settings/widgets/" + id;
+    }
+
+    // --- Фотографии
+
+    @PostMapping("/{id}/photos")
+    public String uploadPhotos(@PathVariable Long id,
+                               @RequestParam("files") List<MultipartFile> files,
+                               RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = ownWidget(id);
+
+        int added = 0;
+        List<String> errors = new ArrayList<>();
+        for (MultipartFile file : files) {
+            if (file.isEmpty()) continue;
+            try {
+                photos.add(w, file.getBytes());
+                added++;
+            } catch (PhotoProcessor.PhotoException e) {
+                errors.add(fileLabel(file) + ": " + e.getMessage());
+            } catch (java.io.IOException e) {
+                errors.add(fileLabel(file) + ": не удалось прочитать файл");
+            }
+        }
+        if (added > 0) redirect.addFlashAttribute("success", "Загружено фотографий: " + added);
+        if (!errors.isEmpty()) redirect.addFlashAttribute("error", String.join(". ", errors));
+        if (added == 0 && errors.isEmpty()) redirect.addFlashAttribute("error", "Выберите файлы");
+        return "redirect:/settings/widgets/" + id + "#photos";
+    }
+
+    @PostMapping("/{id}/photos/{photoId}/delete")
+    public String deletePhoto(@PathVariable Long id, @PathVariable Long photoId) {
+        if (!photos.delete(AuthContext.tenantId(), id, photoId)) throw Tenancy.notFound();
+        return "redirect:/settings/widgets/" + id + "#photos";
+    }
+
+    @PostMapping("/{id}/photos/{photoId}/move")
+    public String movePhoto(@PathVariable Long id, @PathVariable Long photoId,
+                            @RequestParam String dir) {
+        Tenancy.found(photos.find(AuthContext.tenantId(), id, photoId));
+        photos.move(AuthContext.tenantId(), id, photoId, "up".equals(dir));
+        return "redirect:/settings/widgets/" + id + "#photos";
+    }
+
+    /** Имя файла в сообщении об ошибке — без путей и не длиннее 40 символов. */
+    private static String fileLabel(MultipartFile file) {
+        String name = file.getOriginalFilename();
+        if (name == null || name.isBlank()) return "Файл";
+        name = name.replaceAll(".*[/\\\\]", "").replaceAll("[\\p{Cntrl}<>\"]", "");
+        return name.length() > 40 ? name.substring(0, 40) + "…" : name;
+    }
+
+    // --- Промокоды
+
+    @PostMapping("/{id}/promo")
+    public String createPromo(@PathVariable Long id,
+                              @RequestParam String code,
+                              @RequestParam String discountType,
+                              @RequestParam BigDecimal discountValue,
+                              @RequestParam(required = false) String validUntil,
+                              @RequestParam(required = false) Integer maxUses,
+                              RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = ownWidget(id);
+
+        String normalized = PromoCode.normalize(code);
+        boolean percent = PromoCode.TYPE_PERCENT.equals(discountType);
+        String error = null;
+        LocalDate until = null;
+        if (normalized == null || normalized.length() > 40 || !normalized.matches("[A-ZА-ЯЁ0-9_-]+")) {
+            error = "Код — буквы, цифры, дефис и подчёркивание, до 40 символов";
+        } else if (discountValue == null || discountValue.signum() <= 0
+                || (percent && discountValue.compareTo(BigDecimal.valueOf(100)) > 0)) {
+            error = percent ? "Скидка — от 1 до 100 %" : "Укажите сумму скидки";
+        } else if (promoRepo.existsByWidgetIdAndCode(w.getId(), normalized)) {
+            error = "Промокод «" + normalized + "» уже есть";
+        } else if (validUntil != null && !validUntil.isBlank()) {
+            try {
+                until = LocalDate.parse(validUntil);
+            } catch (Exception e) {
+                error = "Дата окончания — в формате ГГГГ-ММ-ДД";
+            }
+        }
+        if (error != null) {
+            redirect.addFlashAttribute("error", error);
+            return "redirect:/settings/widgets/" + id;
+        }
+
+        PromoCode p = new PromoCode();
+        p.setTenantId(tenantId);
+        p.setWidgetId(w.getId());
+        p.setCode(normalized);
+        p.setDiscountType(percent ? PromoCode.TYPE_PERCENT : PromoCode.TYPE_AMOUNT);
+        p.setDiscountValue(discountValue.setScale(percent ? 0 : 2, RoundingMode.HALF_UP));
+        p.setValidUntil(until);
+        p.setMaxUses(maxUses == null || maxUses < 1 ? null : maxUses);
+        promoRepo.save(p);
+        redirect.addFlashAttribute("success", "Промокод " + normalized + " создан");
+        return "redirect:/settings/widgets/" + id;
+    }
+
+    /** Выключает или снова включает промокод. Не удаляем: на него ссылаются брони. */
+    @PostMapping("/{id}/promo/{promoId}/toggle")
+    public String togglePromo(@PathVariable Long id, @PathVariable Long promoId,
+                              RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        PromoCode p = Tenancy.found(promoRepo.findByIdAndTenantId(promoId, tenantId)
+                .filter(x -> x.getWidgetId().equals(id)));
+        p.setActive(!Boolean.TRUE.equals(p.getActive()));
+        promoRepo.save(p);
+        redirect.addFlashAttribute("success", Boolean.TRUE.equals(p.getActive())
+                ? "Промокод снова действует" : "Промокод выключен");
+        return "redirect:/settings/widgets/" + id;
+    }
+
+    private static PromoRow promoRow(PromoCode p) {
+        boolean percent = PromoCode.TYPE_PERCENT.equals(p.getDiscountType());
+        String discount = p.getDiscountValue().setScale(0, RoundingMode.HALF_UP).toPlainString()
+                + (percent ? " %" : " ₽");
+        String uses = p.getUsedCount() + (p.getMaxUses() == null ? "" : " из " + p.getMaxUses());
+        boolean active = Boolean.TRUE.equals(p.getActive());
+        boolean expired = p.getValidUntil() != null && LocalDate.now().isAfter(p.getValidUntil());
+        boolean exhausted = p.getMaxUses() != null && p.getUsedCount() >= p.getMaxUses();
+        String status = !active ? "Выключен" : expired ? "Срок истёк" : exhausted ? "Исчерпан" : "Действует";
+        return new PromoRow(p.getId(), p.getCode(), discount,
+                p.getValidUntil() == null ? "бессрочно" : "до " + p.getValidUntil().format(DAY),
+                uses, status,
+                active && !expired && !exhausted ? "tag tag--green" : "tag tag--muted",
+                active ? "Выключить" : "Включить");
+    }
+
+    private static List<DayOption> dayOptions(String stored) {
+        Set<DayOfWeek> chosen = WidgetCalendar.parseDays(stored);
+        List<DayOption> options = new ArrayList<>();
+        for (int n = 1; n <= 7; n++) {
+            options.add(new DayOption(n, WEEKDAYS[n - 1], chosen.contains(DayOfWeek.of(n))));
+        }
+        return options;
+    }
+
+    @PostMapping("/{id}/regenerate")
+    public String regenerate(@PathVariable Long id, RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = ownWidget(id);
+        w.setSecret(generateSecret());
+        w.setUpdatedAt(LocalDateTime.now());
+        widgetRepo.save(w);
+        cors.evict();
+        redirect.addFlashAttribute("success", "Ссылка перевыпущена. Старые ссылки и код на сайте больше не работают.");
+        return "redirect:/settings/widgets/" + id;
+    }
+
+    /** Мягкое удаление: страница перестаёт открываться, заявки и брони остаются. */
+    @PostMapping("/{id}/delete")
+    @Transactional
+    public String delete(@PathVariable Long id, RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        BookingWidget w = ownWidget(id);
+        w.setActive(false);
+        w.setUpdatedAt(LocalDateTime.now());
+        widgetRepo.save(w);
+        indexNow.submit("/b/" + w.getSlug());
+        redirect.addFlashAttribute("success", "Страница бронирования удалена");
+        return "redirect:/settings/widgets";
+    }
+
+    /** Действующая страница бронирования своего тенанта; чужая, удалённая или несуществующая — 404. */
+    private BookingWidget ownWidget(Long id) {
+        return Tenancy.found(widgetRepo.findByIdAndTenantIdAndActiveTrue(id, AuthContext.tenantId()));
+    }
+
+    private Map<Long, String> unitLabels(Long tenantId) {
+        Map<Long, String> propertyNames = new HashMap<>();
+        for (Property p : propertyRepo.findByTenantIdAndActiveTrue(tenantId)) {
+            propertyNames.put(p.getId(), p.getName());
+        }
+        return ru.rentoptima.service.UnitVocabulary.labels(propertyNames,
+                unitTypeRepo.findByTenantIdAndActiveTrue(tenantId));
+    }
+
+    /** Только https-ссылки, по одной в строке: http-картинку браузер на https-странице не покажет. */
+    static ArrayNode parsePhotos(String text) {
+        ArrayNode array = JsonNodeFactory.instance.arrayNode();
+        if (text == null) return array;
+        for (String line : text.split("\\R")) {
+            String url = line.trim();
+            if (url.isEmpty() || url.length() > 1000) continue;
+            if (!url.startsWith("https://") || url.matches(".*[\\s\"'<>].*")) continue;
+            array.add(url);
+            if (array.size() >= MAX_PHOTOS) break;
+        }
+        return array;
+    }
+
+    private String baseUrl(HttpServletRequest request) {
+        return site.linkBase(request);
+    }
+
+    private static String clean(String s, int max) {
+        if (s == null) return null;
+        String t = s.trim();
+        if (t.isEmpty()) return null;
+        return t.length() > max ? t.substring(0, max) : t;
+    }
+
+    private static int clamp(Integer value, int min, int max) {
+        if (value == null) return min;
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static String generateSecret() {
+        return WidgetCreator.generateSecret();
+    }
+
+    public record WidgetRow(Long id, String title, String unitLabel, String link, String inputId) {}
+
+    public record UnitOption(Long id, String label) {}
+
+    public record PhotoRow(Long id, String url, String label, boolean canUp, boolean canDown) {}
+
+    public record DayOption(int value, String label, boolean checked) {}
+
+    public record PromoRow(Long id, String code, String discount, String validity, String uses,
+                           String status, String statusCss, String toggleLabel) {}
+}

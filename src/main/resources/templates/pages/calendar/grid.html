@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Шахматка</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header grid-header">
+        <div>
+            <h1 class="page-title">Шахматка</h1>
+            <p class="page-subtitle">
+                <span th:text="${rangeLabel}">1 октября — 30 октября 2026</span>
+                <button type="button" id="grid-conflicts" class="tag tag--red grid-conflicts"
+                        th:if="${grid.conflictCount > 0}"
+                        title="Перейти к первому конфликту"
+                        th:text="'Конфликты: ' + ${grid.conflictCount} + ' дн.'">Конфликты: 2 дн.</button>
+            </p>
+        </div>
+
+        <div class="grid-controls">
+            <a class="btn btn-ghost"
+               th:href="@{/calendar/grid(from=${prevStart}, days=${span})}"
+               title="Предыдущий период">←</a>
+            <a class="btn btn-ghost"
+               th:href="@{/calendar/grid(days=${span})}"
+               title="К сегодняшнему дню">Сегодня</a>
+            <a class="btn btn-ghost"
+               th:href="@{/calendar/grid(from=${nextStart}, days=${span})}"
+               title="Следующий период">→</a>
+
+            <form method="get" th:action="@{/calendar/grid}" class="grid-controls__form">
+                <input type="hidden" name="from" th:value="${fromParam}">
+                <select name="days" onchange="this.form.submit()" aria-label="Сколько дней показывать"
+                        class="form-input form-input--sm grid-controls__span">
+                    <option th:each="o : ${spanOptions}" th:value="${o.days}"
+                            th:selected="${o.selected}" th:text="${o.label}">30 дней</option>
+                </select>
+            </form>
+
+            <div class="grid-jump" id="grid-jump"
+                 th:data-base-url="@{/calendar/grid}"
+                 th:data-start="${startIso}" th:data-end="${endIso}" th:data-span="${span}"
+                 th:data-focus-today="${focusToday}">
+                <button type="button" class="btn btn-ghost" id="grid-jump-toggle"
+                        title="Перейти к месяцу или задать свой период">Месяц ▾</button>
+                <div class="grid-jump__panel">
+                    <div class="grid-jump__year">
+                        <button type="button" id="grid-jump-prev" title="Предыдущий год">‹</button>
+                        <span id="grid-jump-year">2026</span>
+                        <button type="button" id="grid-jump-next" title="Следующий год">›</button>
+                    </div>
+                    <div class="grid-jump__months" id="grid-jump-months"></div>
+
+                    <form method="get" th:action="@{/calendar/grid}" class="grid-jump__range">
+                        <div class="form-group">
+                            <label class="form-label">С даты</label>
+                            <input type="date" name="from" th:value="${startIso}" required
+                                   class="form-input form-input--sm">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">По дату</label>
+                            <input type="date" name="to" th:value="${endIso}" required
+                                   class="form-input form-input--sm">
+                        </div>
+                        <button type="submit" class="btn btn-ghost">Показать период</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <section th:replace="~{fragments/onboarding :: steps}"></section>
+
+    <div th:replace="~{fragments/occupancy-grid :: empty(${grid})}"></div>
+
+    <th:block th:with="prevUrl=@{/calendar/grid(from=${prevStart}, days=${span})},
+                       nextUrl=@{/calendar/grid(from=${nextStart}, days=${span})}">
+        <div th:replace="~{fragments/occupancy-grid :: shell(${grid}, ${prevUrl}, ${nextUrl})}"></div>
+    </th:block>
+
+    <div th:replace="~{fragments/occupancy-grid :: legend(${grid})}"></div>
+
+    <dialog th:replace="~{fragments/occupancy-grid :: dialog(${fromParam}, ${span}, '')}"></dialog>
+
+</div>
+
+<th:block layout:fragment="scripts">
+    <script th:src="@{/js/grid.js}"></script>
+</th:block>
+</body>
+</html>

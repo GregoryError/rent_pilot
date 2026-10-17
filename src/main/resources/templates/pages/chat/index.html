@@ -175,7 +175,7 @@
             <div class="chat-hint" onclick="sendHint(this)">Как увеличить среднюю длительность проживания?</div>
             <div class="chat-hint" onclick="sendHint(this)">Проанализируй текущий месяц</div>
             <div class="chat-hint" onclick="sendHint(this)">Подними цены на выходные октября на 10%</div>
-            <div class="chat-hint" onclick="sendHint(this)">Что добавить в квартиру для повышения дохода?</div>
+            <div class="chat-hint" onclick="sendHint(this)" th:text="${housing.fill('Что добавить в %acc% для повышения дохода?')}">Что добавить для повышения дохода?</div>
         </div>
 
         <div class="chat-messages" id="messages"></div>

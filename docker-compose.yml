@@ -1,17 +1,41 @@
+# Одна установка — разные роли через .env. Без переменных всё как на staging до переезда:
+# те же контейнеры, тома, порт и адрес. Prod на optirent.ru — APP_ENVIRONMENT=prod и
+# APP_BASE_URL=https://optirent.ru (см. patches/INTEGRATION_PROD_SWITCH.md).
 services:
   app:
     build: .
+    container_name: ${APP_CONTAINER_NAME:-rentoptima-staging-app}
     ports:
-      - "127.0.0.1:${APP_PORT:-8080}:8080"
+      - "127.0.0.1:${STAGING_APP_PORT:-8081}:8080"
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - SERVER_FORWARD_HEADERS_STRATEGY=native
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/rentoptima
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/rentoptima_staging
       - SPRING_DATASOURCE_USERNAME=rentoptima
       - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
-      - SERVER_FORWARD_HEADERS_STRATEGY=native
       - TZ=Europe/Moscow
       - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - APP_ENVIRONMENT=${APP_ENVIRONMENT:-staging}
+      # Единственный источник адреса сайта в ссылках, письмах, QR, canonical и sitemap
+      - APP_BASE_URL=${APP_BASE_URL:-https://staging.optirent.ru}
+      - YANDEX_VERIFICATION=${YANDEX_VERIFICATION:-}
+      - GOOGLE_VERIFICATION=${GOOGLE_VERIFICATION:-}
+      - INDEXNOW_KEY=${INDEXNOW_KEY:-}
+      - METRIKA_ID=${METRIKA_ID:-}
+      - APP_ICAL_EXPORT_CANCELLED=${APP_ICAL_EXPORT_CANCELLED:-true}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_SECURITY=${SMTP_SECURITY:-}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - MAIL_FROM=${MAIL_FROM:-}
+      - MAIL_REPLY_TO=${MAIL_REPLY_TO:-}
+      - MAIL_SKIP_UNSUBSCRIBE=${MAIL_SKIP_UNSUBSCRIBE:-0}
+      - APP_UPLOADS_DIR=/data/uploads
+      - JAVA_TOOL_OPTIONS=-Xmx512m -XX:MaxRAMPercentage=60
+    volumes:
+      # Загруженные фото страниц бронирования. Бэкапить вместе с дампом БД.
+      - staging-uploads:/data/uploads
     depends_on:
       db:
         condition: service_healthy
@@ -19,10 +43,11 @@ services:
 
   db:
     image: postgres:16-alpine
+    container_name: ${DB_CONTAINER_NAME:-rentoptima-staging-db}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - staging-pgdata:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=rentoptima
+      - POSTGRES_DB=rentoptima_staging
       - POSTGRES_USER=rentoptima
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - TZ=Europe/Moscow
@@ -34,6 +59,11 @@ services:
       retries: 5
     restart: unless-stopped
 
+# Имена томов — это данные. Менять их только вместе с переносом содержимого:
+# новое имя = пустая база и пустой каталог фото.
 volumes:
-  pgdata:
-
+  staging-uploads:
+    name: ${UPLOADS_VOLUME:-rentoptima-staging_uploads}
+  staging-pgdata:
+    external: true
+    name: ${PGDATA_VOLUME:-rentoptima-staging_pgdata-staging}

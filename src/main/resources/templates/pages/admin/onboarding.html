@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Воронка онбординга</title>
+    <style>
+        .of-bar { height: 6px; margin-top: 4px; border-radius: 3px; background: var(--bg-raised); }
+        .of-bar i { display: block; height: 100%; min-width: 2px; border-radius: 3px; background: var(--accent); }
+    </style>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header flex justify-between items-center">
+        <div>
+            <h1 class="page-title">Воронка онбординга</h1>
+            <p class="page-subtitle">Сколько новых пользователей дошли до каждого шага. Только счётчики по дням — без данных отдельных пользователей</p>
+        </div>
+        <div style="display: flex; gap: var(--sp-2); flex-wrap: wrap;">
+            <a th:each="p : ${periods}" th:href="@{/admin/onboarding(days=${p.days})}" th:class="${p.cssClass}"
+               th:text="${p.label}">30 дней</a>
+        </div>
+    </div>
+
+    <div class="card" th:if="${started == 0}">
+        <div class="card__title">За этот период мастер никто не открывал</div>
+        <p class="muted" style="margin: var(--sp-3) 0 0 0;">
+            Счётчики появятся после первой регистрации. Доля в таблицах считается от числа открывших мастер.
+        </p>
+    </div>
+
+    <div class="card" th:each="g : ${groups}">
+        <div class="card__header">
+            <div class="card__title" th:text="${g.title}">Мастер</div>
+            <div class="text-sm muted">доля — от открывших мастер за период</div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Событие</th><th>Раз</th><th>Доля</th></tr></thead>
+                <tbody>
+                <tr th:each="r : ${g.rows}">
+                    <td style="min-width: 220px;">
+                        <span th:text="${r.label}">Мастер открыт</span>
+                        <div class="of-bar"><i th:style="${r.barStyle}"></i></div>
+                    </td>
+                    <td th:text="${r.count}">12</td>
+                    <td th:text="${r.share}">100 %</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card" th:unless="${#lists.isEmpty(dayRows)}">
+        <div class="card__header">
+            <div class="card__title">По дням</div>
+        </div>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>День</th><th th:each="h : ${dailyHeaders}" th:text="${h}">Открыли мастер</th></tr></thead>
+                <tbody>
+                <tr th:each="d : ${dayRows}">
+                    <td th:text="${d.day}" style="white-space: nowrap;">14.10</td>
+                    <td th:each="c : ${d.counts}" th:text="${c}">3</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <p class="form-hint">
+        Числа — события, а не люди: пользователь, сбросивший знакомство и прошедший его снова, даёт события дважды.
+        Пункты чек-листа считаются один раз на пользователя.
+    </p>
+
+</div>
+</body>
+</html>

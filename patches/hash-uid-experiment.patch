@@ -1,0 +1,591 @@
+diff --git a/CLAUDE.md b/CLAUDE.md
+index e033fac..c6c6131 100644
+--- a/CLAUDE.md
++++ b/CLAUDE.md
+@@ -153,6 +153,19 @@ AI-режим — только рекомендации. `PricingEngine.runForPr
+ 
+ Подписи и пояснения полей на /settings задаются в `SettingsController.FIELDS`, а не берутся из `system_settings.description` (у настроек, созданных при регистрации, описание пустое). Новый ключ настройки на странице — новая запись в `FIELDS`, иначе шаблон упадёт на `fields[setting.key]`.
+ 
++### Формат UID ручных записей в iCal-экспорте
++
++Площадки по-разному обращаются с UID событий, поэтому формат UID ручной записи — настройка канала-получателя:
++
++- **Обычный** (по умолчанию): `optirent-manual-<id>@optirent.ru`.
++- **Хэш**: MD5 от `optirent-manual-<id>-<from>-<to>`, 32 hex-символа (`CalendarBlock.manualHashUid()`). Даты входят в ключ: при смене дат площадка видит новое событие. Включается кнопкой «UID ручных записей» на карточке канала в /settings/channels; хранится в `channels.config_json` как `"manual_uid_format": "HASH"` (`Channel.usesHashManualUid()`), миграции нет.
++
++Отдельного кода площадки у канала нет (поля `channels.code` не существует, все площадки — `ChannelType.ICAL`), поэтому формат привязан к каналу, а не к названию площадки. Выбор делается в `ICalFeedController` → `AvailabilityService.exportEvents(..., hashManualUid)`; удалённая запись уходит с тем же UID и `STATUS:CANCELLED`.
++
++Импорт (`ICalChannelAdapter.reconcile`) отсекает собственное эхо в обоих форматах на любом канале: по префиксу `optirent-manual-` и по совпадению UID с хэшем нашей ручной записи в окне синхронизации (включая удалённые).
++
++Хэш введён для RC (realtycalendar.ru): на staging он забрал фид, но не закрыл даты ручной записи с UID `optirent-manual-271@optirent.ru`. Причина **не подтверждена**: раньше RC импортировал запись с UID `block-265@optirent.ru` — тоже «имя@домен». Другое возможное объяснение — появившееся в фиде событие со `STATUS:CANCELLED`. Результат проверки записать сюда.
++
+ ### Локальная разработка не настроена, работаем через staging
+ 
+ У Григория локально нет docker и БД. Поведение приложения проверяется через автодеплой на staging.optirent.ru. Поэтому:
+diff --git a/src/main/java/ru/rentoptima/channel/ical/ICalChannelAdapter.java b/src/main/java/ru/rentoptima/channel/ical/ICalChannelAdapter.java
+index 78ebbb5..e5e4913 100644
+--- a/src/main/java/ru/rentoptima/channel/ical/ICalChannelAdapter.java
++++ b/src/main/java/ru/rentoptima/channel/ical/ICalChannelAdapter.java
+@@ -54,6 +54,8 @@ import java.util.Set;
+  * себя. Эхо узнаём двумя способами:
+  * <ul>
+  *   <li>по UID-маркеру {@code optirent-manual-<id>} — площадка сохранила наш UID;</li>
++ *   <li>по UID-хэшу ({@link CalendarBlock#manualHashUid()}) — то же для каналов, которым
++ *       ручные записи отдаются с хэшем вместо маркера;</li>
+  *   <li>по датам — площадка выдала свой UID: событие новое для нас, а его даты
+  *       совпадают с живой ручной записью, заведённой не раньше
+  *       {@link #ECHO_MATCH_WINDOW_DAYS} дней назад. Только для категорий с одной
+@@ -129,6 +131,13 @@ public class ICalChannelAdapter implements ChannelAdapter {
+         for (ManualBlockEcho e : echoRepo.findByChannelId(channel.getId())) {
+             echoes.put(e.getExternalUid(), e);
+         }
++        // UID-хэши наших ручных записей в окне, включая удалённые: те ещё уходят в фид
++        // со STATUS:CANCELLED, и площадка, не читающая STATUS, вернула бы их занятостью.
++        Map<String, CalendarBlock> manualByHashUid = new HashMap<>();
++        for (CalendarBlock m : blockRepo.findHandMadeInRange(ctx.unitTypeId(), from, to)) {
++            if (m.isHandMade() && m.getId() != null) manualByHashUid.put(m.manualHashUid(), m);
++        }
++
+         Integer unitCount = ctx.unitType() == null ? null : ctx.unitType().getUnitCount();
+         boolean singleUnit = unitCount == null || unitCount <= 1;
+         List<CalendarBlock> recentManual = singleUnit
+@@ -148,7 +157,7 @@ public class ICalChannelAdapter implements ChannelAdapter {
+                 continue;
+             }
+ 
+-            // Эхо с нашим UID в seenUids не попадает: если по нему раньше успела
++            // Эхо с нашим UID (маркер или хэш) в seenUids не попадает: если по нему раньше успела
+             // создаться блокировка, сверка ниже её снимет.
+             if (ev.uid().startsWith(CalendarBlock.MANUAL_UID_PREFIX)) {
+                 if (!echoes.containsKey(ev.uid())) linkOwnUid(ctx, ev, echoes);
+@@ -157,6 +166,16 @@ public class ICalChannelAdapter implements ChannelAdapter {
+                 skipped++;
+                 continue;
+             }
++            CalendarBlock ownByHash = manualByHashUid.get(ev.uid());
++            if (ownByHash != null) {
++                if (!echoes.containsKey(ev.uid())) {
++                    echoes.put(ev.uid(), saveEcho(ctx, ownByHash, ev.uid()));
++                }
++                log.info("Skipped echo of own MANUAL via MD5-UID: uid={}, manual_id={}, channel={}",
++                        ev.uid(), ownByHash.getId(), channel.getId());
++                skipped++;
++                continue;
++            }
+             seenUids.add(ev.uid());
+ 
+             Optional<CalendarBlock> existing =
+diff --git a/src/main/java/ru/rentoptima/controller/ChannelController.java b/src/main/java/ru/rentoptima/controller/ChannelController.java
+index edb0b81..e3c99e6 100644
+--- a/src/main/java/ru/rentoptima/controller/ChannelController.java
++++ b/src/main/java/ru/rentoptima/controller/ChannelController.java
+@@ -162,6 +162,39 @@ public class ChannelController {
+         return "redirect:/settings/channels";
+     }
+ 
++    /**
++     * Формат UID ручных записей в экспорте канала: обычный
++     * ({@code optirent-manual-<id>@optirent.ru}) или хэш — для площадок, которые
++     * события с UID вида «имя@домен» не импортируют.
++     */
++    @PostMapping("/{id}/manual-uid-format")
++    @Transactional
++    public String manualUidFormat(@PathVariable Long id, RedirectAttributes redirect) {
++        Long tenantId = AuthContext.tenantId();
++        Channel channel = channelRepo.findById(id).orElse(null);
++        if (channel == null || !tenantId.equals(channel.getTenantId())) {
++            redirect.addFlashAttribute("error", "Канал не найден");
++            return "redirect:/settings/channels";
++        }
++        boolean hash = !channel.usesHashManualUid();
++        // Новый узел, а не правка на месте: иначе Hibernate не заметит изменение jsonb
++        ObjectNode config = channel.getConfigJson() instanceof ObjectNode existing
++                ? existing.deepCopy() : objectMapper.createObjectNode();
++        if (hash) {
++            config.put(Channel.CONFIG_MANUAL_UID_FORMAT, Channel.MANUAL_UID_FORMAT_HASH);
++        } else {
++            config.remove(Channel.CONFIG_MANUAL_UID_FORMAT);
++        }
++        channel.setConfigJson(config);
++        channel.setUpdatedAt(LocalDateTime.now());
++        channelRepo.save(channel);
++        log.info("Channel {}: manual UID format -> {}", id, hash ? "HASH" : "default");
++        redirect.addFlashAttribute("success", hash
++                ? "Ручные записи будут уходить каналу «" + channel.getName() + "» с UID-хэшем"
++                : "Каналу «" + channel.getName() + "» возвращён обычный формат UID");
++        return "redirect:/settings/channels";
++    }
++
+     @PostMapping("/{id}/color")
+     public String color(@PathVariable Long id, @RequestParam String color, RedirectAttributes redirect) {
+         Long tenantId = AuthContext.tenantId();
+@@ -277,7 +310,10 @@ public class ChannelController {
+                 c.getLastSyncImported(),
+                 c.getLastSyncRemoved(),
+                 Boolean.TRUE.equals(c.getSyncEnabled()),
+-                canSyncNow
++                canSyncNow,
++                c.usesHashManualUid(),
++                c.usesHashManualUid() ? "UID ручных записей: хэш — вернуть обычный"
++                        : "UID ручных записей: обычный — переключить на хэш"
+         );
+     }
+ 
+@@ -346,6 +382,8 @@ public class ChannelController {
+             Integer lastSyncImported,
+             Integer lastSyncRemoved,
+             boolean syncEnabled,
+-            boolean canSyncNow
++            boolean canSyncNow,
++            boolean hashManualUid,
++            String manualUidFormatLabel
+     ) {}
+ }
+diff --git a/src/main/java/ru/rentoptima/controller/ICalFeedController.java b/src/main/java/ru/rentoptima/controller/ICalFeedController.java
+index 11782af..3370573 100644
+--- a/src/main/java/ru/rentoptima/controller/ICalFeedController.java
++++ b/src/main/java/ru/rentoptima/controller/ICalFeedController.java
+@@ -76,7 +76,8 @@ public class ICalFeedController {
+         // занятость, иначе бронь «залипнет» навсегда — площадка увидит её в нашем
+         // фиде, мы увидим её в ответном, и снять такую блокировку станет нечем.
+         List<ICalWriter.BusyPeriod> periods =
+-                availability.exportEvents(unitType, from, to, channel.getId());
++                availability.exportEvents(unitType, from, to, channel.getId(),
++                        channel.usesHashManualUid());
+ 
+         String calendarName = (property != null ? property.getName() : "RentOptima")
+                 + " — " + unitType.getName();
+diff --git a/src/main/java/ru/rentoptima/entity/CalendarBlock.java b/src/main/java/ru/rentoptima/entity/CalendarBlock.java
+index c7ded17..515ccd5 100644
+--- a/src/main/java/ru/rentoptima/entity/CalendarBlock.java
++++ b/src/main/java/ru/rentoptima/entity/CalendarBlock.java
+@@ -117,6 +117,30 @@ public class CalendarBlock {
+         CHANNEL_SYNC      // Импортировано из iCal внешнего канала
+     }
+ 
++    /** Домен собственных UID в iCal-экспорте. */
++    public static final String UID_DOMAIN = "optirent.ru";
++
++    /** UID ручной записи в обычном формате: {@code optirent-manual-<id>@optirent.ru}. */
++    public String manualUid() {
++        return MANUAL_UID_PREFIX + id + "@" + UID_DOMAIN;
++    }
++
++    /**
++     * UID ручной записи в формате хэша — для площадок, которые не принимают UID вида
++     * «имя@домен»: MD5 от {@code optirent-manual-<id>-<from>-<to>}, 32 hex-символа.
++     * Даты входят в ключ: если у записи изменятся даты, площадка увидит новое событие.
++     */
++    public String manualHashUid() {
++        String seed = MANUAL_UID_PREFIX + id + "-" + fromDate + "-" + toDate;
++        try {
++            byte[] digest = java.security.MessageDigest.getInstance("MD5")
++                    .digest(seed.getBytes(java.nio.charset.StandardCharsets.UTF_8));
++            return java.util.HexFormat.of().formatHex(digest);
++        } catch (java.security.NoSuchAlgorithmException e) {
++            throw new IllegalStateException(e); // MD5 есть в любой JRE
++        }
++    }
++
+     /** Запись завёл человек в UI: нет ни канала-источника, ни внешнего UID. */
+     public boolean isHandMade() {
+         return channelId == null && (externalUid == null || externalUid.isBlank());
+diff --git a/src/main/java/ru/rentoptima/entity/Channel.java b/src/main/java/ru/rentoptima/entity/Channel.java
+index e63a637..503aacc 100644
+--- a/src/main/java/ru/rentoptima/entity/Channel.java
++++ b/src/main/java/ru/rentoptima/entity/Channel.java
+@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
+  * <p>
+  * config_json содержит специфичные для канала параметры:
+  * - AVITO: { "item_id": "...", "oauth_client_id": "..." }
+- * - ICAL: { "import_url": "https://..." }
++ * - ICAL: { "import_url": "https://...", "manual_uid_format": "HASH" (необязательно) }
+  * - MANUAL: {}
+  * <p>
+  * export_secret — публичный секретный токен для отдачи iCal-фида этого канала
+@@ -92,6 +92,20 @@ public class Channel {
+     @Column(name = "updated_at", nullable = false)
+     private LocalDateTime updatedAt = LocalDateTime.now();
+ 
++    /** Ключ config_json: формат UID ручных записей в экспорте этого канала. */
++    public static final String CONFIG_MANUAL_UID_FORMAT = "manual_uid_format";
++    public static final String MANUAL_UID_FORMAT_HASH = "HASH";
++
++    /**
++     * Ручные записи уходят этому каналу с UID-хэшем ({@link CalendarBlock#manualHashUid()})
++     * вместо {@code optirent-manual-<id>@optirent.ru}. Включается на странице каналов
++     * для площадок, которые события с UID вида «имя@домен» не импортируют.
++     */
++    public boolean usesHashManualUid() {
++        return configJson != null && MANUAL_UID_FORMAT_HASH.equals(
++                configJson.path(CONFIG_MANUAL_UID_FORMAT).asText(null));
++    }
++
+     public enum ChannelType {
+         AVITO,
+         ICAL,
+diff --git a/src/main/java/ru/rentoptima/repository/CalendarBlockRepository.java b/src/main/java/ru/rentoptima/repository/CalendarBlockRepository.java
+index 3d26afc..778537f 100644
+--- a/src/main/java/ru/rentoptima/repository/CalendarBlockRepository.java
++++ b/src/main/java/ru/rentoptima/repository/CalendarBlockRepository.java
+@@ -68,6 +68,21 @@ public interface CalendarBlockRepository extends JpaRepository<CalendarBlock, Lo
+     /** Блокировки каналов, помеченные тенью этой ручной записи. */
+     List<CalendarBlock> findByShadowOfManualId(Long manualBlockId);
+ 
++    /**
++     * Ручные записи категории, пересекающиеся с окном [from, to), включая удалённые
++     * (cancelledAt): по их UID-хэшам импорт узнаёт собственное эхо.
++     */
++    @Query("""
++        SELECT b FROM CalendarBlock b
++        WHERE b.unitTypeId = :unitTypeId
++          AND b.channelId IS NULL
++          AND b.fromDate < :to
++          AND b.toDate > :from
++    """)
++    List<CalendarBlock> findHandMadeInRange(@Param("unitTypeId") Long unitTypeId,
++                                             @Param("from") LocalDate from,
++                                             @Param("to") LocalDate to);
++
+     /** Удалённые ручные записи, срок хранения которых истёк, кросс-тенант. Для очистки. */
+     List<CalendarBlock> findByCancelledAtBefore(java.time.LocalDateTime moment);
+ 
+diff --git a/src/main/java/ru/rentoptima/service/AvailabilityService.java b/src/main/java/ru/rentoptima/service/AvailabilityService.java
+index 870b638..4d27f91 100644
+--- a/src/main/java/ru/rentoptima/service/AvailabilityService.java
++++ b/src/main/java/ru/rentoptima/service/AvailabilityService.java
+@@ -102,7 +102,7 @@ public class AvailabilityService {
+     }
+ 
+     /** Домен собственных UID в iCal-экспорте. */
+-    static final String UID_DOMAIN = "optirent.ru";
++    static final String UID_DOMAIN = CalendarBlock.UID_DOMAIN;
+ 
+     /**
+      * События для iCal-экспорта категории.
+@@ -122,6 +122,20 @@ public class AvailabilityService {
+                                                      LocalDate from,
+                                                      LocalDate to,
+                                                      Long excludeChannelId) {
++        return exportEvents(unitType, from, to, excludeChannelId, false);
++    }
++
++    /**
++     * @param hashManualUid ручные записи отдаются с UID-хэшем, а не
++     *                      {@code optirent-manual-<id>@optirent.ru} — настройка канала-получателя
++     *                      ({@link ru.rentoptima.entity.Channel#usesHashManualUid()})
++     */
++    @Transactional(readOnly = true)
++    public List<ICalWriter.BusyPeriod> exportEvents(UnitType unitType,
++                                                     LocalDate from,
++                                                     LocalDate to,
++                                                     Long excludeChannelId,
++                                                     boolean hashManualUid) {
+         int capacity = unitType.getUnitCount() == null ? 1 : Math.max(1, unitType.getUnitCount());
+         if (capacity > 1) {
+             return busyPeriods(unitType, from, to, excludeChannelId).stream()
+@@ -134,7 +148,7 @@ public class AvailabilityService {
+                 bookingRepo.findActiveByUnitTypesInRange(ids, from, to),
+                 blockRepo.findByUnitTypesInRange(ids, from, to),
+                 exportCancelled ? blockRepo.findCancelledByUnitTypesInRange(ids, from, to) : List.of(),
+-                excludeChannelId);
++                excludeChannelId, hashManualUid);
+     }
+ 
+     /**
+@@ -145,8 +159,9 @@ public class AvailabilityService {
+      *       записью ({@link #withoutActiveShadows});</li>
+      *   <li>ручная бронь хранится парой «блокировка + бронь» с одинаковыми датами —
+      *       в фид идёт только блокировка;</li>
+-     *   <li>UID ручной записи — {@code optirent-manual-<id>@optirent.ru}: по этому
+-     *       маркеру импорт узнаёт собственное эхо, вернувшееся от площадки
++     *   <li>UID ручной записи — {@code optirent-manual-<id>@optirent.ru}, а для канала
++     *       с {@code hashManualUid} — MD5-хэш ({@link CalendarBlock#manualHashUid()}): по
++     *       обоим импорт узнаёт собственное эхо, вернувшееся от площадки
+      *       (см. ICalChannelAdapter);</li>
+      *   <li>UID блокировки с канала — её {@code external_uid}; UID брони —
+      *       {@code booking-<id>@optirent.ru}. Если внешний UID в фиде уже встречался
+@@ -167,6 +182,14 @@ public class AvailabilityService {
+                                                           List<CalendarBlock> blocks,
+                                                           List<CalendarBlock> cancelledBlocks,
+                                                           Long excludeChannelId) {
++        return buildExportEvents(bookings, blocks, cancelledBlocks, excludeChannelId, false);
++    }
++
++    static List<ICalWriter.BusyPeriod> buildExportEvents(List<Booking> bookings,
++                                                          List<CalendarBlock> blocks,
++                                                          List<CalendarBlock> cancelledBlocks,
++                                                          Long excludeChannelId,
++                                                          boolean hashManualUid) {
+         List<ICalWriter.BusyPeriod> events = new ArrayList<>();
+         Set<String> usedUids = new HashSet<>();
+         Map<ManualKey, Integer> manualBlocks = new HashMap<>();
+@@ -178,7 +201,8 @@ public class AvailabilityService {
+                 manualBlocks.merge(new ManualKey(b.getUnitTypeId(), b.getFromDate(), b.getToDate()),
+                         1, Integer::sum);
+             }
+-            String own = b.isHandMade() ? manualUid(b) : "block-" + b.getId() + "@" + UID_DOMAIN;
++            String own = b.isHandMade() ? manualUid(b, hashManualUid, excludeChannelId)
++                    : "block-" + b.getId() + "@" + UID_DOMAIN;
+             String external = b.getExternalUid();
+             String uid = external != null && !external.isBlank() && !usedUids.contains(external)
+                     ? external : own;
+@@ -203,8 +227,8 @@ public class AvailabilityService {
+ 
+         for (CalendarBlock b : cancelledBlocks) {
+             if (b.getFromDate() == null || b.getToDate() == null || !b.isHandMade()) continue;
+-            events.add(new ICalWriter.BusyPeriod(manualUid(b), b.getFromDate(), b.getToDate(),
+-                    "Отменено", true));
++            events.add(new ICalWriter.BusyPeriod(manualUid(b, hashManualUid, excludeChannelId),
++                    b.getFromDate(), b.getToDate(), "Отменено", true));
+         }
+ 
+         events.sort(Comparator.comparing(ICalWriter.BusyPeriod::from)
+@@ -212,8 +236,11 @@ public class AvailabilityService {
+         return events;
+     }
+ 
+-    private static String manualUid(CalendarBlock b) {
+-        return CalendarBlock.MANUAL_UID_PREFIX + b.getId() + "@" + UID_DOMAIN;
++    private static String manualUid(CalendarBlock b, boolean hash, Long channelId) {
++        if (!hash) return b.manualUid();
++        String uid = b.manualHashUid();
++        log.debug("Using MD5 UID for channel {}: MANUAL id={} -> uid={}", channelId, b.getId(), uid);
++        return uid;
+     }
+ 
+     /**
+diff --git a/src/main/resources/templates/pages/settings/channels.html b/src/main/resources/templates/pages/settings/channels.html
+index 91f775c..812bc3d 100644
+--- a/src/main/resources/templates/pages/settings/channels.html
++++ b/src/main/resources/templates/pages/settings/channels.html
+@@ -163,6 +163,11 @@
+                 <button type="submit" class="btn btn-ghost"
+                         th:text="${c.syncEnabled} ? 'Выключить авто-синхронизацию' : 'Включить авто-синхронизацию'">Toggle</button>
+             </form>
++            <form style="display: inline;" method="post" th:if="${c.exportUrl != null}"
++                  th:action="@{'/settings/channels/' + ${c.id} + '/manual-uid-format'}">
++                <button type="submit" class="btn btn-ghost" th:text="${c.manualUidFormatLabel}"
++                        title="Включите хэш, если площадка забирает наш календарь, но не закрывает у себя даты ваших ручных записей. Площадка увидит их как новые события.">UID ручных записей</button>
++            </form>
+             <form style="display: inline; margin-left: auto;" method="post"
+                   th:action="@{'/settings/channels/' + ${c.id} + '/delete'}"
+                   onsubmit="return confirm('Удалить канал? Синхронизация остановится, а занятость, импортированная с этой площадки, будет снята с шахматки. Ручные записи и брони не затрагиваются.');">
+diff --git a/src/test/java/ru/rentoptima/channel/ical/ICalChannelAdapterReconcileTest.java b/src/test/java/ru/rentoptima/channel/ical/ICalChannelAdapterReconcileTest.java
+index 910ad01..5d25b84 100644
+--- a/src/test/java/ru/rentoptima/channel/ical/ICalChannelAdapterReconcileTest.java
++++ b/src/test/java/ru/rentoptima/channel/ical/ICalChannelAdapterReconcileTest.java
+@@ -536,4 +536,57 @@ class ICalChannelAdapterReconcileTest {
+         verify(blockRepo, never()).delete(any());
+         verify(echoRepo, never()).save(any());
+     }
++
++    @Test
++    @DisplayName("UID события = MD5-хэш нашей живой ручной записи → пропускается, блокировки нет")
++    void ownHashUid_skipped() {
++        CalendarBlock manual = manual(265L, 30);
++        when(blockRepo.findHandMadeInRange(eq(UNIT_TYPE_ID), any(), any())).thenReturn(List.of(manual));
++        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
++
++        ChannelSyncResult result = adapter.reconcile(ctx(),
++                List.of(event(manual.manualHashUid(), ECHO_FROM, ECHO_TO, false)));
++
++        assertThat(result.imported()).isZero();
++        assertThat(result.skipped()).isEqualTo(1);
++        verify(blockRepo, never()).save(any());
++
++        ArgumentCaptor<ManualBlockEcho> echo = ArgumentCaptor.forClass(ManualBlockEcho.class);
++        verify(echoRepo).save(echo.capture());
++        assertThat(echo.getValue().getManualBlockId()).isEqualTo(265L);
++    }
++
++    @Test
++    @DisplayName("UID-хэш удалённой ручной записи тоже пропускается — она ещё уходит в фид отменённой")
++    void ownHashUidOfCancelledManual_skipped() {
++        CalendarBlock manual = manual(265L, 30);
++        manual.setCancelledAt(LocalDateTime.now());
++        when(blockRepo.findHandMadeInRange(eq(UNIT_TYPE_ID), any(), any())).thenReturn(List.of(manual));
++        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
++
++        ChannelSyncResult result = adapter.reconcile(ctx(),
++                List.of(event(manual.manualHashUid(), ECHO_FROM, ECHO_TO, false)));
++
++        assertThat(result.imported()).isZero();
++        verify(blockRepo, never()).save(any());
++    }
++
++    @Test
++    @DisplayName("случайный хэш на даты живой ручной записи → тень по датам, как раньше")
++    void foreignHashSameDates_importedAsShadow() {
++        CalendarBlock manual = manual(265L, 0);
++        manualBlocksInDb(manual);
++        when(blockRepo.findHandMadeInRange(eq(UNIT_TYPE_ID), any(), any())).thenReturn(List.of(manual));
++        when(blockRepo.findByChannelIdAndExternalUid(CHANNEL_ID, "2bb640df35d95607cbcb609bd8b02c3b"))
++                .thenReturn(Optional.empty());
++        when(blockRepo.findByChannelInRange(eq(CHANNEL_ID), any(), any())).thenReturn(List.of());
++
++        ChannelSyncResult result = adapter.reconcile(ctx(),
++                List.of(event("2bb640df35d95607cbcb609bd8b02c3b", ECHO_FROM, ECHO_TO, false)));
++
++        assertThat(result.imported()).isEqualTo(1);
++        ArgumentCaptor<CalendarBlock> block = ArgumentCaptor.forClass(CalendarBlock.class);
++        verify(blockRepo).save(block.capture());
++        assertThat(block.getValue().getShadowOfManualId()).isEqualTo(265L);
++    }
+ }
+diff --git a/src/test/java/ru/rentoptima/service/AvailabilityServiceExportUidTest.java b/src/test/java/ru/rentoptima/service/AvailabilityServiceExportUidTest.java
+new file mode 100644
+index 0000000..557553a
+--- /dev/null
++++ b/src/test/java/ru/rentoptima/service/AvailabilityServiceExportUidTest.java
+@@ -0,0 +1,78 @@
++package ru.rentoptima.service;
++
++import org.junit.jupiter.api.DisplayName;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.extension.ExtendWith;
++import org.mockito.InjectMocks;
++import org.mockito.Mock;
++import org.mockito.junit.jupiter.MockitoExtension;
++import ru.rentoptima.channel.ical.ICalWriter;
++import ru.rentoptima.entity.CalendarBlock;
++import ru.rentoptima.entity.UnitType;
++import ru.rentoptima.repository.BookingRepository;
++import ru.rentoptima.repository.CalendarBlockRepository;
++
++import java.time.LocalDate;
++import java.util.List;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.mockito.ArgumentMatchers.any;
++import static org.mockito.Mockito.when;
++
++/**
++ * Экспорт через сервис целиком (репозитории — моки): формат UID ручной записи
++ * зависит от настройки канала-получателя. Теста с настоящей базой нет — локально
++ * её не поднять, см. CLAUDE.md.
++ */
++@ExtendWith(MockitoExtension.class)
++@DisplayName("AvailabilityService.exportEvents: формат UID ручных записей")
++class AvailabilityServiceExportUidTest {
++
++    @Mock BookingRepository bookingRepo;
++    @Mock CalendarBlockRepository blockRepo;
++    @InjectMocks AvailabilityService service;
++
++    private static final LocalDate FROM = LocalDate.of(2026, 11, 1);
++    private static final LocalDate TO = LocalDate.of(2027, 1, 1);
++
++    private static UnitType unitType() {
++        UnitType ut = new UnitType();
++        ut.setId(3L);
++        ut.setUnitCount(1);
++        return ut;
++    }
++
++    private void manualInDb() {
++        CalendarBlock manual = new CalendarBlock();
++        manual.setId(271L);
++        manual.setUnitTypeId(3L);
++        manual.setBlockType(CalendarBlock.BlockType.MANUAL_BOOKING);
++        manual.setFromDate(LocalDate.of(2026, 12, 4));
++        manual.setToDate(LocalDate.of(2026, 12, 5));
++        when(bookingRepo.findActiveByUnitTypesInRange(any(), any(), any())).thenReturn(List.of());
++        when(blockRepo.findByUnitTypesInRange(any(), any(), any())).thenReturn(List.of(manual));
++        when(blockRepo.findCancelledByUnitTypesInRange(any(), any(), any())).thenReturn(List.of());
++    }
++
++    @Test
++    @DisplayName("канал с UID-хэшем получает 32 hex-символа")
++    void hashChannel() {
++        manualInDb();
++
++        List<ICalWriter.BusyPeriod> events = service.exportEvents(unitType(), FROM, TO, 8L, true);
++
++        assertThat(events).singleElement()
++                .satisfies(e -> assertThat(e.uid()).matches("[0-9a-f]{32}"));
++    }
++
++    @Test
++    @DisplayName("обычный канал получает optirent-manual-<id>@optirent.ru")
++    void ordinaryChannel() {
++        manualInDb();
++
++        List<ICalWriter.BusyPeriod> events = service.exportEvents(unitType(), FROM, TO, 7L);
++
++        assertThat(events).singleElement()
++                .satisfies(e -> assertThat(e.uid()).isEqualTo("optirent-manual-271@optirent.ru"));
++    }
++}
+diff --git a/src/test/java/ru/rentoptima/service/ICalExportEventsTest.java b/src/test/java/ru/rentoptima/service/ICalExportEventsTest.java
+index 8abc7be..c703a24 100644
+--- a/src/test/java/ru/rentoptima/service/ICalExportEventsTest.java
++++ b/src/test/java/ru/rentoptima/service/ICalExportEventsTest.java
+@@ -177,4 +177,67 @@ class ICalExportEventsTest {
+                 .containsExactly("199904867");
+         assertThat(feed(List.of(), List.of(shadow), 8L)).isEmpty();
+     }
++
++    /** MD5("optirent-manual-100-2026-12-01-2026-12-02"), посчитан независимо от кода. */
++    private static String expectedHash() throws Exception {
++        byte[] d = java.security.MessageDigest.getInstance("MD5").digest(
++                "optirent-manual-100-2026-12-01-2026-12-02".getBytes(java.nio.charset.StandardCharsets.UTF_8));
++        StringBuilder sb = new StringBuilder();
++        for (byte x : d) sb.append(String.format("%02x", x));
++        return sb.toString();
++    }
++
++    private static CalendarBlock manual100() {
++        CalendarBlock b = block(100, null, null, 1, 2);
++        b.setFromDate(LocalDate.of(2026, 12, 1));
++        b.setToDate(LocalDate.of(2026, 12, 2));
++        return b;
++    }
++
++    @Test
++    @DisplayName("канал с UID-хэшем: ручная запись уходит с MD5 от optirent-manual-<id>-<from>-<to>")
++    void hashUidForChannelWithHashFormat() throws Exception {
++        List<ICalWriter.BusyPeriod> events = AvailabilityService.buildExportEvents(
++                List.of(), List.of(manual100(), block(7, 9L, "199904867", 12, 14)), List.of(), 8L, true);
++
++        assertThat(events).extracting(ICalWriter.BusyPeriod::uid)
++                .containsExactlyInAnyOrder(expectedHash(), "199904867");
++        assertThat(expectedHash()).matches("[0-9a-f]{32}");
++        // детерминированность: повторный экспорт даёт тот же UID
++        assertThat(manual100().manualHashUid()).isEqualTo(expectedHash());
++    }
++
++    @Test
++    @DisplayName("обычный канал: та же ручная запись уходит с optirent-manual-<id>@optirent.ru")
++    void markerUidForOrdinaryChannel() {
++        List<ICalWriter.BusyPeriod> events = AvailabilityService.buildExportEvents(
++                List.of(), List.of(manual100()), List.of(), 9L, false);
++
++        assertThat(events).extracting(ICalWriter.BusyPeriod::uid)
++                .containsExactly("optirent-manual-100@optirent.ru");
++    }
++
++    @Test
++    @DisplayName("канал с UID-хэшем: удалённая запись — тот же хэш, STATUS:CANCELLED, SEQUENCE:1")
++    void cancelledManualKeepsHashUid() throws Exception {
++        CalendarBlock cancelled = manual100();
++        cancelled.setCancelledAt(java.time.LocalDateTime.now());
++
++        String ics = ICalWriter.write("Тест", AvailabilityService.buildExportEvents(
++                List.of(), List.of(), List.of(cancelled), 8L, true));
++
++        assertThat(ics).contains("UID:" + expectedHash())
++                .contains("STATUS:CANCELLED").contains("SEQUENCE:1").contains("TRANSP:TRANSPARENT");
++        assertThat(ICalParser.parse(ics)).singleElement()
++                .satisfies(ev -> assertThat(ev.cancelled()).isTrue());
++    }
++
++    @Test
++    @DisplayName("смена дат ручной записи меняет UID-хэш")
++    void hashDependsOnDates() {
++        CalendarBlock moved = manual100();
++        moved.setToDate(LocalDate.of(2026, 12, 3));
++
++        assertThat(moved.manualHashUid()).isNotEqualTo(manual100().manualHashUid());
++    }
+ }

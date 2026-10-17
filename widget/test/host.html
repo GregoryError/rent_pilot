@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Сайт хозяина с агрессивным CSS</title>
+    <!--
+        Проверка изоляции: страница сбрасывает стили у всего подряд и навязывает свои
+        шрифты и цвета. Виджет должен выглядеть так же, как на чистой странице.
+
+        Запуск: приложение на :8080, эта папка — на другом порту (другой origin):
+            cd widget/test && python3 -m http.server 5173
+        и http://localhost:5173 в «Сайтах, где можно разместить виджет».
+        Адрес виджета — в параметре: host.html?w=<slug>
+    -->
+    <style>
+        * { all: unset; }
+        head, script, style, title, meta { display: none; }
+        html { display: block; background: #fdf6e3; }
+        body { display: block; padding: 24px 12px; font: italic 900 22px/2.4 'Comic Sans MS', 'Papyrus', fantasy;
+               color: #d33682; letter-spacing: .3em; text-transform: uppercase; text-align: right; direction: rtl; }
+        div, p, h1 { display: block; }
+        button, input, a { color: red !important; font-size: 40px; border: 5px dashed lime; }
+        optirent-booking { display: inline; float: right; visibility: visible; }
+        .frame { max-width: var(--w, 1280px); margin: 0 auto; }
+    </style>
+</head>
+<body>
+<h1>Мой сайт</h1>
+<p>Текст сайта хозяина — намеренно уродливый.</p>
+<div class="frame" id="frame"></div>
+<script>
+    var q = new URLSearchParams(location.search);
+    var el = document.createElement('optirent-booking');
+    el.dataset.widget = q.get('w') || 'demo';
+    if (q.get('lang')) el.dataset.lang = q.get('lang');
+    if (q.get('width')) document.getElementById('frame').style.setProperty('--w', q.get('width') + 'px');
+    document.getElementById('frame').appendChild(el);
+    var s = document.createElement('script');
+    s.async = true;
+    s.src = (q.get('base') || 'http://localhost:8080') + '/w.js';
+    document.body.appendChild(s);
+</script>
+</body>
+</html>

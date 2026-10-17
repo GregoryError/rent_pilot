@@ -87,12 +87,14 @@ public class CompetitorService {
         return listingRepo.save(listing);
     }
 
+    /** Отключает конкурента своего тенанта; false — чужой или несуществующий. */
     @Transactional
-    public void deleteListing(Long id) {
-        listingRepo.findById(id).ifPresent(l -> {
-            l.setActive(false);
-            listingRepo.save(l);
-        });
+    public boolean deleteListing(Long tenantId, Long id) {
+        CompetitorListing l = listingRepo.findById(id).filter(x -> tenantId.equals(x.getTenantId())).orElse(null);
+        if (l == null) return false;
+        l.setActive(false);
+        listingRepo.save(l);
+        return true;
     }
 
     // ==================== Search-based approach (Sutochno, Ostrovok) ====================
@@ -123,14 +125,6 @@ public class CompetitorService {
         search.setCity(city);
         search.setActive(true);
         return searchRepo.save(search);
-    }
-
-    @Transactional
-    public void deleteSearch(Long id) {
-        searchRepo.findById(id).ifPresent(s -> {
-            s.setActive(false);
-            searchRepo.save(s);
-        });
     }
 
     // ==================== Scheduled scraping ====================
@@ -668,6 +662,7 @@ public class CompetitorService {
                     .mapToDouble(p -> p.getPrice().doubleValue())
                     .average().orElse(0);
 
+            if (prevAvg <= 0) continue;   // не с чем сравнивать — без «+Infinity%»
             if (currAvg > prevAvg * 1.10) {
                 trends.add(String.format(
                         "%s: конкуренты повышают цены (+%.0f%% vs %s)",

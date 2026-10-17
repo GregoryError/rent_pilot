@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head th:replace="~{fragments/public :: head}"></head>
+<body>
+<th:block th:replace="~{fragments/public :: header}"></th:block>
+<nav th:replace="~{fragments/public :: crumbs}"></nav>
+
+<main id="main">
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Синхронизация календарей Авито, Циан, Суточно и&nbsp;других площадок</h1>
+    <p class="hero-sub">OptiRent сверяет календари посуточной аренды по iCal: бронь на одной площадке закрывает даты на остальных. Это бесплатная замена менеджеру каналов для тех, кому нужна только синхронизация занятости.</p>
+    <a th:href="@{/register}" class="btn btn-lg">Подключить площадки</a>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Как это работает</div>
+    <h2>iCal-синхронизация посуточной аренды</h2>
+    <p class="section-text">iCal — это файл календаря по ссылке. Почти каждая площадка умеет две вещи: отдавать свой календарь броней такой ссылкой (экспорт) и читать чужой календарь по ссылке (импорт).</p>
+    <p class="section-text">OptiRent встаёт между площадками:</p>
+    <ol class="list">
+      <li>забирает календарь с каждой площадки по расписанию — по умолчанию раз в 30 минут;</li>
+      <li>складывает всё в одну шахматку вместе с вашими ручными записями и прямыми бронями;</li>
+      <li>отдаёт каждой площадке свою ссылку, в которой занято всё, кроме её собственных броней.</li>
+    </ol>
+
+    <div class="sync-diagram">
+      <ul class="sync-row">
+        <li class="sync-platform">Авито</li>
+        <li class="sync-platform">Циан</li>
+        <li class="sync-platform">Суточно</li>
+        <li class="sync-platform">Островок</li>
+        <li class="sync-platform">DomClick</li>
+        <li class="sync-platform">Яндекс Путешествия</li>
+      </ul>
+      <div class="sync-arrows" aria-hidden="true">
+        <svg width="200" height="32" viewBox="0 0 200 32"><path d="M20,4 L100,28 M60,4 L100,28 M100,4 L100,28 M140,4 L100,28 M180,4 L100,28" stroke="#ccc" stroke-width="1" fill="none"/><path d="M100,28 L20,4 M100,28 L60,4 M100,28 L140,4 M100,28 L180,4" stroke="#ccc" stroke-width="1" fill="none" stroke-dasharray="3,3"/></svg>
+      </div>
+      <div class="sync-hub">OptiRent iCal-хаб</div>
+      <div class="sync-label">Подойдёт любая площадка, которая отдаёт и принимает календарь iCal</div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Честно</div>
+    <h2>Как избежать овербукинга — и почему совсем исключить его нельзя</h2>
+    <p class="section-text">Синхронизация резко снижает риск двойной брони, но iCal обновляется не мгновенно: площадки забирают календарь раз в 10–60 минут, некоторые реже. Если двое гостей бронируют одни и те же даты на разных площадках с разницей в несколько минут, обе брони пройдут.</p>
+    <p class="section-text">Что с этим делает OptiRent:</p>
+    <ul class="list">
+      <li><strong>Показывает пересечение.</strong> День, на который пришлись две брони, обведён в шахматке красным.</li>
+      <li><strong>Пишет в Telegram</strong> о конфликте ручной записи с бронью площадки и о том, что площадка перестала отдавать календарь.</li>
+      <li><strong>Показывает, как часто площадка забирает ваш календарь,</strong> — на странице диагностики видно реальный интервал, а не обещанный.</li>
+    </ul>
+    <p class="section-text section-text--gap">Чем чаще бронируют вашу квартиру «день в день», тем заметнее эта задержка. На дальних датах она почти не играет роли.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Сравнение</div>
+    <h2>Менеджер каналов для посуточной аренды или iCal</h2>
+    <p class="section-text">Менеджер каналов подключается к площадкам через их API: брони и цены передаются напрямую и быстро. За это платят — и подпиской, и временем на настройку.</p>
+    <p class="section-text">OptiRent работает только через iCal и синхронизирует только занятость. Цены на площадках вы меняете сами. Зато он бесплатный, подключается за несколько минут и не требует договоров.</p>
+    <p class="section-text">Если у вас одна-две квартиры и нужно, чтобы календари совпадали, — iCal обычно хватает. Если объектов десятки и важна каждая минута — нужен менеджер каналов с API.</p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Подключение</div>
+    <h2>Как подключить площадку</h2>
+    <p class="section-text">В кабинете площадки нужно найти две вещи: ссылку на её календарь и поле, куда вставить ссылку из OptiRent. У каждой площадки это устроено по-своему:</p>
+    <ul class="cards">
+      <li th:each="g : ${guides}"><a class="card-link" th:href="${g.path}"><strong th:text="${g.name}">Авито</strong><span>Ссылка экспорта, ссылка импорта, особенности.</span></a></li>
+      <li><a class="card-link" th:href="@{/instrukcii}"><strong>Все инструкции</strong><span>Общий порядок подключения по iCal.</span></a></li>
+    </ul>
+  </div>
+</section>
+
+<section class="section">
+  <div class="wrap">
+    <div class="section-label">Вопросы</div>
+    <h2>Частые вопросы</h2>
+    <div class="faq">
+      <div class="faq-item" th:each="q : ${page.faq}">
+        <h3 th:text="${q.question}">Вопрос</h3>
+        <p th:text="${q.answer}">Ответ</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section th:replace="~{fragments/public :: cta('Сверьте календари площадок', 'Подключение занимает несколько минут. Бесплатно.')}"></section>
+
+</main>
+
+<footer th:replace="~{fragments/public :: footer}"></footer>
+</body>
+</html>

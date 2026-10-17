@@ -1,43 +1,58 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход — RentOptima</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Вход — OptiRent</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
     <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
 </head>
 <body>
     <div class="login-page">
         <div class="login-card">
-            <div class="login-title" style="display: flex; align-items: center; justify-content: center; gap: 10px;">
-                <img src="/static/images/logo-icon.svg" alt="" style="width: 32px; height: 32px;">
-                <span>RentOptima</span>
-            </div>
-            <div class="login-subtitle">Система оптимизации посуточной аренды</div>
+            <a th:href="@{/}" class="login-title" style="display: flex; align-items: center; justify-content: center; gap: 10px; color: inherit; text-decoration: none;">
+                <svg th:replace="~{fragments/logo :: mark(32)}"></svg>
+                <span>OptiRent</span>
+            </a>
+            <h1 class="login-subtitle" style="font-weight: 400;">Вход в календарь бронирования</h1>
 
             <div th:if="${param.error}" class="login-error">
                 Неверный логин или пароль
+            </div>
+            <div th:if="${param.reset}" class="login-ok" role="status">
+                Пароль изменён. Войдите с новым паролем.
+            </div>
+            <div th:if="${param.verified}" class="login-ok" role="status">
+                Почта подтверждена. Войдите, чтобы продолжить.
+            </div>
+            <div th:if="${param.expired}" class="login-note" role="status">
+                Вы вышли из аккаунта: пароль был изменён. Войдите снова.
             </div>
 
             <form th:action="@{/login}" method="post">
                 <div class="form-group">
                     <label class="form-label" for="username">Логин</label>
-                    <input type="text" id="username" name="username" class="form-input"
+                    <input type="text" id="username" name="username" inputmode="email"
+                           autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" class="form-input"
                            placeholder="admin" autofocus required>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="password">Пароль</label>
-                    <input type="password" id="password" name="password" class="form-input"
+                    <input type="password" id="password" name="password" autocomplete="current-password" class="form-input"
                            placeholder="••••••••" required>
                 </div>
                 <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; padding: var(--sp-4);">
                     Войти
                 </button>
             </form>
-            <div style="text-align: center; margin-top: 1.25rem; font-size: var(--text-sm); color: var(--text-secondary);">
-                Нет аккаунта? <a th:href="@{/register}" style="color: var(--accent);">Создать</a>
+            <div class="login-links">
+                <a th:href="@{/forgot}">Забыли пароль?</a>
+            </div>
+            <div class="login-links">
+                Нет аккаунта? <a th:href="@{/register}">Создать</a>
             </div>
         </div>
     </div>

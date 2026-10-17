@@ -3,16 +3,25 @@ package ru.rentoptima.controller;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.util.DigestUtils;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import ru.rentoptima.entity.FeedbackAnswer;
 import ru.rentoptima.entity.FeedbackQuestion;
 import ru.rentoptima.entity.FeedbackResponse;
+import ru.rentoptima.entity.Booking;
+import ru.rentoptima.entity.CalendarBlock;
+import ru.rentoptima.entity.Channel;
 import ru.rentoptima.entity.Property;
+import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.BookingRepository;
+import ru.rentoptima.repository.CalendarBlockRepository;
+import ru.rentoptima.repository.ChannelRepository;
+import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.repository.FeedbackAnswerRepository;
 import ru.rentoptima.repository.FeedbackQuestionRepository;
 import ru.rentoptima.repository.FeedbackResponseRepository;
@@ -28,9 +37,21 @@ import java.util.stream.Collectors;
 public class HousekeeperController {
 
     private static final int FRESH_REVIEW_DAYS = 5;
+    /**
+     * Блокировка с площадки длиннее этого — не проживание, а закрытый период (площадки
+     * так отдают даты за горизонтом продаж, иногда на год вперёд). Уборки после неё нет.
+     */
+    private static final int MAX_STAY_NIGHTS = 60;
+    private static final java.time.format.DateTimeFormatter DAY =
+            java.time.format.DateTimeFormatter.ofPattern("dd.MM");
+    private static final java.time.format.DateTimeFormatter DAY_YEAR =
+            java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
     private final PropertyRepository propertyRepo;
     private final BookingRepository bookingRepo;
+    private final CalendarBlockRepository blockRepo;
+    private final UnitTypeRepository unitTypeRepo;
+    private final ChannelRepository channelRepo;
     private final FeedbackResponseRepository feedbackRepo;
     private final FeedbackAnswerRepository answerRepo;
     private final FeedbackQuestionRepository questionRepo;
@@ -43,7 +64,7 @@ public class HousekeeperController {
                                   @RequestParam(required = false, defaultValue = "schedule") String tab,
                                   Model model) {
         Property property = propertyRepo.findByHousekeeperCode(code).orElse(null);
-        if (property == null) return "error/404";
+        if (property == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
 
         if (property.getHousekeeperPinHash() == null || property.getHousekeeperPinHash().isBlank()) {
             model.addAttribute("code", code);
@@ -63,7 +84,7 @@ public class HousekeeperController {
         LocalDate now = LocalDate.now();
 
         // Schedule — ближайшие выезды
-        var upcoming = bookingRepo.findUpcomingCheckouts(property.getId(), now);
+        List<Stay> upcoming = upcomingStays(property, now);
 
         // Reviews
         List<FeedbackResponse> feedbacks = feedbackRepo
@@ -74,8 +95,8 @@ public class HousekeeperController {
         boolean hasFreshReview = feedbacks.stream()
                 .anyMatch(f -> f.getCreatedAt() != null && f.getCreatedAt().isAfter(freshThreshold));
 
-        List<FeedbackQuestion> questions = questionRepo
-                .findByTenantIdAndActiveTrueOrderBySortOrderAsc(property.getTenant().getId());
+        // Подписи — и у выключенных вопросов: на них есть старые и перенесённые ответы
+        List<FeedbackQuestion> questions = questionRepo.findByTenantId(property.getTenant().getId());
         Map<Long, FeedbackQuestion> qMap = questions.stream()
                 .collect(Collectors.toMap(FeedbackQuestion::getId, q -> q));
 
@@ -124,7 +145,7 @@ public class HousekeeperController {
                         @RequestParam String pin,
                         HttpServletResponse response) {
         Property property = propertyRepo.findByHousekeeperCode(code).orElse(null);
-        if (property == null) return "error/404";
+        if (property == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
 
         if (property.getHousekeeperPinHash() == null
                 || !encoder.matches(pin, property.getHousekeeperPinHash())) {
@@ -138,6 +159,82 @@ public class HousekeeperController {
         response.addCookie(c);
         return "redirect:/housekeeper/" + code;
     }
+
+    /**
+     * Ближайшие выезды объекта — из броней и из блокировок.
+     * <p>
+     * Занятость с iCal-каналов хранится блокировками, а не бронями (в фиде площадки нет
+     * ни гостя, ни суммы), поэтому одних броней для графика уборок мало: объект, который
+     * продаётся только через каналы, выглядел бы у горничной пустым.
+     * Ремонт, личное использование и неподтверждённый hold уборку после гостя не означают
+     * и в график не идут. Даты, открытые хозяином («Открыть даты», {@code ignored}), и
+     * удалённые ручные записи — тоже: гостя там нет.
+     * <p>
+     * Выезды позже горизонта объекта ({@link Property#getHousekeeperHorizonDays()},
+     * раздел «Сотрудники») не показываются.
+     */
+    List<Stay> upcomingStays(Property property, LocalDate today) {
+        List<Stay> stays = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        LocalDate lastCheckOut = today.plusDays(horizonDays(property));
+
+        for (Booking b : bookingRepo.findUpcomingCheckouts(property.getId(), today)) {
+            if (b.getCheckOut().isAfter(lastCheckOut)) continue;
+            // Одни и те же даты могут прийти дважды: ручная бронь хранится парой с блокировкой,
+            // а площадка возвращает в своём фиде чужие брони. В графике выезд нужен один раз.
+            if (seen.add(b.getCheckIn() + "/" + b.getCheckOut())) {
+                stays.add(stay(b.getCheckIn(), b.getCheckOut(), b.getGuestName(), today));
+            }
+        }
+
+        List<Long> unitTypeIds = unitTypeRepo.findByPropertyIdAndActiveTrue(property.getId())
+                .stream().map(UnitType::getId).toList();
+        if (!unitTypeIds.isEmpty()) {
+            Map<Long, String> channelNames = new HashMap<>();
+            for (Long unitTypeId : unitTypeIds) {
+                for (Channel c : channelRepo.findByUnitTypeIdAndActiveTrue(unitTypeId)) {
+                    channelNames.put(c.getId(), c.getName());
+                }
+            }
+            // from = вчера: условие запроса «выезд позже from», а выезд сегодня тоже нужен
+            for (CalendarBlock b : blockRepo.findByUnitTypesInRange(
+                    unitTypeIds, today.minusDays(1), lastCheckOut)) {
+                if (b.getBlockType() != CalendarBlock.BlockType.CHANNEL_SYNC
+                        && b.getBlockType() != CalendarBlock.BlockType.MANUAL_BOOKING) continue;
+                // Запрос их уже отфильтровывает; проверка здесь — чтобы график не зависел от него
+                if (Boolean.TRUE.equals(b.getIgnored()) || b.getCancelledAt() != null) continue;
+                if (b.getToDate().isBefore(today) || b.getToDate().isAfter(lastCheckOut)) continue;
+                if (java.time.temporal.ChronoUnit.DAYS.between(b.getFromDate(), b.getToDate())
+                        > MAX_STAY_NIGHTS) continue;
+                if (!seen.add(b.getFromDate() + "/" + b.getToDate())) continue;
+                String channel = b.getChannelId() == null ? null : channelNames.get(b.getChannelId());
+                stays.add(stay(b.getFromDate(), b.getToDate(),
+                        channel == null ? "Гость" : "Гость · " + channel, today));
+            }
+        }
+
+        stays.sort(Comparator.comparing(Stay::checkOut));
+        return stays;
+    }
+
+    private static int horizonDays(Property property) {
+        Integer days = property.getHousekeeperHorizonDays();
+        if (days == null) return Property.DEFAULT_HOUSEKEEPER_HORIZON_DAYS;
+        return Math.max(Property.MIN_HOUSEKEEPER_HORIZON_DAYS,
+                Math.min(Property.MAX_HOUSEKEEPER_HORIZON_DAYS, days));
+    }
+
+    private static Stay stay(LocalDate checkIn, LocalDate checkOut, String guestName, LocalDate today) {
+        // Год показываем, только когда он не текущий: иначе «06.10» следующего года
+        // читается как выезд на этой неделе.
+        String out = "Выезд " + checkOut.format(checkOut.getYear() == today.getYear() ? DAY : DAY_YEAR);
+        String in = (checkIn.isAfter(today) ? "Заезд: " : "Заезд был: ") + checkIn.format(DAY_YEAR);
+        return new Stay(checkIn, checkOut, guestName, out, in);
+    }
+
+    /** Строка графика уборок. */
+    public record Stay(LocalDate checkIn, LocalDate checkOut, String guestName,
+                       String checkOutLabel, String checkInLabel) {}
 
     private String cookieValueFor(Property property) {
         String raw = property.getHousekeeperPinHash() + ":" + property.getId();

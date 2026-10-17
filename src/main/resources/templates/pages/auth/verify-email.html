@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Подтвердите почту — OptiRent</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <a th:href="@{/}" class="login-title login-brand">
+                <svg th:replace="~{fragments/logo :: mark(32)}"></svg>
+                <span>OptiRent</span>
+            </a>
+            <h1 class="login-subtitle"
+                th:text="${strict} ? 'Проверьте почту' : (${locked} ? 'Подтвердите почту, чтобы продолжить' : 'Подтвердите почту')">Подтвердите почту, чтобы продолжить</h1>
+
+            <div th:if="${success}" class="login-ok" role="status" th:text="${success}"></div>
+            <div th:if="${error}" class="login-error" role="alert" th:text="${error}"></div>
+
+            <p class="login-note">
+                <th:block th:if="${neverSent}">Отправим письмо со ссылкой на</th:block>
+                <th:block th:unless="${neverSent}">Мы отправили письмо со ссылкой на</th:block>
+                <b th:text="${email}">host@example.com</b>.
+                <th:block th:if="${strict}">Перейдите по ссылке из письма, чтобы войти в кабинет.</th:block>
+                <th:block th:unless="${strict}">Перейдите по ссылке — и кабинет снова откроется, все данные на месте.</th:block>
+                <th:block th:if="${locked and !strict and !pageInactive}">Страница бронирования и брони работают как прежде.</th:block>
+                <th:block th:if="${pageInactive and !strict}">Страница бронирования заработает сразу после подтверждения.</th:block>
+            </p>
+
+            <form th:action="@{/account/verify/resend}" method="post" class="login-actions">
+                <input type="hidden" name="back" value="/verify-email">
+                <button type="submit" class="btn btn-primary"
+                        th:text="${neverSent} ? 'Отправить письмо' : 'Отправить письмо ещё раз'">Отправить письмо ещё раз</button>
+            </form>
+            <p class="form-hint">Письма нет несколько минут — проверьте папку «Спам». Повторно отправить можно раз в 2 минуты.</p>
+
+            <details class="verify-change">
+                <summary>Ошиблись адресом? Изменить</summary>
+                <form th:action="@{/account/email}" method="post">
+                    <input type="hidden" name="back" value="/verify-email">
+                    <div class="form-group">
+                        <label class="form-label" for="new-email">Новый адрес</label>
+                        <input type="email" id="new-email" name="email" class="form-input" required
+                               inputmode="email" autocomplete="email" autocapitalize="none" spellcheck="false">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="change-password">Пароль от OptiRent</label>
+                        <input type="password" id="change-password" name="password" class="form-input" required
+                               autocomplete="current-password">
+                    </div>
+                    <button type="submit" class="btn btn-ghost">Изменить адрес и отправить письмо</button>
+                </form>
+            </details>
+
+            <form th:action="@{/logout}" method="post" class="login-links">
+                <button type="submit" class="link-button">Выйти</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

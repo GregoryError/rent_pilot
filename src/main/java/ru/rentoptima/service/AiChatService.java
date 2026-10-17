@@ -27,6 +27,26 @@ public class AiChatService {
     private final SettingsService settings;
     private final BookingStatsService statsService;
     private final BookingRepository bookingRepo;
+    private final ru.rentoptima.repository.PropertyRepository propertyRepo;
+    private final PricingEngine pricingEngine;
+    private final EffectivePriceService effectivePrice;
+
+    /** Первая квартира тенанта: город и цена в подсказке AI берутся у неё, а не из настроек. */
+    private java.util.Optional<ru.rentoptima.entity.UnitType> firstUnit(Long tenantId) {
+        return propertyRepo.findByTenantIdAndActiveTrue(tenantId).stream()
+                .map(p -> pricingEngine.pricedUnit(p.getId()))
+                .flatMap(java.util.Optional::stream).findFirst();
+    }
+
+    private String city(Long tenantId) {
+        return propertyRepo.findByTenantIdAndActiveTrue(tenantId).stream()
+                .map(ru.rentoptima.entity.Property::getCity)
+                .filter(c -> c != null && !c.isBlank()).findFirst().orElse("не указан");
+    }
+
+    private static String price(java.math.BigDecimal p) {
+        return p == null ? "не задана" : p.setScale(0, java.math.RoundingMode.HALF_UP).toPlainString();
+    }
 
     private final RestTemplate restTemplate = new RestTemplate();
 
@@ -101,7 +121,8 @@ public class AiChatService {
     }
 
 
-    private String buildSystemPrompt(Long tenantId) {
+    /** Подсказка AI-чату; пакетная — для теста «цена из квартиры, не из настроек». */
+    String buildSystemPrompt(Long tenantId) {
         Map<String, String> s = settings.getSettingsMap(tenantId);
         LocalDate now = LocalDate.now();
         LocalDate monthStart = now.withDayOfMonth(1);
@@ -168,8 +189,8 @@ public class AiChatService {
                                 
                                 === ДАННЫЕ КВАРТИРЫ ===
                                 Город: %s
-                                Базовая цена будни: %s ₽
-                                Базовая цена выходные: %s ₽
+                                Цена квартиры в будни: %s ₽
+                                Цена в выходные (ночи с пт и с сб): %s ₽
                                 Стоимость уборки: %s ₽
                                 Наценка площадок: %s%%
                                 Режим автопилота: %s
@@ -199,11 +220,12 @@ public class AiChatService {
                         === НЕДАВНИЕ БРОНИРОВАНИЯ (±30 дней) ===
                         %s
                         """,
-                s.getOrDefault("city", "Выборг"),
+                city(tenantId),
                 now,
-                s.getOrDefault("city", "Выборг"),
-                s.getOrDefault("weekday_base_price", "3200"),
-                s.getOrDefault("weekend_base_price", "4200"),
+                city(tenantId),
+                price(firstUnit(tenantId).map(u -> u.getBasePrice()).orElse(null)),
+                price(firstUnit(tenantId).map(u -> u.getWeekendPrice() != null ? u.getWeekendPrice() : u.getBasePrice())
+                        .orElse(null)),
                 s.getOrDefault("cleaning_cost", "1400"),
                 s.getOrDefault("platform_markup_pct", "18"),
                 s.getOrDefault("autopilot_mode", "OFF"),
@@ -237,9 +259,10 @@ public class AiChatService {
                     b.getGuestName() != null ? b.getGuestName() : "?");
         }
 
-        Map<String, String> s = settings.getSettingsMap(tenantId);
-        int weekday = Integer.parseInt(s.getOrDefault("weekday_base_price", "3200"));
-        int weekend = Integer.parseInt(s.getOrDefault("weekend_base_price", "4200"));
+        // Цена дня — как в шахматке: плановая на дату → выходные → будни
+        Long unitId = firstUnit(tenantId).map(u -> u.getId()).orElse(null);
+        Map<EffectivePriceService.DateUnitKey, java.math.BigDecimal> prices = unitId == null ? Map.of()
+                : effectivePrice.resolveBatch(List.of(unitId), today, to);
 
         String[] days = {"Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"};
         StringBuilder sb = new StringBuilder();
@@ -247,8 +270,8 @@ public class AiChatService {
         for (LocalDate d = today; !d.isAfter(to); d = d.plusDays(1)) {
             int dow = d.getDayOfWeek().getValue();
             String dayName = days[dow - 1];
-            boolean isWeekend = dow >= 5;
-            int price = isWeekend ? weekend : weekday;
+            java.math.BigDecimal dayPrice = unitId == null ? null
+                    : prices.get(new EffectivePriceService.DateUnitKey(unitId, d));
 
             String status;
             if (bookedDates.contains(d)) {
@@ -259,7 +282,8 @@ public class AiChatService {
                 status = "свободно";
             }
 
-            sb.append(String.format("%s %s %s %d₽%n", d, dayName, status, price));
+            sb.append(String.format("%s %s %s %s%n", d, dayName, status,
+                    dayPrice == null ? "цена не задана" : price(dayPrice) + "₽"));
         }
 
         return sb.toString();

@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<!--/*
+    Мастер первой настройки. Страница во весь экран, без бокового меню.
+    Тексты — onboarding/texts_ru.yml (модель: t), шаги и данные — OnboardingController.
+    Формы работают без скриптов; onboarding-wizard.js только отправляет форму после вставки
+    ссылки и копирует ссылки в буфер.
+*/-->
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Первая настройка — OptiRent</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <link rel="stylesheet" th:href="@{/css/onboarding-wizard.css}">
+    <script th:src="@{/js/theme.js}"></script>
+</head>
+<body class="wz-body">
+
+<header class="wz-top">
+    <div class="wz-top__logo">
+        <svg th:replace="~{fragments/logo :: mark(24)}"></svg>
+        <span>OptiRent</span>
+    </div>
+    <form method="post" th:action="@{/onboarding/skip}" th:if="${step != 'done' and !returning}">
+        <button type="submit" class="wz-skip" th:text="${t['common.skip']}">Пропустить, настрою сам</button>
+    </form>
+    <a class="wz-skip wz-skip--link" th:if="${returning}" th:href="@{/calendar/grid}" th:text="${t['back.cabinet']}">Вернуться в кабинет</a>
+</header>
+
+<main class="wz">
+    <div class="wz-progress" th:if="${stepLabel != null}">
+        <ol class="wz-progress__bar" aria-hidden="true">
+            <li th:each="p : ${progress}" th:class="${p.cssClass}"><span th:text="${p.label}">Шаг</span></li>
+        </ol>
+        <p class="wz-progress__label" th:text="${stepLabel}">Шаг 1 из 4</p>
+    </div>
+
+    <div class="wz-error" role="alert" th:if="${formError}" th:text="${formError}">Ошибка</div>
+    <!-- Ответ на «Отправить письмо ещё раз» (шаг «Страница готова»): общие flash-сообщения кабинета -->
+    <div class="wz-result" role="status" th:if="${success}" th:text="${success}"></div>
+    <div class="wz-error" role="alert" th:if="${error}" th:text="${error}"></div>
+
+    <!-- Шаг 1. С чего начнём -->
+    <section th:if="${step == 'start'}">
+        <h1 class="wz-title" th:text="${t['start.title']}">С чего начнём?</h1>
+        <p class="wz-lead" th:text="${t['start.lead']}"></p>
+        <form method="post" th:action="@{/onboarding/branch}" class="wz-choices">
+            <button type="submit" name="branch" value="A" class="wz-choice">
+                <span class="wz-choice__icon" aria-hidden="true">
+                    <svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="10" width="36" height="30" rx="4"/><path d="M6 19h36M16 6v8M32 6v8M15 28l5 5 12-11"/></svg>
+                </span>
+                <strong th:text="${t['start.a.title']}">Сдаю на площадках</strong>
+                <span th:text="${t['start.a.text']}"></span>
+            </button>
+            <button type="submit" name="branch" value="B" class="wz-choice">
+                <span class="wz-choice__icon" aria-hidden="true">
+                    <svg viewBox="0 0 48 48" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 22 24 8l16 14v18H8z"/><path d="M19 40V28h10v12"/></svg>
+                </span>
+                <strong th:text="${t['start.b.title']}">Прямые брони</strong>
+                <span th:text="${t['start.b.text']}"></span>
+            </button>
+            <button type="submit" name="branch" value="AB" class="wz-link" th:text="${t['start.both']}">И то и другое</button>
+        </form>
+    </section>
+
+    <!-- Шаг 2. Объект -->
+    <section th:if="${step == 'property'}">
+        <h1 class="wz-title" th:text="${t['property.title']}">Что вы сдаёте?</h1>
+        <p class="wz-lead" th:text="${t['property.lead']}"></p>
+
+        <form method="post" th:action="@{/onboarding/property}" class="wz-card" th:if="${existingText != null}">
+            <p th:text="${existingText}">У вас уже есть объект.</p>
+            <input type="hidden" name="useExisting" value="true">
+            <div class="wz-actions">
+                <button type="submit" class="btn btn-primary" th:text="${t['common.next']}">Дальше</button>
+            </div>
+        </form>
+
+        <form method="post" th:action="@{/onboarding/property}" class="wz-card" th:if="${existingText == null}">
+            <!--/* Тип жилья: от него слова во всём кабинете («ваша квартира», «цена дома», «типы номеров») */-->
+            <fieldset class="wz-kinds">
+                <legend class="form-label" th:text="${t['property.kind']}">Тип жилья</legend>
+                <label class="wz-kind" th:each="k, it : ${kinds}">
+                    <input type="radio" name="kind" th:value="${k.code}" required
+                           th:checked="${form != null and form.kind != null} ? ${form.kind == k.code} : ${it.first}">
+                    <span th:text="${k.label}">Квартира</span>
+                </label>
+            </fieldset>
+            <div class="form-group">
+                <label class="form-label" for="wz-name" th:text="${t['property.name']}">Как назовём</label>
+                <input type="text" id="wz-name" name="name" class="form-input" required maxlength="200"
+                       autocomplete="off" th:value="${form != null ? form.name : ''}">
+                <div class="form-hint" th:text="${t['property.name.hint']}"></div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="wz-city" th:text="${t['property.city']}">Город</label>
+                <input type="text" id="wz-city" name="city" class="form-input" required maxlength="100"
+                       autocomplete="address-level2" th:value="${form != null ? form.city : ''}"
+                       th:placeholder="${defaults != null ? defaults.city : null}">
+            </div>
+            <div class="wz-row">
+                <div class="form-group">
+                    <label class="form-label" for="wz-price" th:text="${t['property.price']}">Цена за ночь</label>
+                    <input type="number" id="wz-price" name="basePrice" class="form-input" required min="1" step="1"
+                           inputmode="numeric" th:value="${form != null ? form.basePrice : ''}"
+                           th:placeholder="${defaults != null ? defaults.weekdayPrice : null}">
+                    <div class="form-hint" th:text="${t['property.price.hint']}"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="wz-count" th:text="${t['property.count']}">Сколько таких квартир</label>
+                    <input type="number" id="wz-count" name="unitCount" class="form-input" min="1" max="500" step="1"
+                           inputmode="numeric" th:value="${form != null and form.unitCount != null ? form.unitCount : 1}">
+                    <div class="form-hint" th:text="${t['property.count.hint']}"></div>
+                </div>
+            </div>
+            <div class="wz-actions">
+                <a class="btn btn-ghost" th:href="@{/onboarding(step='start')}" th:text="${t['common.back']}">Назад</a>
+                <button type="submit" class="btn btn-primary" th:text="${t['common.next']}">Дальше</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- Ветка А, шаг 3. Площадки -->
+    <section th:if="${step == 'platforms'}">
+        <h1 class="wz-title" th:text="${t['platforms.title']}">Где вы сдаёте?</h1>
+        <p class="wz-lead" th:text="${t['platforms.lead']}"></p>
+        <form method="post" th:action="@{/onboarding/platforms}">
+            <div class="wz-tiles">
+                <label class="wz-tile" th:each="tile : ${tiles}">
+                    <input type="checkbox" name="platform" th:value="${tile.id}" th:checked="${tile.checked}">
+                    <span class="wz-tile__box">
+                        <img th:if="${tile.logo != null}" th:src="${tile.logo}" alt="" width="40" height="40" class="wz-tile__logo">
+                        <span th:if="${tile.logo == null}" class="wz-tile__letter" th:style="${tile.style}"
+                              th:text="${tile.letter}" aria-hidden="true">А</span>
+                        <span class="wz-tile__name" th:text="${tile.name}">Авито</span>
+                    </span>
+                    <input th:if="${tile.otherName != null}" type="text" name="otherName" class="form-input wz-tile__other"
+                           maxlength="100" th:value="${tile.otherName}" th:placeholder="${t['platforms.other.name']}"
+                           th:attr="aria-label=${t['platforms.other.name']}">
+                </label>
+            </div>
+            <div class="wz-actions">
+                <a class="btn btn-ghost" th:if="${backStep != null}" th:href="@{/onboarding(step=${backStep})}" th:text="${t['common.back']}">Назад</a>
+                <button type="submit" class="btn btn-primary" th:text="${t['common.next']}">Дальше</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- Ветка А, шаг 4. Ссылки: карточка на площадку, два действия -->
+    <section th:if="${step == 'links'}">
+        <h1 class="wz-title" th:text="${t['links.title']}">Соединим площадки с OptiRent</h1>
+        <p class="wz-lead" th:text="${t['links.lead']}"></p>
+
+        <article class="wz-card wz-platform" th:each="c : ${cards}" th:id="|card-${c.channelId}|">
+            <header class="wz-platform__head">
+                <span class="wz-tile__letter" th:style="${c.style}" th:text="${c.letter}" aria-hidden="true">Ц</span>
+                <h2 th:text="${c.name}">Циан</h2>
+                <span th:class="${c.statusCss}" th:text="${c.status}">Ждёт ссылку с площадки</span>
+            </header>
+
+            <!-- 1. Ссылка с площадки -->
+            <div class="wz-action">
+                <div class="wz-action__num" aria-hidden="true">1</div>
+                <div class="wz-action__body">
+                    <h3 th:text="${t['links.one.title']}">Ссылка с площадки</h3>
+                    <p class="wz-muted" th:text="${c.fromText}"></p>
+
+                    <div th:if="${linkResult != null and linkResult.channelId == c.channelId}"
+                         th:class="${linkResult.saved} ? 'wz-result wz-result--ok' : 'wz-result'" role="status">
+                        <span th:text="${linkResult.message}">Нашли 7 занятых периодов до марта.</span>
+                        <form method="post" th:action="@{'/onboarding/links/' + ${c.channelId}}" class="wz-result__actions"
+                              th:if="${linkResult.moveTo != null}">
+                            <input type="hidden" name="url" th:value="${linkResult.url}">
+                            <button type="submit" name="moveTo" th:value="${linkResult.moveTo}" class="btn btn-primary"
+                                    th:text="${linkResult.moveLabel}">Перенести в карточку «Циан»</button>
+                            <button type="submit" name="keep" value="true" class="btn btn-ghost"
+                                    th:text="${t['link.mismatch.keep']}">Оставить здесь</button>
+                        </form>
+                    </div>
+
+                    <form method="post" th:action="@{'/onboarding/links/' + ${c.channelId}}" class="wz-linkform" data-wz-link>
+                        <label class="form-label" th:for="|url-${c.channelId}|" th:text="${t['links.one.label']}">Вставьте ссылку сюда</label>
+                        <div class="wz-linkform__row">
+                            <input type="text" name="url" th:id="|url-${c.channelId}|" class="form-input" inputmode="url"
+                                   autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"
+                                   placeholder="https://"
+                                   th:value="${linkResult != null and linkResult.channelId == c.channelId and linkResult.url != null} ? ${linkResult.url} : ${c.importUrl}">
+                            <button type="submit" class="btn btn-primary" th:text="${t['links.one.check']}">Проверить ссылку</button>
+                        </div>
+                    </form>
+
+                    <details class="wz-where">
+                        <summary th:text="${t['links.one.where']}">Где её взять</summary>
+                        <ol th:unless="${#lists.isEmpty(c.fromSteps)}"><li th:each="s : ${c.fromSteps}" th:text="${s}">Шаг</li></ol>
+                        <img th:if="${c.fromScreenshot != null}" th:src="${c.fromScreenshot}" alt="" loading="lazy" class="wz-shot">
+                        <th:block th:if="${#lists.isEmpty(c.fromSteps)}">
+                            <p th:text="${t['links.generic.from']}"></p>
+                            <p><span th:text="${t['links.generic.help']}"></span><a href="mailto:errorgrisha@gmail.com">errorgrisha@gmail.com</a></p>
+                        </th:block>
+                    </details>
+                </div>
+            </div>
+
+            <!-- 2. Ссылка для площадки -->
+            <div class="wz-action">
+                <div class="wz-action__num" aria-hidden="true">2</div>
+                <div class="wz-action__body">
+                    <h3 th:text="${t['links.two.title']}">Ссылка для площадки</h3>
+                    <p class="wz-muted" th:text="${c.toText}"></p>
+                    <div class="wz-ourlink">
+                        <output class="wz-ourlink__url" th:id="|our-${c.channelId}|" th:text="${c.exportUrl}">https://optirent.ru/…</output>
+                        <button type="button" class="btn btn-primary" th:attr="data-wz-copy=|our-${c.channelId}|,data-copied=${t['common.copied']}"
+                                th:text="${t['common.copy']}">Скопировать</button>
+                    </div>
+                    <details class="wz-where">
+                        <summary th:text="${t['links.two.where']}">Куда её вставить</summary>
+                        <ol th:unless="${#lists.isEmpty(c.toSteps)}"><li th:each="s : ${c.toSteps}" th:text="${s}">Шаг</li></ol>
+                        <img th:if="${c.toScreenshot != null}" th:src="${c.toScreenshot}" alt="" loading="lazy" class="wz-shot">
+                        <th:block th:if="${#lists.isEmpty(c.toSteps)}">
+                            <p th:text="${t['links.generic.to']}"></p>
+                            <p><span th:text="${t['links.generic.help']}"></span><a href="mailto:errorgrisha@gmail.com">errorgrisha@gmail.com</a></p>
+                        </th:block>
+                    </details>
+                    <p class="wz-muted wz-small" th:text="${c.refresh}">Циан забирает ссылку не сразу.</p>
+                </div>
+            </div>
+
+            <div class="wz-notes" th:unless="${#lists.isEmpty(c.notes)}">
+                <strong th:text="${t['links.notes']}">Что стоит знать</strong>
+                <ul><li th:each="n : ${c.notes}" th:text="${n}">Особенность</li></ul>
+            </div>
+
+            <form method="post" th:action="@{'/onboarding/links/' + ${c.channelId} + '/later'}" class="wz-later"
+                  th:unless="${c.connected}">
+                <button type="submit" class="wz-link" th:text="${t['links.later']}">Подключу позже</button>
+            </form>
+        </article>
+
+        <form method="post" th:action="@{/onboarding/links/continue}" class="wz-actions">
+            <a class="btn btn-ghost" th:href="@{/onboarding(step='platforms')}" th:text="${t['common.back']}">Назад</a>
+            <button type="submit" class="btn btn-primary" th:text="${t['links.done']}">Готово, дальше</button>
+        </form>
+    </section>
+
+    <!-- Ветка Б, шаг 3. Страница бронирования -->
+    <section th:if="${step == 'page'}">
+        <th:block th:if="${pageUrl == null}">
+            <h1 class="wz-title" th:text="${t['page.title']}">Ваша страница бронирования</h1>
+            <p class="wz-lead" th:text="${t['page.lead']}"></p>
+            <form method="post" th:action="@{/onboarding/page}" enctype="multipart/form-data" class="wz-card">
+                <div class="form-group">
+                    <label class="form-label" for="wz-ptitle" th:text="${t['page.name']}">Название на странице</label>
+                    <input type="text" id="wz-ptitle" name="title" class="form-input" required maxlength="255" th:value="${defaultTitle}">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="wz-files" th:text="${t['page.photos']}">Фотографии</label>
+                    <input type="file" id="wz-files" name="files" accept="image/jpeg,image/png" multiple class="form-input">
+                    <div class="form-hint" th:text="${t['page.photos.hint']}"></div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="wz-pprice" th:text="${t['page.price']}">Цена за ночь</label>
+                    <input type="number" id="wz-pprice" name="price" class="form-input" min="1" step="1" inputmode="numeric" th:value="${defaultPrice}">
+                </div>
+                <div class="wz-row">
+                    <div class="form-group">
+                        <label class="form-label" for="wz-phone" th:text="${t['page.phone']}">Телефон для гостей</label>
+                        <input type="tel" id="wz-phone" name="contactPhone" class="form-input" maxlength="40" inputmode="tel" autocomplete="tel">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label" for="wz-tg" th:text="${t['page.telegram']}">Telegram</label>
+                        <input type="text" id="wz-tg" name="contactTelegram" class="form-input" maxlength="80"
+                               autocapitalize="none" autocorrect="off" spellcheck="false" placeholder="@">
+                    </div>
+                </div>
+                <div class="form-hint" th:text="${t['page.contacts.hint']}"></div>
+                <div class="wz-actions">
+                    <a class="btn btn-ghost" th:if="${backStep != null}" th:href="@{/onboarding(step=${backStep})}" th:text="${t['common.back']}">Назад</a>
+                    <button type="submit" class="btn btn-primary" th:text="${t['page.create']}">Создать страницу</button>
+                </div>
+            </form>
+        </th:block>
+
+        <th:block th:if="${pageUrl != null}">
+            <h1 class="wz-title" th:text="${pageInactive} ? ${t['page.ready.verify.title']} : ${t['page.ready.title']}">Ваша страница готова</h1>
+            <!-- Почта не подтверждена: вместо ссылки — письмо. Гости по ссылке пока видят «скоро заработает» -->
+            <div class="wz-card" th:if="${pageInactive}">
+                <p th:text="${verifyText}"></p>
+                <form method="post" th:action="@{/account/verify/resend}" class="wz-actions wz-actions--start">
+                    <input type="hidden" name="back" value="/onboarding?step=page">
+                    <button type="submit" class="btn btn-primary" th:text="${t['page.ready.verify.resend']}">Отправить письмо ещё раз</button>
+                    <a class="btn btn-ghost" th:href="${designUrl}" target="_blank" rel="noopener" th:text="${t['page.ready.design']}">Настроить вид</a>
+                </form>
+                <p class="wz-muted" th:text="${t['page.ready.verify.later']}"></p>
+            </div>
+            <div class="wz-card" th:unless="${pageInactive}">
+                <div class="wz-ourlink">
+                    <output class="wz-ourlink__url" id="page-url" th:text="${pageUrl}">https://optirent.ru/b/…</output>
+                    <button type="button" class="btn btn-primary" data-wz-copy="page-url" th:attr="data-copied=${t['common.copied']}"
+                            th:text="${t['page.ready.copy']}">Скопировать ссылку</button>
+                </div>
+                <div class="wz-actions wz-actions--start">
+                    <a class="btn btn-ghost" th:href="${pageUrl}" target="_blank" rel="noopener" th:text="${t['page.ready.open']}">Открыть</a>
+                    <a class="btn btn-ghost" th:href="${designUrl}" target="_blank" rel="noopener" th:text="${t['page.ready.design']}">Настроить вид</a>
+                </div>
+            </div>
+            <div class="wz-card" th:if="${offerPlatforms}">
+                <h2 th:text="${t['page.more.title']}">Сдаёте ещё и на площадках?</h2>
+                <p class="wz-muted" th:text="${t['page.more.text']}"></p>
+                <form method="post" th:action="@{/onboarding/page/platforms}" class="wz-actions wz-actions--start">
+                    <button type="submit" class="btn btn-ghost" th:text="${t['page.more.button']}">Подключить площадки</button>
+                </form>
+            </div>
+            <form method="post" th:action="@{/onboarding/page/continue}" class="wz-actions">
+                <button type="submit" class="btn btn-primary" th:text="${t['common.next']}">Дальше</button>
+            </form>
+        </th:block>
+    </section>
+
+    <!-- Финальный экран -->
+    <section th:if="${step == 'done'}" class="wz-done">
+        <div class="wz-done__mark" aria-hidden="true">
+            <svg viewBox="0 0 48 48" width="56" height="56" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><circle cx="24" cy="24" r="20"/><path d="M15 25l6 6 12-13"/></svg>
+        </div>
+        <h1 class="wz-title" th:text="${t['done.title']}">Готово</h1>
+        <p class="wz-lead" th:each="line : ${doneLines}" th:text="${line}"></p>
+        <form method="post" th:action="@{/onboarding/finish}" class="wz-actions wz-actions--center">
+            <button type="submit" class="btn btn-primary" th:text="${t['done.button']}">Открыть шахматку</button>
+        </form>
+    </section>
+</main>
+
+<script th:src="@{/js/onboarding-wizard.js}" defer></script>
+</body>
+</html>

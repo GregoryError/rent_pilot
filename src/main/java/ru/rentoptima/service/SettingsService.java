@@ -70,6 +70,18 @@ public class SettingsService {
         return encryptionUtil.decrypt(raw);
     }
 
+    /**
+     * Секрет, который мог быть сохранён и открытым текстом (старая форма /settings),
+     * и зашифрованным: расшифровывает только при encrypted=true.
+     */
+    public String getSecret(Long tenantId, String key) {
+        SystemSetting setting = repo.findByTenantIdAndKey(tenantId, key).orElse(null);
+        if (setting == null || setting.getValue() == null || setting.getValue().isBlank()) return null;
+        return Boolean.TRUE.equals(setting.getEncrypted())
+                ? encryptionUtil.decrypt(setting.getValue())
+                : setting.getValue();
+    }
+
     /** Устанавливает зашифрованное значение. */
     @Transactional
     public void setEncryptedValue(Long tenantId, String key, String plainValue) {

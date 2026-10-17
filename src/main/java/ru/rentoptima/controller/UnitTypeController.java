@@ -1,0 +1,97 @@
+package ru.rentoptima.controller;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import ru.rentoptima.entity.Property;
+import ru.rentoptima.entity.UnitType;
+import ru.rentoptima.repository.PropertyRepository;
+import ru.rentoptima.repository.UnitTypeRepository;
+import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
+import ru.rentoptima.service.PropertyCreator;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+/**
+ * CRUD категорий номеров внутри property.
+ * <p>
+ * В отличие от Property, здесь используем JPA-репозиторий напрямую — сущность
+ * UnitType не страдает от двойного маппинга tenant_id (нет ManyToOne, только
+ * Long tenantId), сохранение работает штатно.
+ * <p>
+ * Все действия скоуплены к property через путь; ownership проверяется по
+ * property.tenantId — так один тенант не может добавить категорию в чужой property.
+ */
+@Slf4j
+@Controller
+@RequestMapping("/settings/properties/{propertyId}/unit-types")
+@RequiredArgsConstructor
+public class UnitTypeController {
+
+    private final UnitTypeRepository unitTypeRepo;
+    private final PropertyRepository propertyRepo;
+    private final PropertyCreator propertyCreator;
+
+    @PostMapping
+    @Transactional
+    public String create(@PathVariable Long propertyId,
+                         @RequestParam String name,
+                         @RequestParam(required = false) Integer unitCount,
+                         @RequestParam(required = false) BigDecimal basePrice,
+                         @RequestParam(required = false) BigDecimal weekendPrice,
+                         RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        Tenancy.own(propertyRepo.findById(propertyId), Property::getTenantId);
+        UnitType ut = propertyCreator.createUnitType(tenantId, propertyId, name, unitCount, basePrice, weekendPrice);
+        redirect.addFlashAttribute("success", "Категория «" + ut.getName() + "» добавлена");
+        return "redirect:/settings/properties";
+    }
+
+    @PostMapping("/{id}/edit")
+    @Transactional
+    public String update(@PathVariable Long propertyId,
+                         @PathVariable Long id,
+                         @RequestParam String name,
+                         @RequestParam(required = false) Integer unitCount,
+                         @RequestParam(required = false) BigDecimal basePrice,
+                         @RequestParam(required = false) BigDecimal weekendPrice,
+                         RedirectAttributes redirect) {
+        UnitType ut = ownUnitType(propertyId, id);
+        ut.setName(name != null ? name.trim() : ut.getName());
+        ut.setUnitCount(unitCount == null || unitCount < 1 ? 1 : unitCount);
+        ut.setBasePrice(basePrice);
+        ut.setWeekendPrice(weekendPrice);
+        ut.setUpdatedAt(LocalDateTime.now());
+        unitTypeRepo.save(ut);
+        redirect.addFlashAttribute("success", "Категория обновлена");
+        return "redirect:/settings/properties";
+    }
+
+    /**
+     * Soft delete: active = false. Физическое удаление невозможно, пока висят
+     * broни/blocks/каналы (FK), а даже когда возможно — лучше сохранить историю.
+     */
+    @PostMapping("/{id}/delete")
+    @Transactional
+    public String delete(@PathVariable Long propertyId,
+                         @PathVariable Long id,
+                         RedirectAttributes redirect) {
+        UnitType ut = ownUnitType(propertyId, id);
+        ut.setActive(false);
+        ut.setUpdatedAt(LocalDateTime.now());
+        unitTypeRepo.save(ut);
+        redirect.addFlashAttribute("success", "Категория удалена");
+        return "redirect:/settings/properties";
+    }
+
+    /** Категория своего тенанта и этого объекта; иначе 404. */
+    private UnitType ownUnitType(Long propertyId, Long id) {
+        return Tenancy.own(unitTypeRepo.findById(id).filter(ut -> propertyId.equals(ut.getPropertyId())),
+                UnitType::getTenantId);
+    }
+}

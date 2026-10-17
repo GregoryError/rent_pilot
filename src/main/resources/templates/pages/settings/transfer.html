@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head><title>Перенос истории</title></head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Перенести историю из RealtyCalendar</h1>
+        <p class="page-subtitle">Если раньше вы вели брони в RealtyCalendar, загрузите их выгрузку — прошлые брони
+            появятся в шахматке и в выручке. Начинаете с нуля — этот раздел не нужен.</p>
+    </div>
+
+    <!-- Import -->
+    <div class="card">
+        <div class="card__title" style="margin-bottom: var(--sp-5)">Загрузить выгрузку броней</div>
+        <form th:action="@{/settings/transfer}" method="post" enctype="multipart/form-data"
+              style="display:flex; flex-wrap:wrap; gap: var(--sp-4); align-items: flex-end;">
+            <div class="form-group" style="margin-bottom:0">
+                <label class="form-label" th:text="${housing.fill('%Nom%')}">Жильё</label>
+                <select name="propertyId" class="form-input form-input--sm" style="width:300px" required>
+                    <option th:each="prop : ${properties}" th:value="${prop.id}" th:text="${prop.name}"></option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+                <label class="form-label">Файл выгрузки (.xlsx)</label>
+                <input type="file" name="file" accept=".xlsx,.xls" class="form-input form-input--sm"
+                       style="width:350px" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Перенести</button>
+        </form>
+        <div class="form-hint mt-6">
+            Выгрузка броней из RealtyCalendar в формате .xlsx: заголовок в третьей строке, данные — со следующей. Столбцы по порядку:
+            Создано, Статус, Обновлён статус, Источник, Объект, Название, Адрес, Заезд, Выезд, Имя,
+            Телефон, Гостей, Примечания, Сумма, Комиссия.
+            Брони, которые уже есть, пропускаются. Удалённые и отменённые не переносятся.
+        </div>
+    </div>
+
+    <!-- Clear data -->
+    <div class="card" style="border-color: rgba(248,113,113,0.3);">
+        <div class="card__title" style="margin-bottom: var(--sp-2)">Удалить перенесённую историю</div>
+        <p class="text-sm muted" style="margin-bottom: var(--sp-5)">
+            Удалит брони, перенесённые из RealtyCalendar (файлом или раньше напрямую), и расходы на уборку,
+            созданные по ним, у выбранного объекта. Ручные брони, заявки с сайта и брони с площадок
+            остаются. Отменить удаление нельзя.
+        </p>
+        <form th:action="@{/settings/transfer/clear}" method="post"
+              onsubmit="return confirm('Удалить перенесённую из RealtyCalendar историю этого объекта? Отменить нельзя.')"
+              style="display:flex; gap: var(--sp-4); align-items: flex-end;">
+            <div class="form-group" style="margin-bottom:0">
+                <label class="form-label" th:text="${housing.fill('%Nom%')}">Жильё</label>
+                <select name="propertyId" class="form-input form-input--sm" style="width:300px" required>
+                    <option th:each="prop : ${properties}" th:value="${prop.id}" th:text="${prop.name}"></option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-ghost" style="border-color: var(--red); color: var(--red);">Удалить историю</button>
+        </form>
+    </div>
+
+</div>
+</body>
+</html>

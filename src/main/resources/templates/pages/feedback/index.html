@@ -26,12 +26,18 @@
             color: var(--text);
         }
         .scale-btn:hover { border-color: var(--accent); }
+        /* Узкий экран: десять оценок в два ряда по пять — кнопка не меньше 44px */
+        @media (max-width: 520px) {
+            .scale { flex-wrap: wrap; }
+            .scale-btn { flex: 1 0 calc(20% - 6px); aspect-ratio: auto; min-height: 48px; }
+            .scale-labels { margin-top: -14px; }
+        }
         .scale-btn.selected { background: var(--accent); border-color: var(--accent); color: #fff; }
         .scale-labels { display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--muted); margin-top: -18px; margin-bottom: 20px; }
 
         textarea, input[type=text] {
             width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 10px;
-            font-size: 0.95rem; font-family: inherit; resize: none; outline: none; background: var(--surface);
+            font-size: 1rem; font-family: inherit; resize: none; outline: none; background: var(--surface);
         }
         textarea:focus, input:focus { border-color: var(--accent); }
         textarea { min-height: 80px; margin-bottom: 20px; }
@@ -114,6 +120,10 @@
             <div class="done-text">Ваше мнение поможет нам улучшить сервис</div>
         </div>
     </div>
+
+    <!-- Поле-ловушка для ботов: людям не видно, с клавиатуры недоступно -->
+    <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" aria-hidden="true"
+           style="position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; clip-path: inset(50%); pointer-events: none;">
 
     <script th:inline="javascript">
         const propertyCode = /*[[${property.feedbackCode}]]*/ '';
@@ -214,6 +224,7 @@
                     sessionId,
                     guestName: document.getElementById('guestName')?.value || null,
                     agreedToConsent: document.getElementById('consentCheck')?.checked || false,
+                    website: document.getElementById('website').value,
                     ...data
                 })
             }).catch(() => {});

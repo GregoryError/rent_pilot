@@ -42,6 +42,12 @@ public class FeedbackResponse {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt = LocalDateTime.now();
 
+    /** Откуда пришёл ответ: null — обычная анкета, {@link #SOURCE_CARD} — с карточки в квартире (V33). */
+    @Column(length = 20)
+    private String source;
+
+    public static final String SOURCE_CARD = "CARD";
+
     @Column(name = "agreed_to_consent_at")
     private java.time.LocalDateTime agreedToConsentAt;
 }

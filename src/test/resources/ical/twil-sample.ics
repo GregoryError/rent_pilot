@@ -1,0 +1,18 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Twil//Calendar//EN
+BEGIN:VEVENT
+UID:twil-booking-A1B2@twil.travel
+DTSTAMP:20260930T050000Z
+DTSTART;VALUE=DATE:20261101
+SUMMARY:Zanjato po broni Twil (odna noch)
+END:VEVENT
+BEGIN:VEVENT
+UID:twil-booking-A1B3@twil.travel
+DTSTAMP:20260930T050000Z
+DTSTART;VALUE=DATE:20261108
+DTEND;VALUE=DATE:20261112
+SUMMARY:Zabronirovano na dlitel'nyj srok cherez Twil s
+ pereletom v drugom gorode\, spasibo za pokupku
+END:VEVENT
+END:VCALENDAR

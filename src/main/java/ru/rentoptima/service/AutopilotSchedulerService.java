@@ -21,7 +21,6 @@ public class AutopilotSchedulerService {
 
     private final TaskScheduler taskScheduler;
     private final PricingEngine pricingEngine;
-    private final RcSyncService rcSyncService;
     private final PropertyRepository propertyRepo;
     private final SettingsService settings;
 
@@ -41,9 +40,7 @@ public class AutopilotSchedulerService {
 
     private void scheduleAll() {
         propertyRepo.findAll().stream()
-                .filter(p -> p.getActive()
-                        && p.getRcObjectId() != null
-                        && !p.getRcObjectId().isBlank())
+                .filter(Property::getActive)
                 .map(p -> p.getTenant().getId())
                 .distinct()
                 .forEach(this::scheduleTenant);
@@ -85,9 +82,7 @@ public class AutopilotSchedulerService {
 
         propertyRepo.findAll().stream()
                 .filter(p -> p.getTenant().getId().equals(tenantId)
-                        && p.getActive()
-                        && p.getRcObjectId() != null
-                        && !p.getRcObjectId().isBlank())
+                        && p.getActive())
                 .forEach(property -> {
                     try {
                         pricingEngine.runForProperty(property, mode);

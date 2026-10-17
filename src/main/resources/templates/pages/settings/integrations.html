@@ -13,115 +13,92 @@
         <p class="page-subtitle">Подключения к внешним сервисам</p>
     </div>
 
-    <!-- RC Integration Card -->
+    <!-- Telegram alerts card -->
     <div class="card" style="margin-bottom: var(--sp-6);">
         <div class="card__header" style="display: flex; justify-content: space-between; align-items: center;">
             <div>
-                <div class="card__title">RealtyCalendar</div>
-                <div class="text-sm muted">Синхронизация бронирований и цен</div>
+                <div class="card__title">Уведомления в Telegram</div>
+                <div class="text-sm muted">Пересечения броней и сбои синхронизации площадок</div>
             </div>
             <div>
-                <span th:if="${configured}" class="tag tag--green">
-                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor; margin-right:6px; vertical-align:middle;"></span>
-                    Подключено
-                </span>
-                <span th:unless="${configured}" class="tag tag--red">
-                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:currentColor; margin-right:6px; vertical-align:middle;"></span>
-                    Не подключено
-                </span>
+                <span th:if="${tgConfigured}" class="tag tag--green">Подключено</span>
+                <span th:unless="${tgConfigured}" class="tag tag--muted">Не подключено</span>
             </div>
         </div>
 
-        <!-- Safety explanation -->
-        <div style="background: var(--bg-raised); border-left: 3px solid var(--accent); padding: var(--sp-4); margin: var(--sp-4) 0; border-radius: var(--radius-sm);">
-            <div style="font-weight: 600; margin-bottom: var(--sp-2); color: var(--text-primary);">
-                Для чего нам логин и пароль от RealtyCalendar?
-            </div>
-            <p style="margin: 0 0 var(--sp-3) 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.6;">
-                Платформа работает поверх RealtyCalendar — читает ваши бронирования и обновляет цены
-                на будущие даты. Для этого нам нужен доступ к вашему аккаунту RC.
-            </p>
-            <p style="margin: 0 0 var(--sp-3) 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.6;">
-                <strong>Мы гарантируем:</strong>
-            </p>
-            <ul style="margin: 0 0 var(--sp-3) 0; padding-left: var(--sp-5); color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.8;">
-                <li>Ваш пароль хранится в базе данных только в зашифрованном виде (AES-256-GCM)</li>
-                <li>Мы не передаём ваши данные третьим лицам ни при каких обстоятельствах</li>
-                <li>Соединение между вашим браузером и сервером защищено SSL/TLS</li>
-                <li>Ни один сотрудник не имеет доступа к вашему аккаунту RC</li>
-                <li>Пароль используется только для получения токена авторизации в RC</li>
-            </ul>
-            <p style="margin: 0; color: var(--text-muted); font-size: var(--text-xs); font-style: italic;">
-                Если вы не согласны с такой схемой интеграции — откажитесь от использования сервиса.
-                Мы понимаем и уважаем это решение.
-            </p>
-        </div>
+        <ol class="text-sm" style="margin: var(--sp-4) 0; padding-left: var(--sp-5); color: var(--text-secondary); line-height: 1.8;">
+            <li>В Telegram откройте <strong>@BotFather</strong>, отправьте <code>/newbot</code> и скопируйте токен бота сюда.</li>
+            <li>Сохраните токен, откройте своего бота и отправьте ему <code>/start</code>
+                (или добавьте бота в группу, куда должны приходить уведомления).</li>
+            <li>Нажмите «Найти чат» — придёт проверочное сообщение.</li>
+        </ol>
 
-        <!-- Form -->
-        <form method="post" th:action="@{/settings/integrations/rc}">
-            <div style="margin-bottom: var(--sp-4);">
-                <label class="form-label">Логин RC</label>
-                <input type="text" name="rcUsername" th:value="${rcUsername}" class="input" required
-                       placeholder="Ваш email или телефон, под которым вы входите в RealtyCalendar">
+        <form method="post" th:action="@{/settings/integrations/telegram}">
+            <div class="form-group">
+                <label class="form-label">Токен бота</label>
+                <input type="password" name="tgToken" class="form-input form-input--sm" autocomplete="off"
+                       style="max-width: 500px;"
+                       th:placeholder="${tgHasToken ? '••••••••  (оставьте пустым, чтобы не менять)' : '123456789:AA…'}">
+                <div class="form-hint">Хранится в зашифрованном виде.</div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">ID чата</label>
+                <input type="text" name="tgChatId" autocomplete="off" spellcheck="false" th:value="${tgChatId}" class="form-input form-input--sm"
+                       style="max-width: 500px;" placeholder="Заполнится кнопкой «Найти чат»">
             </div>
 
-            <div style="margin-bottom: var(--sp-4);">
-                <label class="form-label">Пароль RC</label>
-                <input type="password" name="rcPassword" class="input"
-                       th:placeholder="${hasPassword ? '••••••••  (оставьте пустым чтобы не менять)' : 'Пароль от RealtyCalendar'}">
-                <div class="text-xs muted" style="margin-top: var(--sp-1);">
-                    Пароль будет зашифрован перед сохранением.
-                </div>
-            </div>
-
-            <div style="display: flex; gap: var(--sp-3); align-items: center;">
-                <button type="submit" class="btn btn--primary">Сохранить</button>
-                <button type="button" onclick="testRc()" class="btn" th:if="${configured}">
-                    Проверить подключение
-                </button>
-                <a th:href="@{/settings/integrations/rc/clear}"
-                   onclick="return confirm('Удалить сохранённые данные RC?')"
-                   class="btn" style="color: var(--red); margin-left: auto;"
-                   th:if="${configured}">
-                    Удалить данные
-                </a>
+            <div style="display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap;">
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+                <button type="submit" form="tg-detect-form" class="btn btn-ghost"
+                        th:if="${tgHasToken}">Найти чат</button>
+                <button type="submit" form="tg-test-form" class="btn btn-ghost"
+                        th:if="${tgConfigured}">Отправить тест</button>
+                <button type="submit" form="tg-check-form" class="btn btn-ghost">Проверить сейчас</button>
+                <button type="submit" form="tg-clear-form" class="btn btn-ghost"
+                        style="color: var(--red); margin-left: auto;"
+                        onclick="return confirm('Отключить уведомления в Telegram?')"
+                        th:if="${tgHasToken}">Отключить</button>
             </div>
         </form>
 
-        <div id="test-result" style="margin-top: var(--sp-4); display: none;"></div>
+        <form method="post" id="tg-detect-form" th:action="@{/settings/integrations/telegram/detect}"></form>
+        <form method="post" id="tg-test-form" th:action="@{/settings/integrations/telegram/test}"></form>
+        <form method="post" id="tg-check-form" th:action="@{/settings/integrations/telegram/check}"></form>
+        <form method="post" id="tg-clear-form" th:action="@{/settings/integrations/telegram/clear}"></form>
+
+        <div class="form-hint" style="margin-top: var(--sp-4);">
+            Проверка идёт автоматически каждые 5 минут. Об одной и той же проблеме сообщение приходит один раз.
+            Сервис только уведомляет — сам ничего не меняет ни в бронях, ни на площадках.
+        </div>
+    </div>
+
+    <!-- Alert journal -->
+    <div class="card" style="margin-bottom: var(--sp-6);">
+        <div class="card__header">
+            <div class="card__title">Журнал уведомлений</div>
+            <div class="text-sm muted">Последние 20 записей. Ведётся и без подключённого Telegram.</div>
+        </div>
+        <p class="muted text-sm" th:if="${#lists.isEmpty(alerts)}" style="margin: var(--sp-3) 0 0 0;">
+            Пока пусто: пересечений и сбоев площадок не было.
+        </p>
+        <div class="table-wrap" th:unless="${#lists.isEmpty(alerts)}">
+            <table>
+                <thead>
+                <tr><th>Замечено</th><th>Тип</th><th>Что случилось</th><th>Статус</th></tr>
+                </thead>
+                <tbody>
+                <tr th:each="a : ${alerts}" th:attr="data-hint=${a.type == 'Пересечение'} ? 'conflict'">
+                    <td th:text="${a.time}" style="white-space: nowrap;">04.10 12:30</td>
+                    <td th:text="${a.type}" style="white-space: nowrap;">Пересечение</td>
+                    <td th:text="${a.message}">Садовая / Основной: 12–14 октября</td>
+                    <td><span th:class="${a.statusCss}" th:text="${a.status}">Открыт</span></td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
 </div>
 
-<div layout:fragment="scripts">
-<script>
-async function testRc() {
-    const resultEl = document.getElementById('test-result');
-    resultEl.style.display = 'block';
-    resultEl.innerHTML = '<div class="text-sm muted">Проверяем...</div>';
-
-    try {
-        const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.content;
-        const csrfToken = document.querySelector('meta[name="_csrf"]')?.content;
-        const headers = { 'Content-Type': 'application/json' };
-        if (csrfHeader && csrfToken) headers[csrfHeader] = csrfToken;
-
-        const resp = await fetch('/settings/integrations/rc/test', {
-            method: 'POST',
-            headers
-        });
-        const data = await resp.json();
-
-        if (data.ok) {
-            resultEl.innerHTML = '<div style="padding: 10px; background: rgba(74,222,128,0.15); color: var(--green); border-radius: 6px;">✓ ' + data.message + '</div>';
-        } else {
-            resultEl.innerHTML = '<div style="padding: 10px; background: rgba(248,113,113,0.15); color: var(--red); border-radius: 6px;">✗ ' + data.message + '</div>';
-        }
-    } catch (e) {
-        resultEl.innerHTML = '<div style="padding: 10px; background: rgba(248,113,113,0.15); color: var(--red); border-radius: 6px;">✗ Ошибка: ' + e.message + '</div>';
-    }
-}
-</script>
-</div>
 </body>
 </html>

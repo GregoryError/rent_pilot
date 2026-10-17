@@ -41,6 +41,7 @@ public class AiPricingAdvisor {
     private final FeedbackAnalyticsService feedbackAnalytics;
     private final RestTemplate restTemplate = new RestTemplate();
     private final ru.rentoptima.repository.AiCommentRepository aiCommentRepo;
+    private final ru.rentoptima.repository.UnitTypeRepository unitTypeRepo;
 
 
 //    private static final String API_URL = "https://api.anthropic.com/v1/messages";
@@ -70,7 +71,8 @@ public class AiPricingAdvisor {
         }
     }
 
-    private String buildPrompt(Property property,
+    /** Подсказка AI-советнику; пакетная — для теста «цена из квартиры, не из настроек». */
+    String buildPrompt(Property property,
                                 List<PricingEngine.PricingRecommendation> recs,
                                 Long tenantId,
                                 CompetitorAnalysis competitorAnalysis) {
@@ -79,10 +81,15 @@ public class AiPricingAdvisor {
         LocalDate from = today;
         LocalDate to = today.plusDays(60);
 
-        int weekday = settings.getIntValue(tenantId, "weekday_base_price", 3200);
-        int weekend = settings.getIntValue(tenantId, "weekend_base_price", 4200);
-        int floor = settings.getIntValue(tenantId, "min_price_floor", 2500);
-        int ceil = settings.getIntValue(tenantId, "max_price_ceiling", 10000);
+        // Цена — квартиры (первая действующая категория объекта), как в автопилоте; не настройки тенанта
+        ru.rentoptima.entity.UnitType unit = unitTypeRepo.findByPropertyIdAndActiveTrue(property.getId()).stream()
+                .min(java.util.Comparator.comparing(ru.rentoptima.entity.UnitType::getId)).orElse(null);
+        int weekday = unit == null || unit.getBasePrice() == null ? 0 : unit.getBasePrice().intValue();
+        int weekend = unit == null || unit.getWeekendPrice() == null ? weekday : unit.getWeekendPrice().intValue();
+        int[] limits = PricingEngine.bounds(settings.getSettingsMap(tenantId), weekday);
+        int floor = limits[0];
+        int ceil = limits[1];
+        String city = property.getCity() == null || property.getCity().isBlank() ? "вашем городе" : property.getCity();
         int cleaning = settings.getIntValue(tenantId, "cleaning_cost", 1400);
 
         List<Booking> bookings = bookingRepo.findByTenantIdAndStatusAndCheckInBetween(
@@ -156,13 +163,13 @@ public class AiPricingAdvisor {
         }
 
         return String.format("""
-                Ты — эксперт по revenue management посуточной аренды в Выборге (Ленинградская область).
+                Ты — эксперт по revenue management посуточной аренды, город: %s.
                 Твоя задача — скорректировать цены, рекомендованные алгоритмом, с учётом
                 контекста и рынка.
 
                 === ОБЪЕКТ ===
                 %s, %s
-                Базовые цены: будни %d₽, выходные %d₽
+                Цена квартиры: будни %d₽, выходные (ночи с пт и с сб) %d₽
                 Ограничения: min %d₽, max %d₽, уборка %d₽
 
                 === ИСТОРИЯ ===
@@ -182,8 +189,7 @@ public class AiPricingAdvisor {
                 %s
 
                 === ТВОЯ ЗАДАЧА ===
-                Учти сезонность: сентябрь-ноябрь = высокий сезон в Выборге, декабрь-февраль = праздники,
-                март-апрель = межсезонье, май-июль = высокий сезон.
+                Учти сезонность и праздники этого города.
                 Короткие бронирования нормальны в высокий сезон, длинные — в межсезонье.
 
                 Не паникуй если booking pace низкий в межсезонье — это норма.
@@ -201,6 +207,7 @@ public class AiPricingAdvisor {
                 Только те даты которые действительно нужно скорректировать.
                 Множитель ∈ [0.75, 1.30]. Учти диапазон [%d, %d]₽.
                 """,
+                city,
                 property.getName(),
                 property.getAddress() != null ? property.getAddress() : "",
                 weekday, weekend, floor, ceil, cleaning,

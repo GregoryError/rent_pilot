@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="robots" content="noindex">
+    <title>Нет доступа — OptiRent</title>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
+</head>
+<body>
+<main class="error-page">
+    <a th:href="@{/}" class="error-page__logo">
+        <svg th:replace="~{fragments/logo :: mark(28)}"></svg>
+        <span>OptiRent</span>
+    </a>
+    <div class="error-page__code">403</div>
+    <h1 class="error-page__title">Нет доступа</h1>
+    <p class="error-page__text">Эта страница доступна не всем. Если вы уверены, что доступ должен быть, войдите под другой учётной записью.</p>
+    <a th:href="@{/}" class="btn btn-primary">На главную</a>
+</main>
+</body>
+</html>

@@ -11,12 +11,12 @@ public class PlaceholderController {
     public String feedback(Model model) {
         model.addAttribute("activePage", "feedback");
         model.addAttribute("pageTitle", "Отзывы гостей");
-        model.addAttribute("pageDesc", "Анализ обратной связи и рекомендации по улучшению квартиры.");
+        model.addAttribute("pageDesc", "Анализ обратной связи и рекомендации по улучшению жилья.");
         model.addAttribute("planned", new String[]{
                 "QR-код для гостей — лёгкая форма обратной связи",
                 "AI-анализ текстовых отзывов (кластеризация, сентимент)",
                 "Средние оценки по периодам",
-                "ROI-рекомендации по улучшению квартиры"
+                "ROI-рекомендации по улучшению жилья"
         });
         return "pages/placeholder";
     }

@@ -1,91 +1,123 @@
 package ru.rentoptima.controller;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import ru.rentoptima.entity.Property;
-import ru.rentoptima.entity.Tenant;
+import ru.rentoptima.entity.UnitType;
 import ru.rentoptima.repository.PropertyRepository;
-import ru.rentoptima.repository.TenantRepository;
+import ru.rentoptima.repository.UnitTypeRepository;
 import ru.rentoptima.security.AuthContext;
+import ru.rentoptima.security.Tenancy;
+import ru.rentoptima.service.PropertyCreator;
+import ru.rentoptima.seo.SiteSettings;
 
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+/**
+ * Property CRUD.
+ * <p>
+ * Пишем через JdbcTemplate вместо JPA-репозитория намеренно — см. комментарий
+ * от предыдущего фикса: у Property.java двойной маппинг на tenant_id (ManyToOne
+ * с insertable=false плюс @Column-поле tenantId), и попытка сохранить через
+ * setTenant не работала. Список загружаем через JPA, там читать безопасно.
+ * <p>
+ * unit_types для каждой property подгружаем в модель здесь же, чтобы шаблон
+ * мог показать их под карточкой объекта без дополнительных запросов.
+ */
+@Slf4j
 @Controller
 @RequestMapping("/settings/properties")
 @RequiredArgsConstructor
 public class PropertyController {
 
     private final PropertyRepository propertyRepo;
-    private final TenantRepository tenantRepo;
+    private final UnitTypeRepository unitTypeRepo;
+    private final JdbcTemplate jdbc;
+    private final PropertyCreator propertyCreator;
+    private final ru.rentoptima.service.ApartmentDefaults apartmentDefaults;
+    private final SiteSettings site;
 
     @GetMapping
-    public String list(Model model) {
+    public String list(Model model, jakarta.servlet.http.HttpServletRequest request) {
         Long tenantId = AuthContext.tenantId();
+        model.addAttribute("baseUrl", site.linkBase(request));
+        // Группируем unit_type по propertyId — шаблон достанет по ключу для каждой карточки.
+        Map<Long, List<UnitType>> unitTypesByProperty = unitTypeRepo
+                .findByTenantIdAndActiveTrue(tenantId).stream()
+                .collect(Collectors.groupingBy(UnitType::getPropertyId));
         model.addAttribute("activePage", "settings");
         model.addAttribute("properties", propertyRepo.findByTenantIdAndActiveTrue(tenantId));
+        model.addAttribute("unitTypesByProperty", unitTypesByProperty);
+        model.addAttribute("defaults", apartmentDefaults.forTenant(tenantId));
+        model.addAttribute("kinds", ru.rentoptima.housing.HousingKind.values());
         return "pages/settings/properties";
     }
 
     @PostMapping
+    @Transactional
     public String create(@RequestParam String name,
-                          @RequestParam(required = false) String address,
-                          @RequestParam(required = false) String city,
-                          @RequestParam(required = false) String rcObjectId,
-                          RedirectAttributes redirect) {
+                         @RequestParam(required = false) String kind,
+                         @RequestParam(required = false) String address,
+                         @RequestParam(required = false) String city,
+                         RedirectAttributes redirect) {
         Long tenantId = AuthContext.tenantId();
-        Tenant tenant = tenantRepo.findById(tenantId).orElseThrow();
-
-        Property p = new Property();
-        p.setTenant(tenant);
-        p.setName(name);
-        p.setAddress(address);
-        p.setCity(city != null && !city.isBlank() ? city : "Выборг");
-        p.setRcObjectId(rcObjectId);
-        p.setFeedbackCode(generateCode());
-        p.setHousekeeperCode(generateCode());
-        p.setActive(true);
-        p.setUpdatedAt(LocalDateTime.now());
-
-        propertyRepo.save(p);
+        if (tenantId == null) {
+            throw new IllegalStateException("tenantId в сессии не установлен");
+        }
+        // Город не указан — значение по умолчанию для новых квартир из настроек (может быть пустым)
+        String cityValue = (city != null && !city.isBlank()) ? city.trim() : apartmentDefaults.forTenant(tenantId).city();
+        propertyCreator.createProperty(tenantId, name, address, cityValue, ru.rentoptima.housing.HousingKind.of(kind));
         redirect.addFlashAttribute("success", "Объект «" + name + "» добавлен");
         return "redirect:/settings/properties";
     }
 
     @PostMapping("/{id}/edit")
+    @Transactional
     public String update(@PathVariable Long id,
-                          @RequestParam String name,
-                          @RequestParam(required = false) String address,
-                          @RequestParam(required = false) String city,
-                          @RequestParam(required = false) String rcObjectId,
-                          RedirectAttributes redirect) {
-        propertyRepo.findById(id).ifPresent(p -> {
-            p.setName(name);
-            p.setAddress(address);
-            p.setCity(city);
-            p.setRcObjectId(rcObjectId);
-            p.setUpdatedAt(LocalDateTime.now());
-            propertyRepo.save(p);
-        });
+                         @RequestParam String name,
+                         @RequestParam(required = false) String kind,
+                         @RequestParam(required = false) String address,
+                         @RequestParam(required = false) String city,
+                         RedirectAttributes redirect) {
+        Long tenantId = AuthContext.tenantId();
+        Timestamp now = Timestamp.valueOf(LocalDateTime.now());
+        int rows = jdbc.update("""
+                UPDATE properties
+                   SET name = ?, address = ?, city = ?, kind = COALESCE(?, kind), updated_at = ?
+                 WHERE id = ? AND tenant_id = ?
+                """,
+                name, address, city, kind == null ? null : ru.rentoptima.housing.HousingKind.of(kind).name(),
+                now, id, tenantId);
+        // чужой или несуществующий объект — 404 (условие tenant_id в самом UPDATE)
+        if (rows == 0) throw Tenancy.notFound();
         redirect.addFlashAttribute("success", "Объект обновлён");
         return "redirect:/settings/properties";
     }
 
     @PostMapping("/{id}/delete")
+    @Transactional
     public String delete(@PathVariable Long id, RedirectAttributes redirect) {
-        propertyRepo.findById(id).ifPresent(p -> {
-            p.setActive(false);
-            p.setUpdatedAt(LocalDateTime.now());
-            propertyRepo.save(p);
-        });
+        Long tenantId = AuthContext.tenantId();
+        Timestamp now = Timestamp.valueOf(LocalDateTime.now());
+        int rows = jdbc.update("""
+                UPDATE properties
+                   SET active = FALSE, updated_at = ?
+                 WHERE id = ? AND tenant_id = ?
+                """,
+                now, id, tenantId);
+        if (rows == 0) throw Tenancy.notFound();
         redirect.addFlashAttribute("success", "Объект удалён");
         return "redirect:/settings/properties";
     }
 
-    private String generateCode() {
-        return UUID.randomUUID().toString().substring(0, 8);
-    }
 }

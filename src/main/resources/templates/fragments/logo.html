@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--
+    Логотип OptiRent — inline SVG, без отдельного файла.
+    Почему inline: /images/** не в permitAll SecurityConfig, и на login/register
+    внешний файл не загрузился бы. Цвета берутся из токенов (.logo-mark в core.css),
+    поэтому знак сам подстроится под светлую тему.
+
+    Использование:
+        <svg th:replace="~{fragments/logo :: mark(24)}"></svg>
+-->
+<svg th:fragment="mark(size)" class="logo-mark"
+     th:width="${size}" th:height="${size}"
+     viewBox="0 0 24 24" aria-hidden="true" focusable="false"
+     xmlns="http://www.w3.org/2000/svg">
+    <rect class="logo-mark__bg" x="0" y="0" width="24" height="24" rx="6"/>
+    <!-- Крыша -->
+    <path class="logo-mark__fg" d="M5 11.5 12 5.5l7 6"
+          fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Рост: столбики внутри дома -->
+    <path class="logo-mark__fg" d="M8.5 18v-2.5M12 18v-4.5M15.5 18v-6.5"
+          fill="none" stroke-width="2" stroke-linecap="round"/>
+</svg>
+</body>
+</html>

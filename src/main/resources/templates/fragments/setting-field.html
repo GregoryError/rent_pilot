@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+<!--/* Поле настройки на /settings. Подпись и пояснение — SettingsController.FIELDS.
+     Нет строки в базе — поля нет. */-->
+<div th:fragment="field(setting)" th:if="${setting != null}" class="form-group">
+    <label class="form-label" th:for="'s-' + ${setting.key}" th:text="${fields[setting.key].label}"></label>
+    <th:block th:switch="${setting.key}">
+        <select th:case="'autopilot_mode'" class="form-input form-input--sm settings-input"
+                th:id="'s-' + ${setting.key}" th:name="${setting.key}">
+            <option value="OFF" th:selected="${setting.value == 'OFF'}">Выключен — подсказки считаются, когда вы открываете страницу цен</option>
+            <option value="SOFT" th:selected="${setting.value == 'SOFT'}">Осторожный — пересчёт по расписанию, только небольшие изменения цены</option>
+            <option value="FULL" th:selected="${setting.value == 'FULL'}">Полный — пересчёт по расписанию, все подсказки</option>
+        </select>
+        <select th:case="'autopilot_interval_minutes'" class="form-input form-input--sm settings-input"
+                th:id="'s-' + ${setting.key}" th:name="${setting.key}">
+            <option value="10" th:selected="${setting.value == '10'}">10 минут</option>
+            <option value="30" th:selected="${setting.value == '30'}">30 минут</option>
+            <option value="60" th:selected="${setting.value == '60'}">1 час</option>
+            <option value="180" th:selected="${setting.value == '180'}">3 часа</option>
+            <option value="360" th:selected="${setting.value == '360'}">6 часов</option>
+            <option value="720" th:selected="${setting.value == '720'}">12 часов</option>
+            <option value="1440" th:selected="${setting.value == '1440'}">24 часа</option>
+            <option value="4320" th:selected="${setting.value == '4320'}">3 дня</option>
+            <option value="10080" th:selected="${setting.value == '10080'}">1 неделя</option>
+        </select>
+        <input th:case="'anthropic_api_key'" class="form-input form-input--sm settings-input"
+               th:id="'s-' + ${setting.key}" th:name="${setting.key}" th:value="${setting.value}"
+               type="password" placeholder="••••••••" autocomplete="off">
+        <input th:case="*" class="form-input form-input--sm settings-input"
+               th:id="'s-' + ${setting.key}" th:name="${setting.key}" th:value="${setting.value}"
+               th:type="${setting.encrypted ? 'password' : 'text'}">
+    </th:block>
+    <div class="form-hint" th:text="${fields[setting.key].hint}"></div>
+    <div class="form-hint" th:if="${setting.key == 'anthropic_api_key'}">Значение скрыто. Введите новое для обновления.</div>
+</div>
+</body>
+</html>
