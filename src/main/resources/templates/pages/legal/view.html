@@ -3,69 +3,58 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${page.title} + ' — OptiRent'">Legal</title>
+    <title th:text="${doc.title} + ' — OptiRent'">Документ — OptiRent</title>
     <meta name="theme-color" content="#f6f5f2">
-    <th:block th:replace="~{fragments/site :: social(${page.title} + ' — OptiRent', ${description}, ${canonical}, null)}"></th:block>
+    <meta name="robots" content="noindex, nofollow" th:if="${noindex}">
+    <th:block th:replace="~{fragments/site :: social(${doc.title} + ' — OptiRent', ${description}, ${canonical}, null)}"></th:block>
     <th:block th:replace="~{fragments/site :: icons}"></th:block>
     <link rel="stylesheet" th:href="@{/css/core.css}">
+    <link rel="stylesheet" th:href="@{/css/legal.css}">
     <script th:src="@{/js/theme.js}"></script>
-    <style>
-        body {
-            max-width: 720px;
-            margin: 0 auto;
-            padding: 2rem 1.5rem;
-            background: var(--bg-root);
-            color: var(--text-primary);
-            line-height: 1.7;
-            overflow-wrap: anywhere;
-        }
-        @media (max-width: 640px) {
-            body { padding: 1.25rem 1rem; }
-            .content h1 { font-size: 1.45rem; }
-            .content h2 { font-size: 1.2rem; }
-            .header a { min-height: 44px; display: inline-flex; align-items: center; }
-        }
-        .header {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-bottom: 2rem;
-            padding-bottom: 1rem;
-            border-bottom: 1px solid var(--border-subtle);
-        }
-        .header a { color: var(--text-secondary); text-decoration: none; font-size: var(--text-sm); }
-        .header a:hover { color: var(--accent); }
-
-        .content h1 { font-size: 1.8rem; margin: 1.5rem 0 1rem; }
-        .content h2 { font-size: 1.35rem; margin: 1.5rem 0 0.75rem; color: var(--text-primary); }
-        .content h3 { font-size: 1.1rem; margin: 1.25rem 0 0.5rem; }
-        .content p { margin: 0.75rem 0; color: var(--text-secondary); }
-        .content ul { margin: 0.75rem 0 0.75rem 1.5rem; color: var(--text-secondary); }
-        .content li { margin: 0.35rem 0; }
-        .content strong { color: var(--text-primary); }
-
-        .updated {
-            font-size: var(--text-xs);
-            color: var(--text-muted);
-            margin-top: 3rem;
-            padding-top: 1rem;
-            border-top: 1px solid var(--border-subtle);
-        }
-    </style>
 </head>
-<body>
+<body class="legal">
 
-<div class="header">
-    <svg th:replace="~{fragments/logo :: mark(24)}"></svg>
-    <span style="font-weight: 600;">OptiRent</span>
-    <a href="/" style="margin-left: auto;">← На главную</a>
-</div>
+<header class="legal-header">
+    <a href="/" class="legal-brand"><svg th:replace="~{fragments/logo :: mark(24)}"></svg><span>OptiRent</span></a>
+    <a href="/" class="legal-back">← На главную</a>
+</header>
 
-<div class="content" th:utext="${htmlContent}"></div>
+<main>
+    <h1 class="legal-title" th:text="${doc.title}">Документ</h1>
+    <p class="legal-subtitle" th:if="${subtitle != null}" th:text="|Страница бронирования «${subtitle}»|"></p>
+    <p class="legal-meta">
+        Редакция <span th:text="${doc.version}">1</span> · действует с <span th:text="${effective}">1 января</span>
+    </p>
+    <p class="legal-archived" th:if="${archived}">
+        Это прежняя редакция документа. <a th:href="${currentPath}">Действующая редакция</a>
+    </p>
 
-<div class="updated">
-    Последнее обновление: <span th:text="${#temporals.format(page.updatedAt, 'dd.MM.yyyy')}"></span>
-</div>
+    <nav class="legal-toc" th:if="${!toc.isEmpty()}" aria-label="Содержание">
+        <div class="legal-toc__title">Содержание</div>
+        <ol>
+            <li th:each="item : ${toc}"><a th:href="'#' + ${item.id}" th:text="${item.text}">Раздел</a></li>
+        </ol>
+    </nav>
+
+    <article class="legal-content" th:utext="${htmlContent}"></article>
+
+    <section class="legal-history" th:if="${!history.isEmpty()}">
+        <h2>Редакции документа</h2>
+        <ul>
+            <li th:each="row : ${history}">
+                <span th:if="${row.shown}" th:text="${row.label}" aria-current="page">Редакция 1</span>
+                <a th:unless="${row.shown}" th:href="${row.path}" th:text="${row.label}">Редакция 1</a>
+            </li>
+        </ul>
+    </section>
+</main>
+
+<footer class="legal-footer">
+    <ul>
+        <li th:each="r : ${related}"><a th:href="${r[0]}" th:text="${r[1]}">Документ</a></li>
+    </ul>
+    <p><span th:text="${legalOperator.line}">Оператор</span> · <a th:href="'mailto:' + ${legalOperator.email}" th:text="${legalOperator.email}">e-mail</a></p>
+</footer>
 
 </body>
 </html>
