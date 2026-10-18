@@ -178,7 +178,12 @@
                 <a th:href="@{/admin/legal-pages}"
                    th:classappend="${activePage == 'admin-legal'} ? 'nav-item--active'"
                    class="nav-item">
-                    <span>⚖</span> Правовые страницы
+                    <span>⚖</span> Правовые документы
+                </a>
+                <a th:href="@{/admin/audit}"
+                   th:classappend="${activePage == 'admin-audit'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>☰</span> Журнал действий
                 </a>
             </div>
         </nav>

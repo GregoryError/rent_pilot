@@ -17,6 +17,8 @@ import org.springframework.security.web.header.writers.frameoptions.XFrameOption
 import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
+import ru.rentoptima.admin.AdminGateFilter;
 import ru.rentoptima.security.AppUserDetailsService;
 
 @EnableMethodSecurity(prePostEnabled = true)
@@ -111,8 +113,11 @@ public class SecurityConfig {
                                 "/api/widget/**",
                                 "/housekeeper/**"
                         ).permitAll()
+                        .requestMatchers("/admin", "/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
+                // /admin/** для всех, кроме ADMIN, — 404 (и анониму: без редиректа на вход)
+                .addFilterBefore(new AdminGateFilter(), AuthorizationFilter.class)
                 .formLogin(form -> form
                         .loginPage("/login")
                         .defaultSuccessUrl("/calendar/grid", true)

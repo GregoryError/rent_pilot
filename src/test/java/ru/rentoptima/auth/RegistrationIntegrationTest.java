@@ -347,9 +347,10 @@ class RegistrationIntegrationTest {
         assertThat(mode.configured()).isEqualTo(RegistrationMode.Mode.STRICT);
         assertThat(mode.threshold()).isEqualTo(250);
 
-        mvc.perform(get("/admin/registration").with(user(principal("OWNER")))).andExpect(status().isForbidden());
+        // Хозяину раздела нет: 404 (AdminGateFilter)
+        mvc.perform(get("/admin/registration").with(user(principal("OWNER")))).andExpect(status().isNotFound());
         mvc.perform(post("/admin/registration").with(user(principal("OWNER"))).with(csrf()).param("mode", "SOFT"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
         assertThat(mode.configured()).isEqualTo(RegistrationMode.Mode.STRICT);
 
         when(email.smtpConfigured()).thenReturn(false);

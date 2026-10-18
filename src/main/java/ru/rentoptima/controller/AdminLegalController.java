@@ -30,6 +30,7 @@ import java.util.Map;
 public class AdminLegalController {
 
     private final LegalDocuments documents;
+    private final ru.rentoptima.admin.AdminAudit audit;
 
     @GetMapping
     public String list(Model model) {
@@ -69,6 +70,8 @@ public class AdminLegalController {
                 content, AuthContext.userId());
 
         log.info("Legal page '{}' version {} published by user {}", slug, created.version(), AuthContext.userId());
+        audit.ok(ru.rentoptima.admin.AdminAudit.Action.LEGAL_PUBLISH, "legal_page", null,
+                "/legal/" + slug + ", редакция " + created.version());
         redirect.addFlashAttribute("success", "Опубликована редакция " + created.version()
                 + ". Прежние доступны по /legal/" + slug + "/v1 … v" + (created.version() - 1));
         return "redirect:/admin/legal-pages";

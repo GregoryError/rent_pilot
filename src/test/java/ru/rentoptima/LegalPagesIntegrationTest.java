@@ -196,8 +196,8 @@ class LegalPagesIntegrationTest {
         String old = html("/legal/cookie-consent/v1");
         assertThat(old).contains("Редакция 1", "прежняя редакция").doesNotContain("Добавлен абзац второй редакции");
         assertThat(documents.version("cookie-consent", 1).orElseThrow().body()).isEqualTo(v1);
-        // Владелец без роли ADMIN редактор не видит
-        mvc.perform(get("/admin/legal-pages").with(user(owner))).andExpect(status().isForbidden());
+        // Владелец без роли ADMIN редактора не видит: раздела для него нет (AdminGateFilter)
+        mvc.perform(get("/admin/legal-pages").with(user(owner))).andExpect(status().isNotFound());
     }
 
     // --- Согласие гостя и форма заявки

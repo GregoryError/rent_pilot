@@ -35,7 +35,7 @@ const ADMIN = [
   '/pricing', '/expenses', '/feedback-admin', '/feedback', '/staff', '/settings/transfer',
   '/settings', '/settings/integrations', '/settings/properties', '/welcome',
   '/admin/legal-pages', '/admin/legal-pages/privacy/edit', '/admin/legal-pages/guest-consent/edit',
-  '/admin/onboarding', '/admin/registration',
+  '/admin/onboarding', '/admin/registration', '/admin/audit',
   '/account/password',
   // Мастер первой настройки: шаги открываются по ?step=, если у пользователя есть состояние онбординга
   '/onboarding?step=start', '/onboarding?step=property', '/onboarding?step=platforms',

@@ -644,7 +644,7 @@ class OnboardingIntegrationTest {
                 + " ORDER BY ordinal_position", String.class)).containsExactly("day", "event", "hits");
 
         // страница — только администратору системы
-        mvc.perform(get("/admin/onboarding").with(user(u))).andExpect(status().isForbidden());
+        mvc.perform(get("/admin/onboarding").with(user(u))).andExpect(status().isNotFound());
         Tenant tenant = new Tenant();
         tenant.setId(u.getTenantId());
         User admin = new User();

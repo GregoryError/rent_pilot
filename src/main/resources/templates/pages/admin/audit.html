@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Журнал действий</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Журнал действий</h1>
+        <p class="page-subtitle">Что делали администраторы: кто, когда, над чем, результат. Без персональных данных — только номера записей.</p>
+    </div>
+
+    <form method="get" th:action="@{/admin/audit}" class="card flex gap-3" style="flex-wrap: wrap; align-items: flex-end;">
+        <div class="form-group" style="margin: 0; min-width: 0; flex: 1 1 16rem;">
+            <label class="form-label" for="audit-action">Действие</label>
+            <select id="audit-action" name="action" class="form-input form-input--sm">
+                <option value="">Все</option>
+                <option th:each="e : ${actions}" th:value="${e.key}" th:text="${e.value}"
+                        th:selected="${e.key == selectedAction}">Действие</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin: 0; flex: 0 1 10rem;">
+            <label class="form-label" for="audit-user">Пользователь №</label>
+            <input type="number" id="audit-user" name="user" min="1" th:value="${userFilter}" class="form-input form-input--sm">
+        </div>
+        <button type="submit" class="btn">Показать</button>
+    </form>
+
+    <div class="card table-wrap">
+        <p class="muted" th:if="${rows.isEmpty()}">Записей нет.</p>
+        <table th:unless="${rows.isEmpty()}" style="width: 100%; border-collapse: collapse; font-size: var(--text-sm);">
+            <thead>
+            <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-secondary);">
+                <th style="padding: 0.5rem;">Когда</th>
+                <th style="padding: 0.5rem;">Администратор</th>
+                <th style="padding: 0.5rem;">Действие</th>
+                <th style="padding: 0.5rem;">Над чем</th>
+                <th style="padding: 0.5rem;">Результат</th>
+                <th style="padding: 0.5rem;">Подробности</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="r : ${rows}" style="border-bottom: 1px solid var(--border-subtle); vertical-align: top;">
+                <td style="padding: 0.5rem; white-space: nowrap;" th:text="${r.when}">1 октября</td>
+                <td style="padding: 0.5rem;" th:text="${r.admin}">admin</td>
+                <td style="padding: 0.5rem;" th:text="${r.action}">Действие</td>
+                <td style="padding: 0.5rem;">
+                    <a th:if="${r.targetLink != null}" th:href="${r.targetLink}" th:text="${r.target}">user #1</a>
+                    <span th:unless="${r.targetLink != null}" th:text="${r.target}"></span>
+                </td>
+                <td th:style="|padding: 0.5rem; color: ${r.resultColor};|" th:text="${r.result}">выполнено</td>
+                <td style="padding: 0.5rem; color: var(--text-secondary);" th:text="${r.details}"></td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+</body>
+</html>

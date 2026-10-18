@@ -29,6 +29,7 @@ public class RegistrationAdminController {
 
     private final RegistrationMode mode;
     private final EmailService email;
+    private final ru.rentoptima.admin.AdminAudit audit;
 
     @GetMapping
     public String page(Model model) {
@@ -79,6 +80,8 @@ public class RegistrationAdminController {
         this.mode.configure(chosen, n);
         // AUTO с порогом ниже текущего числа — переключится на STRICT сразу
         RegistrationMode.Mode after = this.mode.checkThreshold();
+        audit.ok(ru.rentoptima.admin.AdminAudit.Action.REGISTRATION_MODE, "registration", null,
+                chosen + ", порог " + n + (after == chosen ? "" : ", сразу переключено на " + after));
         redirect.addFlashAttribute("success", after == chosen ? "Сохранено"
                 : "Сохранено. Порог уже достигнут — режим переключён на строгий");
         return "redirect:/admin/registration";
