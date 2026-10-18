@@ -41,6 +41,8 @@ public class SeoFilter extends OncePerRequestFilter {
             "/site.webmanifest", "/robots.txt", "/sitemap.xml");
 
     private final SiteSettings site;
+    /** Инструкции и статьи /instrukcii/<slug> — открыты поиску, если опубликованы и не скрыты. null — в тестах. */
+    private final ru.rentoptima.guide.GuideRepository guides;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -57,7 +59,7 @@ public class SeoFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (!site.isProduction() || !mayBeIndexed(path)) {
+        if (!site.isProduction() || !(mayBeIndexed(path) || (guides != null && guides.indexable(path)))) {
             response.setHeader(HEADER, NOINDEX);
         }
         chain.doFilter(request, response);

@@ -73,6 +73,7 @@ public class OnboardingController {
     private final ru.rentoptima.housing.HousingVocabulary housingVocabulary;
     private final ru.rentoptima.legal.GuestOperators operators;
     private final ru.rentoptima.legal.LegalDocuments legalDocs;
+    private final PlatformGuides platformGuides;
 
     @GetMapping
     public String wizard(@RequestParam(required = false) String step, Model model, HttpServletRequest request) {
@@ -404,7 +405,7 @@ public class OnboardingController {
             if (PlatformGuides.OTHER.equals(OnboardingService.platformOf(c))) otherName = c.getName();
         }
         List<Tile> tiles = new ArrayList<>();
-        for (Platform p : PlatformGuides.ALL) {
+        for (Platform p : platformGuides.all()) {
             tiles.add(new Tile(p.id(), p.name(), p.letter(), "background:" + p.color(),
                     p.logo() == null ? null : "/img/platforms/" + p.logo(), chosen.contains(p.id()), null));
         }
@@ -416,7 +417,7 @@ public class OnboardingController {
     private List<Card> cards(OnboardingState s, String baseUrl) {
         List<Card> cards = new ArrayList<>();
         for (Channel c : onboarding.platformChannels(s)) {
-            Platform p = PlatformGuides.find(OnboardingService.platformOf(c)).orElse(null);
+            Platform p = platformGuides.find(OnboardingService.platformOf(c)).orElse(null);
             String importUrl = OnboardingService.importUrlOf(c);
             boolean connected = importUrl != null;
             cards.add(new Card(c.getId(), c.getName(), p == null ? ChannelPalette.letterOf(c.getName()) : p.letter(),

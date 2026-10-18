@@ -18,7 +18,7 @@ class SeoFilterTest {
     private static MockHttpServletResponse get(String environment, String path) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", path);
         MockHttpServletResponse response = new MockHttpServletResponse();
-        new SeoFilter(site(environment)).doFilter(request, response, new MockFilterChain());
+        new SeoFilter(site(environment), null).doFilter(request, response, new MockFilterChain());
         return response;
     }
 
@@ -56,7 +56,7 @@ class SeoFilterTest {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/b/loft/");
         request.setQueryString("checkin=2026-11-13");
         MockHttpServletResponse response = new MockHttpServletResponse();
-        new SeoFilter(site("prod")).doFilter(request, response, new MockFilterChain());
+        new SeoFilter(site("prod"), null).doFilter(request, response, new MockFilterChain());
 
         assertThat(response.getStatus()).isEqualTo(301);
         assertThat(response.getHeader("Location")).isEqualTo("/b/loft?checkin=2026-11-13");
@@ -64,7 +64,7 @@ class SeoFilterTest {
 
         // отправку формы не перенаправляем: редирект потерял бы её тело
         MockHttpServletResponse post = new MockHttpServletResponse();
-        new SeoFilter(site("prod")).doFilter(new MockHttpServletRequest("POST", "/login/"), post, new MockFilterChain());
+        new SeoFilter(site("prod"), null).doFilter(new MockHttpServletRequest("POST", "/login/"), post, new MockFilterChain());
         assertThat(post.getStatus()).isEqualTo(200);
     }
 

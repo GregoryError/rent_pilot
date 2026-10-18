@@ -64,6 +64,7 @@ public class OnboardingService {
     private final FeedChecker feedChecker;
     private final OnboardingStats stats;
     private final ChannelLinkService channelLinks;
+    private final PlatformGuides platformGuides;
 
     public Optional<OnboardingState> find(Long userId) {
         return userId == null ? Optional.empty() : states.findById(userId);
@@ -199,7 +200,7 @@ public class OnboardingService {
         }
         for (String id : selected) {
             if (existing.stream().anyMatch(c -> id.equals(platformOf(c)))) continue;
-            Optional<Platform> platform = PlatformGuides.find(id);
+            Optional<Platform> platform = platformGuides.find(id);
             if (platform.isEmpty() && !PlatformGuides.OTHER.equals(id)) continue;
             String name = platform.map(Platform::name)
                     .orElse(otherName == null || otherName.isBlank() ? "Другая площадка" : cut(otherName.trim(), 100));
@@ -255,7 +256,7 @@ public class OnboardingService {
     /** «Перенести в карточку Циан»: площадка заводится, если её ещё не выбрали, и ссылка привязывается к ней. */
     @Transactional
     public Channel channelFor(OnboardingState s, String platformId) {
-        Platform p = PlatformGuides.find(platformId)
+        Platform p = platformGuides.find(platformId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         UnitType ut = unitType(s).orElseThrow(() -> new IllegalStateException("Сначала нужен объект"));
         return platformChannels(s).stream().filter(c -> platformId.equals(platformOf(c))).findFirst()

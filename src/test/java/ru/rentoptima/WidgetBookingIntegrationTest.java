@@ -1099,12 +1099,12 @@ class WidgetBookingIntegrationTest {
         assertThat(mvc.perform(get("/sinhronizaciya")).andReturn().getResponse().getContentAsString(utf8))
                 .contains("\"@type\":\"FAQPage\"", "href=\"/instrukcii/cian\"");
 
-        // Черновик инструкции открывается, но в поиск не идёт
+        // Инструкция, скрытая из поиска (guides.hidden_from_search), открывается, но в поиск не идёт
         mvc.perform(get("/instrukcii/cian")).andExpect(status().isOk())
                 .andExpect(r -> assertThat(r.getResponse().getContentAsString(utf8))
-                        .contains("<meta name=\"robots\" content=\"noindex, follow\">", "<h1><span>Циан</span>",
+                        .contains("<meta name=\"robots\" content=\"noindex, follow\">", "<h1>Циан: синхронизация календаря с OptiRent по iCal</h1>",
                                 "Циан может вернуть вашу же запись обратно как свою", "обычно до получаса"));
-        // Площадка из нового файла — страница появляется без правок кода
+        // Площадка из базы (V45) — страница есть без отдельного кода
         mvc.perform(get("/instrukcii/yandex-puteshestviya")).andExpect(status().isOk())
                 .andExpect(r -> assertThat(r.getResponse().getContentAsString(utf8))
                         .contains("Яндекс Путешествия", "раз в 10–60 минут", "noindex, follow"));

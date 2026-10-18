@@ -46,6 +46,7 @@ public class ChannelController {
     private static final DateTimeFormatter FULL_DT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
 
     private final ChannelRepository channelRepo;
+    private final PlatformGuides platformGuides;
     private final CalendarBlockRepository blockRepo;
     private final UnitTypeRepository unitTypeRepo;
     private final PropertyRepository propertyRepo;
@@ -89,7 +90,7 @@ public class ChannelController {
         Map<Long, String> guides = new java.util.HashMap<>();
         for (Channel c : channels) {
             String platform = OnboardingService.platformOf(c);
-            if (platform != null) PlatformGuides.find(platform).ifPresent(p -> guides.put(c.getId(), p.guidePath()));
+            if (platform != null) platformGuides.find(platform).ifPresent(p -> guides.put(c.getId(), p.guidePath()));
         }
         model.addAttribute("guides", guides);
         return "pages/settings/channels";

@@ -66,11 +66,10 @@ class SitePagesTest {
     }
 
     @Test
-    @DisplayName("черновики инструкций закрыты от поиска и не входят в карту сайта")
-    void guideDraftsAreNotIndexed() {
+    @DisplayName("список статических страниц: инструкции и статьи — из базы, не из этого списка")
+    void guidesAreNotStatic() {
         assertThat(SitePages.contains("/instrukcii")).isTrue();
-        assertThat(SitePages.contains("/instrukcii/avito")).isFalse();
-        assertThat(SitePages.find("/instrukcii/avito")).isPresent();
+        assertThat(SitePages.find("/instrukcii/avito")).isEmpty();
         assertThat(SitePages.indexed()).extracting(Page::path).containsExactly("/", "/kalendar-bronirovaniya",
                 "/modul-bronirovaniya", "/modul-bronirovaniya/tilda", "/sinhronizaciya", "/instrukcii");
         assertThat(SeoFilter.mayBeIndexed("/sinhronizaciya")).isTrue();

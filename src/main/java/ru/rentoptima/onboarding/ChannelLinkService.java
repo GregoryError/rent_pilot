@@ -31,6 +31,7 @@ public class ChannelLinkService {
     private final ChannelRepository channelRepo;
     private final ChannelSyncService syncService;
     private final FeedChecker feedChecker;
+    private final PlatformGuides platformGuides;
 
     /**
      * @param keepHere человек подтвердил: ссылка остаётся у этой площадки, хотя по адресу она с другой
@@ -44,7 +45,7 @@ public class ChannelLinkService {
                 // чужая, удалённая или не-iCal площадка — как несуществующая
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         String platform = OnboardingService.platformOf(c);
-        LinkInspector.Verdict v = LinkInspector.inspect(raw, platform, ownHosts);
+        LinkInspector.Verdict v = LinkInspector.inspect(raw, platform, ownHosts, platformGuides);
         switch (v.kind()) {
             case EMPTY: return new LinkOutcome(false, OnboardingTexts.get("link.empty.field"), null, null);
             case INVALID: return new LinkOutcome(false, OnboardingTexts.get("link.invalid"), null, null);

@@ -18,25 +18,37 @@ class LinkInspectorTest {
     private static final String CIAN = "https://www.cian.ru/calendar/ical/calendars/100200300_11111111-2222-3333-4444-555555555555.ics";
     private static final String DOMCLICK = "https://24.domclick.ru/calendar/export/abcdef.ics";
 
+    /** Площадки как в базе (V45): домены — для распознавания ссылок. */
+    static final PlatformGuides GUIDES = PlatformGuides.of(List.of(
+            platform("avito", 1, "Авито", "avito.ru"), platform("cian", 2, "Циан", "cian.ru"),
+            platform("domclick", 5, "DomClick", "domclick.ru"),
+            platform("yandex-puteshestviya", 6, "Яндекс Путешествия", "travel.yandex.ru")));
+
+    static PlatformGuides.Platform platform(String id, int order, String name, String domain) {
+        return new PlatformGuides.Platform(id, order, name, name, name.substring(0, 1), "#000000", null,
+                List.of(domain), false, false, PlatformGuides.Path.EMPTY, PlatformGuides.Path.EMPTY,
+                "10–60 минут", List.of());
+    }
+
     @Test
     @DisplayName("ссылка той же площадки, что и карточка, — без замечаний")
     void sameplatform() {
-        Verdict v = LinkInspector.inspect(CIAN, "cian", OWN);
+        Verdict v = LinkInspector.inspect(CIAN, "cian", OWN, GUIDES);
         assertThat(v.kind()).isEqualTo(Kind.OK);
         assertThat(v.detected().id()).isEqualTo("cian");
         assertThat(v.mismatch()).isFalse();
-        assertThat(LinkInspector.inspect(DOMCLICK, "domclick", OWN).mismatch()).isFalse();
+        assertThat(LinkInspector.inspect(DOMCLICK, "domclick", OWN, GUIDES).mismatch()).isFalse();
     }
 
     @Test
     @DisplayName("ссылка Циана в карточке Авито — предложим перенести в карточку Циан")
     void otherPlatform() {
-        Verdict v = LinkInspector.inspect(CIAN, "avito", OWN);
+        Verdict v = LinkInspector.inspect(CIAN, "avito", OWN, GUIDES);
         assertThat(v.kind()).isEqualTo(Kind.OK);
         assertThat(v.mismatch()).isTrue();
         assertThat(v.detected().name()).isEqualTo("Циан");
 
-        Verdict d = LinkInspector.inspect(DOMCLICK, "cian", OWN);
+        Verdict d = LinkInspector.inspect(DOMCLICK, "cian", OWN, GUIDES);
         assertThat(d.mismatch()).isTrue();
         assertThat(d.detected().id()).isEqualTo("domclick");
     }
@@ -44,38 +56,38 @@ class LinkInspectorTest {
     @Test
     @DisplayName("наша ссылка в поле «Ссылка с площадки» — узнаётся на prod, staging и по адресу запроса")
     void ownLink() {
-        assertThat(LinkInspector.inspect("https://optirent.ru/ical/AbC-123_xyz.ics", "cian", OWN).kind()).isEqualTo(Kind.OWN);
-        assertThat(LinkInspector.inspect("https://staging.optirent.ru/ical/AbC123.ics", "avito", OWN).kind()).isEqualTo(Kind.OWN);
-        assertThat(LinkInspector.inspect("http://localhost:8080/ical/AbC123.ics", "avito", List.of("localhost")).kind())
+        assertThat(LinkInspector.inspect("https://optirent.ru/ical/AbC-123_xyz.ics", "cian", OWN, GUIDES).kind()).isEqualTo(Kind.OWN);
+        assertThat(LinkInspector.inspect("https://staging.optirent.ru/ical/AbC123.ics", "avito", OWN, GUIDES).kind()).isEqualTo(Kind.OWN);
+        assertThat(LinkInspector.inspect("http://localhost:8080/ical/AbC123.ics", "avito", List.of("localhost"), GUIDES).kind())
                 .isEqualTo(Kind.OWN);
-        assertThat(LinkInspector.inspect("https://my.host.ru/ical/AbC123.ics", "avito", List.of("my.host.ru")).kind())
+        assertThat(LinkInspector.inspect("https://my.host.ru/ical/AbC123.ics", "avito", List.of("my.host.ru"), GUIDES).kind())
                 .isEqualTo(Kind.OWN);
         // чужой календарь с похожим путём нашим не считается
-        assertThat(LinkInspector.inspect("https://example.com/ical/AbC123.ics", "avito", OWN).kind()).isEqualTo(Kind.OK);
+        assertThat(LinkInspector.inspect("https://example.com/ical/AbC123.ics", "avito", OWN, GUIDES).kind()).isEqualTo(Kind.OK);
     }
 
     @Test
     @DisplayName("нераспознанный домен — не ошибка: просто нет подсказки о переносе")
     void unknownHost() {
-        Verdict v = LinkInspector.inspect("https://calendar.example.org/feed/123.ics", "avito", OWN);
+        Verdict v = LinkInspector.inspect("https://calendar.example.org/feed/123.ics", "avito", OWN, GUIDES);
         assertThat(v.kind()).isEqualTo(Kind.OK);
         assertThat(v.detected()).isNull();
         assertThat(v.mismatch()).isFalse();
         // в карточке «Другая» распознанная площадка — повод предложить её карточку
-        assertThat(LinkInspector.inspect(CIAN, PlatformGuides.OTHER, OWN).mismatch()).isTrue();
+        assertThat(LinkInspector.inspect(CIAN, PlatformGuides.OTHER, OWN, GUIDES).mismatch()).isTrue();
     }
 
     @Test
     @DisplayName("ссылка как её копируют: с пробелами, без https://, с webcal://")
     void messyInput() {
-        assertThat(LinkInspector.inspect("  www.cian.ru/calendar/ical/calendars/1.ics \n", "cian", OWN).url())
+        assertThat(LinkInspector.inspect("  www.cian.ru/calendar/ical/calendars/1.ics \n", "cian", OWN, GUIDES).url())
                 .isEqualTo("https://www.cian.ru/calendar/ical/calendars/1.ics");
-        assertThat(LinkInspector.inspect("webcal://www.cian.ru/calendar/ical/calendars/1.ics", "cian", OWN).url())
+        assertThat(LinkInspector.inspect("webcal://www.cian.ru/calendar/ical/calendars/1.ics", "cian", OWN, GUIDES).url())
                 .startsWith("https://www.cian.ru/");
-        assertThat(LinkInspector.inspect("", "cian", OWN).kind()).isEqualTo(Kind.EMPTY);
-        assertThat(LinkInspector.inspect(null, "cian", OWN).kind()).isEqualTo(Kind.EMPTY);
-        assertThat(LinkInspector.inspect("просто текст", "cian", OWN).kind()).isEqualTo(Kind.INVALID);
-        assertThat(LinkInspector.inspect("https://", "cian", OWN).kind()).isEqualTo(Kind.INVALID);
+        assertThat(LinkInspector.inspect("", "cian", OWN, GUIDES).kind()).isEqualTo(Kind.EMPTY);
+        assertThat(LinkInspector.inspect(null, "cian", OWN, GUIDES).kind()).isEqualTo(Kind.EMPTY);
+        assertThat(LinkInspector.inspect("просто текст", "cian", OWN, GUIDES).kind()).isEqualTo(Kind.INVALID);
+        assertThat(LinkInspector.inspect("https://", "cian", OWN, GUIDES).kind()).isEqualTo(Kind.INVALID);
     }
 
     @Test

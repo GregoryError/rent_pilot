@@ -38,6 +38,7 @@ public class SeoController {
 
     private final SiteSettings site;
     private final BookingWidgetRepository widgetRepo;
+    private final ru.rentoptima.guide.GuideRepository guides;
 
     @GetMapping("/robots.txt")
     public ResponseEntity<String> robots() {
@@ -65,6 +66,10 @@ public class SeoController {
         if (site.isProduction()) {
             for (SitePages.Page p : SitePages.indexed()) {
                 url(sb, p.path(), p.lastmod().toString());
+            }
+            // Инструкции и статьи: опубликованные и не скрытые из поиска
+            for (ru.rentoptima.guide.GuideRepository.Guide g : guides.published()) {
+                if (g.indexable()) url(sb, g.path(), SitePages.guidePage(g).lastmod().toString());
             }
             for (BookingWidgetRepository.SitemapEntry w : widgetRepo.findForSitemap()) {
                 url(sb, "/b/" + w.getSlug(), w.getUpdatedAt().toLocalDate().toString());

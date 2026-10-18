@@ -41,6 +41,7 @@ public class OnboardingChecklist {
     private final OnboardingFacts facts;
     private final OnboardingService onboarding;
     private final ru.rentoptima.housing.HousingVocabulary housingVocabulary;
+    private final PlatformGuides platformGuides;
 
     /** Чек-лист для показа; null — показывать нечего (скрыт, пройден, пользователь создан до онбординга). */
     public View view(OnboardingState s) {
@@ -59,7 +60,7 @@ public class OnboardingChecklist {
         // Прошли сутки, а площадка ни разу не забрала ссылку — вместо пояснения напоминание с инструкцией
         OnboardingFacts.Stale stale = f.fetched() || locked != null ? null : facts.staleChannel(s.getTenantId());
         String guide = stale == null || stale.platform() == null ? null
-                : PlatformGuides.find(stale.platform()).map(PlatformGuides.Platform::guidePath).orElse(null);
+                : platformGuides.find(stale.platform()).map(PlatformGuides.Platform::guidePath).orElse(null);
         String fetchedNote = f.fetched() ? null : locked != null ? locked
                 : stale != null ? OnboardingTexts.format("notice.stale", stale.name())
                 : f.channels() ? OnboardingTexts.get("first.fetched.wait") : OnboardingTexts.get("first.fetched.explain");

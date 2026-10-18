@@ -38,8 +38,9 @@ public final class LinkInspector {
      * @param raw        что вставил человек — с пробелами, без https://, как есть
      * @param cardPlatform id площадки карточки ({@link PlatformGuides#OTHER} — «Другая»)
      * @param ownHosts   адреса, по которым открывается OptiRent (прод, текущий запрос)
+     * @param guides     площадки — по их доменам распознаётся, с какой площадки ссылка
      */
-    public static Verdict inspect(String raw, String cardPlatform, Collection<String> ownHosts) {
+    public static Verdict inspect(String raw, String cardPlatform, Collection<String> ownHosts, PlatformGuides guides) {
         if (raw == null || raw.isBlank()) return new Verdict(Kind.EMPTY, null, null, false);
         String url = raw.trim().replaceAll("\\s+", "");
         // Телефон и мессенджеры при копировании иногда меняют схему календаря на webcal://
@@ -72,7 +73,7 @@ public final class LinkInspector {
         // Имя без точки (localhost, имя машины) — не адрес площадки
         if (!host.contains(".")) return new Verdict(Kind.INVALID, null, null, false);
 
-        Optional<Platform> detected = PlatformGuides.byHost(host);
+        Optional<Platform> detected = guides.byHost(host);
         boolean mismatch = detected.isPresent() && !detected.get().id().equals(cardPlatform);
         return new Verdict(Kind.OK, url, detected.orElse(null), mismatch);
     }
