@@ -1,0 +1,25 @@
+/* Редактор инструкций и статей (/admin/guides/<id>/edit). Текст предпросмотра — .legal-content (legal.css). */
+.ge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-4); }
+.ge-check { display: flex; gap: var(--sp-2); align-items: flex-start; font-size: var(--text-sm); color: var(--text-secondary); margin: var(--sp-2) 0; }
+.ge-check input { flex: none; margin-top: 3px; }
+.ge-cover { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.ge-cover img { border-radius: var(--radius-sm); border: 1px solid var(--border); }
+.ge-cover .form-input { flex: 1 1 12rem; min-width: 0; }
+.ge-editor { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-5); align-items: start; }
+@media (max-width: 1100px) { .ge-editor { grid-template-columns: minmax(0, 1fr); } }
+.ge-pane { min-width: 0; }
+.ge-preview { max-height: 85vh; overflow: auto; }
+.ge-toolbar { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin: var(--sp-2) 0; }
+.ge-toolbar button {
+    min-height: 36px; padding: 0 var(--sp-3); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--bg-surface); color: var(--text-primary); font: inherit; font-size: var(--text-sm); cursor: pointer;
+}
+.ge-toolbar button:hover { background: var(--bg-hover); }
+.ge-warn { font-size: var(--text-sm); color: var(--amber); margin: 0 0 var(--sp-2); }
+.ge-text { width: 100%; font-family: var(--font-mono); font-size: var(--text-sm); line-height: 1.6; }
+.ge-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: var(--sp-4) 0; }
+.ge-errors { border-color: var(--red); color: var(--red); }
+.ge-errors ul { margin: var(--sp-2) 0 0 1.25rem; }
+.ge-history { list-style: none; margin: var(--sp-2) 0 var(--sp-4); padding: 0; font-size: var(--text-sm); }
+.ge-history li { margin: var(--sp-1) 0; }
+@media (max-width: 900px) { .ge-toolbar button { min-height: 44px; } }

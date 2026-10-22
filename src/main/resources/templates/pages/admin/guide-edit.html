@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Редактор статьи</title>
+    <link rel="stylesheet" th:href="@{/css/legal.css}">
+    <link rel="stylesheet" th:href="@{/css/guide-editor.css}">
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title" th:text="${guide.isPlatform()} ? 'Инструкция по площадке' : 'Статья'">Статья</h1>
+        <p class="page-subtitle">
+            <a th:href="@{/admin/guides}">← Все инструкции и статьи</a> ·
+            <span th:text="${guide.published()} ? (${guide.hiddenFromSearch()} ? 'опубликовано, скрыто из поиска' : 'опубликовано') : 'черновик'">черновик</span>
+            <span th:if="${unpublished}"> · есть неопубликованные правки</span>
+            <th:block th:if="${guide.published()}"> · <a th:href="${guide.path()}" target="_blank" rel="noopener">на сайте ↗</a></th:block>
+        </p>
+    </div>
+
+    <div class="card ge-errors" role="alert" th:if="${errors != null}">
+        <strong>Не опубликовано:</strong>
+        <ul><li th:each="e : ${errors}" th:text="${e}">ошибка</li></ul>
+    </div>
+
+    <form method="post" th:action="@{'/admin/guides/' + ${guide.id} + '/save'}" id="ge-form"
+          th:attr="data-autosave=@{'/admin/guides/' + ${guide.id} + '/autosave'}">
+
+        <div class="card">
+            <div class="ge-grid">
+                <div class="form-group">
+                    <label class="form-label" for="ge-title">Заголовок (H1)</label>
+                    <input type="text" id="ge-title" name="title" maxlength="200" required th:value="${form.title}" class="form-input">
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="ge-slug">Адрес: /instrukcii/…</label>
+                    <input type="text" id="ge-slug" name="slug" maxlength="80" th:value="${form.slug}" class="form-input"
+                           th:readonly="${guide.isPlatform()}" autocapitalize="none" spellcheck="false">
+                    <div class="form-hint" th:if="${guide.isPlatform()}">Адрес площадки — её код в мастере и у хозяев, он не меняется.</div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="ge-description">Краткое описание (для поисковиков, 140–160 символов)</label>
+                <textarea id="ge-description" name="description" rows="2" maxlength="300" class="form-input"
+                          th:text="${form.description}"></textarea>
+                <div class="form-hint" id="ge-description-count"></div>
+            </div>
+            <div class="ge-grid">
+                <div class="form-group">
+                    <label class="form-label" for="ge-order">Порядок в списке</label>
+                    <input type="number" id="ge-order" name="sortOrder" min="0" max="10000" th:value="${form.sortOrder}" class="form-input" style="max-width: 8rem;">
+                </div>
+                <div class="form-group">
+                    <label class="ge-check">
+                        <input type="checkbox" name="hiddenFromSearch" value="true" th:checked="${form.hiddenFromSearch}">
+                        <span>Скрыть из поиска — страница открывается, но с noindex и без sitemap</span>
+                    </label>
+                </div>
+                <div class="form-group">
+                    <span class="form-label">Обложка (необязательно)</span>
+                    <input type="hidden" name="coverImageId" id="ge-cover" th:value="${form.coverImageId}">
+                    <div class="ge-cover">
+                        <img id="ge-cover-img" th:src="${cover}" th:if="${cover != null}" alt="" width="120">
+                        <button type="button" class="btn btn-sm" data-ge-upload="cover">Загрузить</button>
+                        <button type="button" class="btn btn-sm btn-ghost" data-ge-cover-clear>Убрать</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--/* Структурные поля площадки: их видит мастер первой настройки */-->
+        <details class="card" th:if="${platform != null}" open>
+            <summary class="card__title">Площадка: поля для мастера первой настройки</summary>
+            <div class="ge-grid">
+                <div class="form-group"><label class="form-label" for="p-name">Название</label>
+                    <input id="p-name" name="pName" th:value="${platform.name}" class="form-input" required></div>
+                <div class="form-group"><label class="form-label" for="p-cabinet">«В кабинете …» (родительный падеж)</label>
+                    <input id="p-cabinet" name="pCabinet" th:value="${platform.cabinet}" class="form-input"></div>
+                <div class="form-group"><label class="form-label" for="p-letter">Буква на плитке</label>
+                    <input id="p-letter" name="pLetter" maxlength="2" th:value="${platform.letter}" class="form-input" style="max-width: 5rem;"></div>
+                <div class="form-group"><label class="form-label" for="p-color">Цвет (палитра шахматки)</label>
+                    <select id="p-color" name="pColor" class="form-input">
+                        <option th:each="c : ${palette}" th:value="${c}" th:text="${c}" th:selected="${c == platform.color}">#000</option>
+                    </select></div>
+            </div>
+            <div class="ge-grid">
+                <div class="form-group"><label class="form-label" for="p-domains">Домены — по одному в строке</label>
+                    <textarea id="p-domains" name="pDomains" rows="2" class="form-input" th:text="${platform.domains}"></textarea>
+                    <label class="ge-check"><input type="checkbox" name="pDomainsDraft" value="true" th:checked="${platform.domainsDraft}">
+                        <span>Домены не проверены на настоящих ссылках</span></label></div>
+                <div class="form-group"><label class="form-label" for="p-refresh">Как часто площадка забирает ссылку</label>
+                    <input id="p-refresh" name="pRefresh" th:value="${platform.refresh}" class="form-input" placeholder="10–60 минут"></div>
+                <div class="form-group"><label class="form-label" for="p-logo">Логотип — адрес загруженного изображения</label>
+                    <div class="ge-cover"><input id="p-logo" name="pLogo" th:value="${platform.logo}" class="form-input">
+                        <button type="button" class="btn btn-sm" data-ge-upload="p-logo">Загрузить</button></div></div>
+            </div>
+            <label class="ge-check"><input type="checkbox" name="pStepsVerified" value="true" th:checked="${platform.stepsVerified}">
+                <span><strong>Шаги проверены</strong> — только тогда их видят мастер и страница; иначе — общий текст</span></label>
+            <div class="ge-grid">
+                <div class="form-group"><label class="form-label" for="p-from">Где взять ссылку с площадки — по шагу в строке</label>
+                    <textarea id="p-from" name="pFromSteps" rows="5" class="form-input" th:text="${platform.fromSteps}"></textarea>
+                    <div class="ge-cover"><input name="pFromScreenshot" id="p-from-shot" th:value="${platform.fromScreenshot}" class="form-input" placeholder="скриншот">
+                        <button type="button" class="btn btn-sm" data-ge-upload="p-from-shot">Загрузить</button></div></div>
+                <div class="form-group"><label class="form-label" for="p-to">Куда вставить ссылку для площадки — по шагу в строке</label>
+                    <textarea id="p-to" name="pToSteps" rows="5" class="form-input" th:text="${platform.toSteps}"></textarea>
+                    <div class="ge-cover"><input name="pToScreenshot" id="p-to-shot" th:value="${platform.toScreenshot}" class="form-input" placeholder="скриншот">
+                        <button type="button" class="btn btn-sm" data-ge-upload="p-to-shot">Загрузить</button></div></div>
+            </div>
+            <div class="form-group"><label class="form-label" for="p-notes">Особенности — по одной в строке</label>
+                <textarea id="p-notes" name="pNotes" rows="3" class="form-input" th:text="${platform.notes}"></textarea>
+                <div class="form-hint">Слова хозяина: «ссылка с площадки», «ссылка для площадки», «площадка». Технические названия формата и направлений не пишем — публикация их не пропустит.</div></div>
+        </details>
+
+        <div class="ge-editor">
+            <div class="card ge-pane">
+                <div class="form-label" th:text="${guide.isPlatform()} ? 'Текст под шагами (необязательно)' : 'Текст статьи'">Текст</div>
+                <div class="ge-toolbar" role="toolbar" aria-label="Оформление текста">
+                    <button type="button" data-ge-md="h2" title="Раздел">H2</button>
+                    <button type="button" data-ge-md="h3" title="Подраздел">H3</button>
+                    <button type="button" data-ge-md="bold" title="Жирный"><b>Ж</b></button>
+                    <button type="button" data-ge-md="italic" title="Курсив"><i>К</i></button>
+                    <button type="button" data-ge-md="ul" title="Список">• Список</button>
+                    <button type="button" data-ge-md="ol" title="Нумерованные шаги">1. Шаги</button>
+                    <button type="button" data-ge-md="link" title="Ссылка">Ссылка</button>
+                    <button type="button" data-ge-md="callout" title="Врезка «Важно»">Важно</button>
+                    <button type="button" data-ge-md="table" title="Таблица">Таблица</button>
+                    <button type="button" data-ge-upload="body" title="Изображение">Изображение</button>
+                </div>
+                <p class="ge-warn">Перед загрузкой скройте на скриншоте адреса, телефоны и номера объявлений.
+                    Изображение можно вставить из буфера обмена или перетащить в поле. Подпись (alt) обязательна.</p>
+                <textarea id="ge-body" name="body" rows="28" class="form-input ge-text" th:text="${form.body}"></textarea>
+                <div class="form-hint" id="ge-status" aria-live="polite"></div>
+            </div>
+            <div class="card ge-pane ge-preview">
+                <div class="form-label">Предпросмотр — как на сайте</div>
+                <div class="form-hint" id="ge-preview-hint"></div>
+                <div class="legal-content" id="ge-preview"></div>
+            </div>
+        </div>
+
+        <div class="ge-actions">
+            <button type="submit" name="action" value="save" class="btn">Сохранить</button>
+            <button type="submit" name="action" value="publish" class="btn btn-primary">Опубликовать</button>
+        </div>
+    </form>
+
+    <input type="file" id="ge-file" accept="image/jpeg,image/png,image/webp" hidden>
+
+    <div class="card">
+        <div class="card__title">История</div>
+        <p class="muted" th:if="${versions.isEmpty()}">Сохранений ещё не было.</p>
+        <ul class="ge-history">
+            <li th:each="v : ${versions}"><a th:href="@{'/admin/guides/' + ${guide.id} + '/versions/' + ${v.version}}" th:text="${v.label}">Версия 1</a></li>
+        </ul>
+        <form method="post" th:if="${guide.published()}" th:action="@{'/admin/guides/' + ${guide.id} + '/unpublish'}"
+              onsubmit="return confirm('Снять с публикации? Страница станет 404 для всех, кроме администратора.');">
+            <button type="submit" class="btn btn-ghost">Снять с публикации</button>
+        </form>
+    </div>
+
+    <script th:src="@{/js/guide-editor.js}"></script>
+</div>
+</body>
+</html>

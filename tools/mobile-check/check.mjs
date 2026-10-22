@@ -36,6 +36,8 @@ const ADMIN = [
   '/settings', '/settings/integrations', '/settings/properties', '/welcome',
   '/admin/legal-pages', '/admin/legal-pages/privacy/edit', '/admin/legal-pages/guest-consent/edit',
   '/admin/onboarding', '/admin/registration', '/admin/audit',
+  // Инструкции: список и редактор первой площадки (V45: Авито — id 1)
+  '/admin/guides', '/admin/guides/1/edit',
   '/account/password',
   // Мастер первой настройки: шаги открываются по ?step=, если у пользователя есть состояние онбординга
   '/onboarding?step=start', '/onboarding?step=property', '/onboarding?step=platforms',

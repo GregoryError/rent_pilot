@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Инструкции и статьи</title>
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Инструкции и статьи</h1>
+        <p class="page-subtitle">Публичные страницы /instrukcii/…: инструкции по площадкам (их шаги видит и мастер первой настройки) и статьи для хостов.</p>
+    </div>
+
+    <div class="card table-wrap">
+        <table style="width: 100%; border-collapse: collapse; font-size: var(--text-sm);">
+            <thead>
+            <tr style="border-bottom: 1px solid var(--border); text-align: left; color: var(--text-secondary);">
+                <th style="padding: 0.5rem;">Заголовок</th>
+                <th style="padding: 0.5rem;">Вид</th>
+                <th style="padding: 0.5rem;">Статус</th>
+                <th style="padding: 0.5rem;">Порядок</th>
+                <th style="padding: 0.5rem;">Изменено</th>
+                <th style="padding: 0.5rem;"></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="r : ${rows}" style="border-bottom: 1px solid var(--border-subtle); vertical-align: top;">
+                <td style="padding: 0.5rem;">
+                    <div th:text="${r.title}">Заголовок</div>
+                    <div class="muted" style="font-family: var(--font-mono);" th:text="${r.path}">/instrukcii/…</div>
+                </td>
+                <td style="padding: 0.5rem;" th:text="${r.kind}">Статья</td>
+                <td th:style="|padding: 0.5rem; color: ${r.statusColor};|">
+                    <span th:text="${r.status}">черновик</span>
+                    <div class="muted" th:if="${r.unpublished}">есть неопубликованные правки</div>
+                </td>
+                <td style="padding: 0.5rem;" th:text="${r.order}">1</td>
+                <td style="padding: 0.5rem; white-space: nowrap;" th:text="${r.updated}"></td>
+                <td style="padding: 0.5rem; text-align: right;">
+                    <a th:href="@{'/admin/guides/' + ${r.id} + '/edit'}" class="btn btn-sm">Редактировать</a>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <form method="post" th:action="@{/admin/guides}" class="card">
+        <div class="card__title" style="margin-bottom: var(--sp-3);">Новая статья</div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--sp-4);">
+            <div class="form-group">
+                <label class="form-label" for="new-title">Заголовок</label>
+                <input type="text" id="new-title" name="title" maxlength="200" required class="form-input form-input--sm">
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="new-slug">Адрес: /instrukcii/…</label>
+                <input type="text" id="new-slug" name="slug" maxlength="80" required pattern="[a-z][a-z0-9-]+"
+                       autocapitalize="none" spellcheck="false" placeholder="kak-zakryt-daty" class="form-input form-input--sm">
+                <div class="form-hint">Латиница, цифры и дефис. Статья создаётся черновиком — на сайте её нет до публикации.</div>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Создать черновик</button>
+    </form>
+</div>
+</body>
+</html>

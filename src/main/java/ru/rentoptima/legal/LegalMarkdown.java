@@ -56,6 +56,19 @@ public final class LegalMarkdown {
             .addProtocols("a", "href", "http", "https", "mailto")
             .preserveRelativeLinks(true);
 
+    /** Для статей: те же теги и ещё изображения (адрес проверяет GuideMarkdown — только свои). */
+    private static final Safelist SAFELIST_IMAGES = new Safelist(SAFELIST)
+            .addTags("img")
+            .addAttributes("img", "src", "alt")
+            .addProtocols("img", "src", "https")
+            // копия Safelist этот флаг не переносит: без него /media/… станет абсолютным адресом
+            .preserveRelativeLinks(true);
+
+    /** Разобранный Markdown — для проверок по дереву (подписи изображений в статьях). */
+    public static org.commonmark.node.Node parse(String markdown) {
+        return PARSER.parse(markdown == null ? "" : markdown);
+    }
+
     private LegalMarkdown() {
     }
 
@@ -67,11 +80,16 @@ public final class LegalMarkdown {
     }
 
     public static Rendered render(String markdown) {
+        return render(markdown, false);
+    }
+
+    /** @param images пропускать изображения (инструкции и статьи); в правовых документах их нет */
+    public static Rendered render(String markdown, boolean images) {
         String raw = RENDERER.render(PARSER.parse(markdown == null ? "" : markdown));
         // Заголовок первого уровня у документа один — название страницы, его выводит шаблон.
         // # в тексте становится разделом второго уровня, а не вторым h1.
         raw = raw.replace("<h1", "<h2").replace("</h1>", "</h2>");
-        String clean = Jsoup.clean(raw, BASE, SAFELIST);
+        String clean = Jsoup.clean(raw, BASE, images ? SAFELIST_IMAGES : SAFELIST);
 
         Document doc = Jsoup.parseBodyFragment(clean);
         doc.outputSettings().prettyPrint(false);

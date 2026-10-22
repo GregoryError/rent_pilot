@@ -89,6 +89,14 @@ body.legal {
     border-radius: 4px;
     background: var(--bg-raised);
 }
+/* Изображения статей (GuideMarkdown): <picture> с размытой заглушкой до загрузки */
+.legal-content picture { display: block; margin: 1rem 0; }
+.legal-content picture img {
+    display: block; max-width: 100%; height: auto; border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+}
+/* Врезка «Важно:» — цитата, которая начинается с жирного «Важно» */
+.legal-content blockquote.callout { border-left-color: var(--amber); background: var(--amber-dim); }
 .legal-content hr { border: 0; border-top: 1px solid var(--border-subtle); margin: 2rem 0; }
 
 /* Таблица шире экрана прокручивается внутри своего блока — страница вбок не едет */

@@ -34,7 +34,8 @@ public class AdminAudit {
         GUIDE_UNPUBLISH("Инструкция или статья снята с публикации"),
         GUIDE_SAVE("Инструкция или статья сохранена"),
         GUIDE_RESTORE("Восстановлена прежняя версия"),
-        GUIDE_CREATE("Создана статья");
+        GUIDE_CREATE("Создана статья"),
+        GUIDE_IMAGE("Загружено изображение для статьи");
 
         public final String label;
 

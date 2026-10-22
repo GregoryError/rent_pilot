@@ -76,6 +76,11 @@ public class GuideRepository {
         return jdbc.query(SELECT + " WHERE kind = 'PLATFORM' ORDER BY sort_order, id", ROW);
     }
 
+    /** Все статьи — для списка в админке. */
+    public List<Guide> articles() {
+        return jdbc.query(SELECT + " WHERE kind = 'ARTICLE' ORDER BY sort_order, id", ROW);
+    }
+
     /** Опубликованные — для списка /instrukcii: сначала площадки, затем статьи, внутри — по порядку. */
     public List<Guide> published() {
         return jdbc.query(SELECT + " WHERE status = 'PUBLISHED' ORDER BY kind DESC, sort_order, id", ROW);

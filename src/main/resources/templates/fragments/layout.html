@@ -175,6 +175,11 @@
                    class="nav-item">
                     <span>✉</span> Регистрация
                 </a>
+                <a th:href="@{/admin/guides}"
+                   th:classappend="${activePage == 'admin-guides'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>✎</span> Инструкции и статьи
+                </a>
                 <a th:href="@{/admin/legal-pages}"
                    th:classappend="${activePage == 'admin-legal'} ? 'nav-item--active'"
                    class="nav-item">
