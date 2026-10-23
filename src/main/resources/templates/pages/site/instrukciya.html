@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org" lang="ru">
 <!--/*
-    Инструкция по площадке. Одна страница на все площадки: шаги, скриншоты, частота и
-    особенности берутся из onboarding/platforms/<id>.yml (модель: platform) — из тех же
-    файлов, что и мастер первой настройки. Пока в файле draft: true, шагов нет: страница
-    показывает общий порядок и закрыта от поиска.
+    /instrukcii/<slug> — инструкция по площадке или статья (GuidePageView, данные из guides).
+    У площадки сверху шаги из структурных полей — те же, что видит мастер первой настройки;
+    пока шаги не отмечены проверенными, вместо них общий порядок. Под ними — текст статьи
+    (bodyHtml: Markdown после санитайзера). У статьи — только текст.
+    notice — плашка черновика или предпросмотра (видит только администратор).
 */-->
 <head th:replace="~{fragments/public :: head}"></head>
 <body>
@@ -13,13 +14,28 @@
 
 <main id="main">
 
+<div class="wrap" th:if="${notice != null}">
+  <p class="draft-notice" role="status" th:text="${notice}">Черновик</p>
+</div>
+
 <section class="hero">
   <div class="wrap">
     <h1 th:text="${guide.title}">Циан: синхронизация календаря с OptiRent по iCal</h1>
-    <p class="hero-sub">Как подключить объявление к календарю OptiRent: где в кабинете <span th:text="${platform.cabinet}">Циан</span> взять ссылку на календарь, куда вставить ссылку из OptiRent и чего ждать от синхронизации.</p>
+    <p class="hero-sub" th:if="${platform != null}">Как подключить объявление к календарю OptiRent: где в кабинете <span th:text="${platform.cabinet}">Циан</span> взять ссылку на календарь, куда вставить ссылку из OptiRent и чего ждать от синхронизации.</p>
+    <p class="hero-sub" th:if="${platform == null and !#strings.isEmpty(guide.description)}" th:text="${guide.description}">Описание статьи</p>
   </div>
 </section>
 
+<nav class="section toc" th:if="${!toc.isEmpty()}" aria-label="Содержание">
+  <div class="wrap">
+    <div class="section-label">Содержание</div>
+    <ol>
+      <li th:each="item : ${toc}"><a th:href="'#' + ${item.id}" th:text="${item.text}">Раздел</a></li>
+    </ol>
+  </div>
+</nav>
+
+<th:block th:if="${platform != null}">
 <section class="section">
   <div class="wrap">
     <div class="section-label">Шаг 1</div>
@@ -31,8 +47,8 @@
       <p class="section-text">В кабинете <span th:text="${platform.cabinet}">Циан</span> откройте своё объявление и найдите настройки календаря или синхронизации. Там будет ссылка на календарь (экспорт в формате iCal) — длинный адрес, который начинается с https://. Скопируйте его целиком.</p>
       <p class="section-text">В OptiRent: «Площадки» → «Подключить канал» → вставьте ссылку.</p>
     </th:block>
-    <figure class="shot" th:if="${platform.fromPlatform.screenshot != null}">
-      <img th:src="@{'/img/platforms/' + ${platform.fromPlatform.screenshot}}" loading="lazy" decoding="async"
+    <figure class="shot" th:if="${fromShot != null}">
+      <img th:src="${fromShot}" loading="lazy" decoding="async"
            th:alt="|Где в кабинете ${platform.cabinet} находится ссылка на календарь|">
     </figure>
   </div>
@@ -48,8 +64,8 @@
     <th:block th:if="${platform.toPlatform.empty}">
       <p class="section-text">У площадки в OptiRent есть своя ссылка для неё. Скопируйте её и вставьте в кабинете <span th:text="${platform.cabinet}">Циан</span> в поле для чужого календаря (импорт iCal) — обычно оно рядом с тем местом, где вы брали ссылку с площадки.</p>
     </th:block>
-    <figure class="shot" th:if="${platform.toPlatform.screenshot != null}">
-      <img th:src="@{'/img/platforms/' + ${platform.toPlatform.screenshot}}" loading="lazy" decoding="async"
+    <figure class="shot" th:if="${toShot != null}">
+      <img th:src="${toShot}" loading="lazy" decoding="async"
            th:alt="|Куда в кабинете ${platform.cabinet} вставить ссылку из OptiRent|">
     </figure>
   </div>
@@ -72,11 +88,21 @@
       <li th:each="n : ${platform.notes}" th:text="${n}">Особенность</li>
     </ul>
     <p class="section-text" th:if="${#lists.isEmpty(platform.notes)}">Проверенных особенностей пока нет: страница дополняется по мере подключения объектов. Общие правила — на странице <a th:href="@{/sinhronizaciya}">о синхронизации</a>.</p>
-    <a class="more" th:href="@{/instrukcii}">← Все инструкции</a>
+  </div>
+</section>
+</th:block>
+
+<section class="section" th:if="${!#strings.isEmpty(bodyHtml)}">
+  <div class="wrap">
+    <article class="prose" th:utext="${bodyHtml}"></article>
   </div>
 </section>
 
-<section th:replace="~{fragments/public :: cta('Подключите площадку к календарю', 'Бесплатно, за несколько минут.')}"></section>
+<div class="wrap">
+  <a class="more" th:href="@{/instrukcii}">← Все инструкции</a>
+</div>
+
+<section th:replace="~{fragments/public :: cta('Подключите площадки к OptiRent — бесплатно', 'Регистрация — минута, подключение площадки — несколько минут.')}"></section>
 
 </main>
 

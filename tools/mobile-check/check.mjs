@@ -8,6 +8,7 @@
 //   BASE_URL=http://localhost:8080 LOGIN=... PASSWORD=... node check.mjs
 //
 // Необязательно: WIDTHS=320,375   EXTRA_PATHS=/f/abc,/feedback/xyz   SHOTS_DIR=./shots
+//                EXTRA_ADMIN_PATHS=/admin/guides/7/preview — страницы под входом
 //                CHROME=/путь/к/chrome
 //                RECONSENT_LOGIN=... RECONSENT_PASSWORD=... — пользователь, у которого кабинет
 //                закрыт окном согласий (/account/legal): проверяется само окно
@@ -161,7 +162,7 @@ if (process.env.LOGIN) {
   const html = await page.content();
   const id = (html.match(/\/settings\/widgets\/(\d+)/) || [])[1];
   const slug = (html.match(/\/b\/([a-z0-9-]+)/) || [])[1];
-  const admin = [...ADMIN];
+  const admin = [...ADMIN, ...(process.env.EXTRA_ADMIN_PATHS || '').split(',').filter(Boolean)];
   if (id) {
     const w = `/settings/widgets/${id}`;
     admin.push(w, `${w}/design`, `${w}/stats`, `${w}/card`, `${w}/card/print`, `${w}/frame`);

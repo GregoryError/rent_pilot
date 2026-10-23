@@ -76,7 +76,7 @@
     <h2>Как подключить площадку</h2>
     <p class="section-text">В кабинете площадки нужно найти две вещи: ссылку на её календарь и поле, куда вставить ссылку из OptiRent. У каждой площадки это устроено по-своему:</p>
     <ul class="cards">
-      <li th:each="g : ${guides}"><a class="card-link" th:href="${g.path}"><strong th:text="${g.name}">Авито</strong><span>Ссылка экспорта, ссылка импорта, особенности.</span></a></li>
+      <li th:each="g : ${platformPages}"><a class="card-link" th:href="${g.path}"><strong th:text="${g.name}">Авито</strong><span>Ссылка экспорта, ссылка импорта, особенности.</span></a></li>
       <li><a class="card-link" th:href="@{/instrukcii}"><strong>Все инструкции</strong><span>Общий порядок подключения по iCal.</span></a></li>
     </ul>
   </div>

@@ -132,7 +132,7 @@ public final class SitePages {
         String title = g.isPlatform() ? name + ": синхронизация календаря по iCal" : g.title();
         if (title.length() + " | OptiRent".length() <= 60) title += " | OptiRent";
         LocalDate lastmod = g.updatedAt() == null ? WRITTEN : g.updatedAt().toLocalDate();
-        return new Page(g.path(), g.isPlatform() ? "instrukciya" : "statya", title, g.description(), name,
+        return new Page(g.path(), "instrukciya", title, g.description(), name,
                 GUIDES, lastmod, g.indexable(), List.of());
     }
 

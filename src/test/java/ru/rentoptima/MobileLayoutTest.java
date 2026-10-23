@@ -46,6 +46,8 @@ class MobileLayoutTest {
     private static final String PASSWORD = "mobile-check-1";
     /** Пользователь до V42: кабинет закрыт окном согласий — проверяется само окно. */
     private static final String RECONSENT_LOGIN = "mobile-reconsent@example.com";
+    /** Статья для /instrukcii/mobile-statya и предпросмотра в админке. */
+    private Long articleId;
 
     @LocalServerPort int port;
     @Autowired JdbcTemplate jdbc;
@@ -76,7 +78,10 @@ class MobileLayoutTest {
             pb.environment().put("RECONSENT_PASSWORD", PASSWORD);
             pb.environment().put("EXTRA_PATHS", String.join(",", List.of(
                     "/f/mcFeed7", "/f/nope000", "/feedback/mc-feedback", "/feedback/nope",
-                    "/housekeeper/mc-keeper", "/housekeeper/nope", "/legal/nope")));
+                    "/housekeeper/mc-keeper", "/housekeeper/nope", "/legal/nope",
+                    "/instrukcii/mobile-statya")));
+            pb.environment().put("EXTRA_ADMIN_PATHS", "/admin/guides/" + articleId + "/preview,/admin/guides/"
+                    + articleId + "/edit");
             process = pb.start();
             assertThat(process.waitFor(10, TimeUnit.MINUTES)).as("проверка уложилась в 10 минут").isTrue();
             output = Files.readString(log.toPath(), StandardCharsets.UTF_8);
@@ -136,6 +141,15 @@ class MobileLayoutTest {
         jdbc.update("INSERT INTO users(tenant_id, username, password_hash, display_name, role, email,"
                         + " legal_reconsent_required) VALUES (?, ?, ?, 'До документов', 'OWNER', ?, TRUE)",
                 tenantId, RECONSENT_LOGIN, new BCryptPasswordEncoder().encode(PASSWORD), RECONSENT_LOGIN);
+        // Опубликованная статья с оглавлением, врезкой, широкой таблицей и длинным словом
+        articleId = jdbc.queryForObject("INSERT INTO guides(kind, slug, title, description, body_md, status, sort_order)"
+                + " VALUES ('ARTICLE', 'mobile-statya', 'Длинный заголовок статьи, который переносится на узком экране',"
+                + " 'Описание', ?, 'PUBLISHED', 100) RETURNING id", Long.class,
+                "## Раздел один\n\nТекст со ссылкой https://example.com/ochen-dlinnyi-adres-bez-probelov-kotoryi-ne-perenositsya\n\n"
+                        + "## Раздел два\n\n> **Важно:** врезка.\n\n## Раздел три\n\n"
+                        + "| Площадка | Ссылка с площадки | Ссылка для площадки | Как часто | Особенности |\n|---|---|---|---|---|\n"
+                        + "| Островок | в кабинете объявления | в настройках календаря | раз в 10–60 минут | длинный текст ячейки |\n\n"
+                        + "## Раздел четыре\n\n1. Шаг\n2. Шаг");
         LocalDate from = LocalDate.now().plusDays(2);
         jdbc.update("INSERT INTO calendar_blocks(tenant_id, unit_type_id, from_date, to_date, block_type)"
                 + " VALUES (?, ?, ?, ?, 'MAINTENANCE')", tenantId, unitTypeId, from, from.plusDays(3));

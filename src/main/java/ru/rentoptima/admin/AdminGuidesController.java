@@ -1,6 +1,7 @@
 package ru.rentoptima.admin;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -20,6 +21,7 @@ import ru.rentoptima.guide.GuideEditor;
 import ru.rentoptima.guide.GuideEditor.Form;
 import ru.rentoptima.guide.GuideImages;
 import ru.rentoptima.guide.GuideMarkdown;
+import ru.rentoptima.guide.GuidePageView;
 import ru.rentoptima.guide.GuideRepository;
 import ru.rentoptima.security.AuthContext;
 import ru.rentoptima.service.ChannelPalette;
@@ -48,6 +50,7 @@ public class AdminGuidesController {
     private final GuideMarkdown markdown;
     private final GuideImages images;
     private final AdminAudit audit;
+    private final GuidePageView pageView;
 
     /** Строка списка: всё уже текстом. */
     public record Row(long id, String title, String path, String kind, String status, String statusColor,
@@ -157,6 +160,14 @@ public class AdminGuidesController {
         audit.ok(AdminAudit.Action.GUIDE_RESTORE, "guide", id, g.path() + ", версия " + version);
         redirect.addFlashAttribute("success", "Версия " + version + " загружена в редактор. На сайте она появится после «Опубликовать»");
         return "redirect:/admin/guides/" + id + "/edit";
+    }
+
+    /** «Открыть как на сайте»: рабочая копия в публичном шаблоне, закрыта от поиска. */
+    @GetMapping("/admin/guides/{id}/preview")
+    public String sitePreview(@PathVariable long id, Model model, HttpServletRequest request) {
+        GuideRepository.Guide g = guide(id);
+        return pageView.render(editor.withDraft(g), "Предпросмотр: так страница будет выглядеть после «Опубликовать»."
+                + " Её видит только администратор.", model, request);
     }
 
     /** Прошлая версия — только просмотр, тем же рендером. */

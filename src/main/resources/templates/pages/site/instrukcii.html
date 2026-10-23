@@ -57,9 +57,19 @@
     <div class="section-label">По площадкам</div>
     <h2>Инструкции по площадкам</h2>
     <ul class="cards">
-      <li th:each="g : ${guides}"><a class="card-link" th:href="${g.path}"><strong th:text="${g.name}">Авито</strong><span>Ссылка экспорта, ссылка импорта, особенности.</span></a></li>
+      <li th:each="g : ${platformPages}"><a class="card-link" th:href="${g.path}"><strong th:text="${g.name}">Авито</strong><span>Ссылка экспорта, ссылка импорта, особенности.</span></a></li>
     </ul>
     <p class="section-text section-text--gap">Площадки нет в списке? Если она умеет отдавать и принимать календарь iCal, общий порядок выше подойдёт и для неё.</p>
+  </div>
+</section>
+
+<section class="section" th:if="${!articles.isEmpty()}">
+  <div class="wrap">
+    <div class="section-label">Статьи</div>
+    <h2>Статьи для хозяев</h2>
+    <ul class="cards">
+      <li th:each="a : ${articles}"><a class="card-link" th:href="${a.path()}"><strong th:text="${a.title}">Статья</strong><span th:text="${a.description}">Описание</span></a></li>
+    </ul>
   </div>
 </section>
 

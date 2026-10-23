@@ -407,7 +407,7 @@ public class OnboardingController {
         List<Tile> tiles = new ArrayList<>();
         for (Platform p : platformGuides.all()) {
             tiles.add(new Tile(p.id(), p.name(), p.letter(), "background:" + p.color(),
-                    p.logo() == null ? null : "/img/platforms/" + p.logo(), chosen.contains(p.id()), null));
+                    PlatformGuides.imageUrl(p.logo()), chosen.contains(p.id()), null));
         }
         tiles.add(new Tile(PlatformGuides.OTHER, OnboardingTexts.get("platforms.other"), "+",
                 "background:" + ChannelPalette.NO_CHANNEL_COLOR, null, chosen.contains(PlatformGuides.OTHER), otherName));
@@ -428,9 +428,9 @@ public class OnboardingController {
                     OnboardingTexts.format("links.one.text", c.getName()),
                     OnboardingTexts.format("links.two.text", c.getName()),
                     p == null ? List.of() : p.fromPlatform().steps(),
-                    p == null || p.fromPlatform().screenshot() == null ? null : "/img/platforms/" + p.fromPlatform().screenshot(),
+                    p == null ? null : PlatformGuides.imageUrl(p.fromPlatform().screenshot()),
                     p == null ? List.of() : p.toPlatform().steps(),
-                    p == null || p.toPlatform().screenshot() == null ? null : "/img/platforms/" + p.toPlatform().screenshot(),
+                    p == null ? null : PlatformGuides.imageUrl(p.toPlatform().screenshot()),
                     OnboardingTexts.format("links.refresh", c.getName(), p == null ? "раз в 10–60 минут" : refreshPhrase(p)),
                     p == null ? List.of() : p.notes(), p == null ? null : p.guidePath()));
         }

@@ -63,6 +63,15 @@ public class GuideEditor {
                 g.hiddenFromSearch(), g.sortOrder(), g.platform()) : d.get(0);
     }
 
+    /** Статья с полями рабочей копии — для предпросмотра «как на сайте». Статус и даты — как есть. */
+    public GuideRepository.Guide withDraft(GuideRepository.Guide g) {
+        Form f = draft(g);
+        String slug = f.slug() != null && f.slug().matches("[a-z][a-z0-9-]{1,79}") ? f.slug() : g.slug();
+        return new GuideRepository.Guide(g.id(), g.kind(), slug, f.title(), f.description(), f.body(),
+                f.coverImageId(), g.status(), f.hiddenFromSearch(), f.sortOrder(), f.platform(), g.publishedAt(),
+                g.updatedAt());
+    }
+
     /** В рабочей копии есть неопубликованные изменения. */
     public boolean hasUnpublished(GuideRepository.Guide g) {
         return !draft(g).equals(new Form(g.title(), g.slug(), g.description(), g.body(), g.coverImageId(),
@@ -110,8 +119,8 @@ public class GuideEditor {
         addVersion(g.id(), "PUBLISH", fixed, userId);
         if (g.isPlatform()) platformGuides.reload();
         String newPath = GuideRepository.PATH_PREFIX + fixed.slug();
-        // Поисковикам: страница появилась или изменилась; после смены адреса старый — 404
-        if (!fixed.hiddenFromSearch()) indexNow.submit(oldPath.equals(newPath) ? List.of(newPath) : List.of(oldPath, newPath));
+        // Поисковикам: страница появилась, изменилась или закрылась от поиска; после смены адреса старый — 404
+        if (!fixed.hiddenFromSearch() || g.indexable()) indexNow.submit(oldPath.equals(newPath) ? List.of(newPath) : List.of(oldPath, newPath));
         return List.of();
     }
 
@@ -120,7 +129,7 @@ public class GuideEditor {
     public void unpublish(GuideRepository.Guide g) {
         jdbc.update("UPDATE guides SET status = 'DRAFT', updated_at = now() WHERE id = ?", g.id());
         if (g.isPlatform()) platformGuides.reload();
-        if (!g.hiddenFromSearch()) indexNow.submit(g.path());
+        if (g.indexable()) indexNow.submit(g.path());
     }
 
     /** Новая статья — черновик с заголовком и адресом. */
@@ -212,6 +221,15 @@ public class GuideEditor {
         }
         for (JsonNode d : p.path("domains")) {
             if (!d.asText().matches("[a-z0-9.-]+\\.[a-z]{2,}")) errors.add("Домен «" + d.asText() + "» — вида cian.ru");
+        }
+        List<String> shots = new ArrayList<>();
+        shots.add(text(p, "logo"));
+        shots.add(text(p.path("fromPlatform"), "screenshot"));
+        shots.add(text(p.path("toPlatform"), "screenshot"));
+        for (String shot : shots) {
+            if (shot != null && !PlatformGuides.IMAGE.matcher(shot).matches()) {
+                errors.add("Логотип и скриншоты — кнопкой «Загрузить» (или имя файла из img/platforms), не «" + shot + "»");
+            }
         }
         StringBuilder shown = new StringBuilder(text(p, "refresh") == null ? "" : text(p, "refresh"));
         for (String key : List.of("notes")) p.path(key).forEach(n -> shown.append(' ').append(n.asText()));

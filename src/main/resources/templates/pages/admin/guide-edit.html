@@ -143,6 +143,8 @@
         <div class="ge-actions">
             <button type="submit" name="action" value="save" class="btn">Сохранить</button>
             <button type="submit" name="action" value="publish" class="btn btn-primary">Опубликовать</button>
+            <a class="btn btn-ghost" th:href="@{'/admin/guides/' + ${guide.id} + '/preview'}" target="_blank" rel="noopener"
+               data-ge-open>Открыть как на сайте ↗</a>
         </div>
     </form>
 

@@ -23,8 +23,9 @@
     <th:block th:replace="~{fragments/site :: icons}"></th:block>
     <link rel="stylesheet" th:href="@{/css/site.css}">
     <script type="application/ld+json" th:each="ld : ${jsonLd}" th:utext="${ld}"></script>
-    <!-- Метрика сайта — только после согласия в баннере (consent.js); нет счётчика — нет и баннера -->
-    <script defer th:if="${!#strings.isEmpty(site.metrikaId)}" th:src="@{/js/consent.js}"
+    <!-- Метрика сайта — только после согласия в баннере (consent.js); нет счётчика — нет и баннера.
+         В предпросмотре статьи для администратора (preview) Метрики нет, как во всей админке. -->
+    <script defer th:if="${!#strings.isEmpty(site.metrikaId) and preview != true}" th:src="@{/js/consent.js}"
             th:attr="data-metrika=${site.metrikaId}"></script>
 </head>
 <body>

@@ -45,6 +45,11 @@ public class GuideImages {
             return MEDIA_PATH + key + "-" + widths.get(widths.size() > 1 ? 1 : 0) + ".jpg";
         }
 
+        /** Самый большой JPEG — для превью в соцсетях и мессенджерах. */
+        public String largest() {
+            return MEDIA_PATH + key + "-" + widths.get(widths.size() - 1) + ".jpg";
+        }
+
         public String srcset(String format) {
             List<String> parts = new ArrayList<>();
             for (int w : widths) parts.add(MEDIA_PATH + key + "-" + w + "." + format + " " + w + "w");

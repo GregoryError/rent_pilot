@@ -4,8 +4,8 @@
  *  - предпросмотр рисует сервер (POST /admin/guides/preview) тем же рендером, что и сайт;
  *  - изображения — кнопкой, из буфера обмена и перетаскиванием (POST /admin/guides/images),
  *    подпись спрашивается сразу, без неё публикация не пройдёт;
- *  - автосохранение рабочей копии раз в 30 секунд и при уходе со страницы, предупреждение
- *    о несохранённых изменениях.
+ *  - автосохранение рабочей копии раз в 30 секунд, при уходе со страницы и перед «Открыть как
+ *    на сайте»; предупреждение о несохранённых изменениях.
  */
 (function () {
     var form = document.getElementById('ge-form');
@@ -40,9 +40,9 @@
         return new URLSearchParams(new FormData(form));
     }
     function autosave() {
-        if (!dirty) return;
+        if (!dirty) return Promise.resolve();
         dirty = false;
-        fetch(form.dataset.autosave, {
+        return fetch(form.dataset.autosave, {
             method: 'POST', credentials: 'same-origin',
             headers: headers({ 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' }),
             body: formBody()
@@ -57,6 +57,18 @@
         });
     }
     setInterval(autosave, 30000);
+
+    // «Открыть как на сайте» показывает рабочую копию — сначала сохранить её
+    var open = document.querySelector('[data-ge-open]');
+    if (open) open.addEventListener('click', function (e) {
+        if (!dirty) return;
+        e.preventDefault();
+        var w = window.open('', '_blank');
+        autosave().then(function () {
+            if (w) w.location = open.href;
+            else window.open(open.href, '_blank');
+        });
+    });
     window.addEventListener('beforeunload', function (e) {
         if (!dirty || submitting) return;
         // sendBeacon не умеет заголовки — токен формы уходит параметром

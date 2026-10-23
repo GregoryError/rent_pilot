@@ -42,6 +42,16 @@ public class PlatformGuides {
         }
     }
 
+    /** Логотип и скриншоты: файл из {@code static/img/platforms} или изображение, загруженное в редакторе. */
+    public static final java.util.regex.Pattern IMAGE = java.util.regex.Pattern.compile(
+            "[a-z0-9][a-z0-9._-]*\\.(png|jpe?g|webp|svg)|/media/guides/[0-9a-f]{32}-\\d{2,4}\\.(jpg|webp)");
+
+    /** Адрес логотипа или скриншота для страницы: загруженное — как есть, имя файла — из static/img/platforms. */
+    public static String imageUrl(String value) {
+        if (value == null) return null;
+        return value.startsWith("/") ? value : "/img/platforms/" + value;
+    }
+
     private final GuideRepository repo;
     private volatile List<Platform> cache;
 
