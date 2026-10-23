@@ -36,7 +36,7 @@ const ADMIN = [
   '/pricing', '/expenses', '/feedback-admin', '/feedback', '/staff', '/settings/transfer',
   '/settings', '/settings/integrations', '/settings/properties', '/welcome',
   '/admin/legal-pages', '/admin/legal-pages/privacy/edit', '/admin/legal-pages/guest-consent/edit',
-  '/admin/onboarding', '/admin/registration', '/admin/audit',
+  '/admin/onboarding', '/admin/registration', '/admin/audit', '/admin/users',
   // Инструкции: список и редактор первой площадки (V45: Авито — id 1)
   '/admin/guides', '/admin/guides/1/edit',
   '/account/password',

@@ -130,6 +130,11 @@
     <form method="post" th:action="@{/register}">
         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
         <input type="hidden" name="formToken" th:value="${formToken}">
+        <!--/* Откуда пришёл (SignupSource): метки и домен перехода, без полного адреса */-->
+        <input type="hidden" name="utm_source" th:if="${source.utmSource != null}" th:value="${source.utmSource}">
+        <input type="hidden" name="utm_medium" th:if="${source.utmMedium != null}" th:value="${source.utmMedium}">
+        <input type="hidden" name="utm_campaign" th:if="${source.utmCampaign != null}" th:value="${source.utmCampaign}">
+        <input type="hidden" name="ref" th:if="${source.referrerDomain != null}" th:value="${source.referrerDomain}">
         <!-- Ловушка для ботов: людям поле не видно и с клавиатуры недоступно -->
         <div class="hp-field" aria-hidden="true">
             <label th:for="${honeypot}">Сайт компании</label>

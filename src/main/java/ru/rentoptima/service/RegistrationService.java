@@ -28,6 +28,7 @@ public class RegistrationService {
     private final PasswordEncoder passwordEncoder;
     private final SettingsService settings;
     private final ru.rentoptima.legal.AccountConsents consents;
+    private final org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     /**
      * Регистрация нового пользователя вместе с tenant.
@@ -36,6 +37,15 @@ public class RegistrationService {
     @Transactional
     public User register(String email, String password, String tenantName,
                          boolean agreedToTerms, boolean agreedToConsent, boolean strict) {
+        return register(email, password, tenantName, agreedToTerms, agreedToConsent, strict,
+                ru.rentoptima.auth.SignupSource.NONE);
+    }
+
+    /** То же, с источником регистрации (метки и домен перехода, V47) — его видит только админка. */
+    @Transactional
+    public User register(String email, String password, String tenantName,
+                         boolean agreedToTerms, boolean agreedToConsent, boolean strict,
+                         ru.rentoptima.auth.SignupSource source) {
         if (email == null || email.isBlank() || !EMAIL.matcher(email.trim()).matches() || email.trim().length() > 255) {
             throw new IllegalArgumentException("Некорректный email");
         }
@@ -89,6 +99,12 @@ public class RegistrationService {
         consents.apply(user, now); // время и номера редакций соглашения, политики и согласия
 
         user = userRepo.save(user);
+        if (source != null && !source.empty()) {
+            userRepo.flush();
+            jdbc.update("UPDATE users SET signup_utm_source = ?, signup_utm_medium = ?, signup_utm_campaign = ?,"
+                            + " signup_referrer_domain = ? WHERE id = ?", source.utmSource(), source.utmMedium(),
+                    source.utmCampaign(), source.referrerDomain(), user.getId());
+        }
 
         seedDefaultSettings(tenant.getId());
 

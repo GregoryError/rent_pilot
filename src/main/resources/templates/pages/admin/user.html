@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Пользователь</title>
+    <link rel="stylesheet" th:href="@{/css/admin-users.css}">
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title" th:text="${u.login}">user@example.com</h1>
+        <p class="page-subtitle">
+            <a th:href="@{/admin/users}">← Все пользователи</a> ·
+            <a th:href="@{/admin/audit(user=${u.id})}">записи журнала</a>
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="card__title">Аккаунт</div>
+        <dl class="au-fields">
+            <th:block th:each="f : ${account}">
+                <dt th:text="${f.label}">Поле</dt>
+                <dd th:text="${f.value}">значение</dd>
+            </th:block>
+        </dl>
+        <th:block th:if="${members.size() > 1}">
+            <div class="card__title" style="margin-top: var(--sp-4);">Другие пользователи аккаунта</div>
+            <ul class="au-steps">
+                <li th:each="m : ${members}" th:if="${m.id != u.id}">
+                    <a th:href="@{'/admin/users/' + ${m.id}}" th:text="${m.login}">login</a>
+                    <span class="muted" th:text="|${m.role == 'ADMIN' ? 'администратор' : 'хозяин'}${m.active ? '' : ', отключён'}|">хозяин</span>
+                </li>
+            </ul>
+        </th:block>
+    </div>
+
+    <div class="card">
+        <div class="card__title">Объекты</div>
+        <p class="muted" th:if="${properties.isEmpty()}">Объектов нет.</p>
+        <dl class="au-fields" th:unless="${properties.isEmpty()}">
+            <th:block th:each="f : ${properties}">
+                <dt th:text="${f.label}">Объект</dt>
+                <dd th:text="${f.value}">квартира</dd>
+            </th:block>
+        </dl>
+    </div>
+
+    <div class="card">
+        <div class="card__title">Площадки</div>
+        <p class="muted" th:if="${channels.isEmpty()}">Площадок нет.</p>
+        <dl class="au-fields" th:unless="${channels.isEmpty()}">
+            <th:block th:each="f : ${channels}">
+                <dt th:text="${f.label}">Площадка</dt>
+                <dd th:text="${f.value}">синхронизация</dd>
+            </th:block>
+        </dl>
+    </div>
+
+    <div class="card">
+        <div class="card__title">Страницы бронирования</div>
+        <p class="muted" th:if="${bookingPages.isEmpty()}">Страниц нет.</p>
+        <dl class="au-fields" th:unless="${bookingPages.isEmpty()}">
+            <th:block th:each="p : ${bookingPages}">
+                <dt>
+                    <a th:if="${p.slug != null}" th:href="@{'/b/' + ${p.slug}}" target="_blank" rel="noopener" th:text="${p.title}">Страница</a>
+                    <span th:if="${p.slug == null}" th:text="${p.title}">Страница</span>
+                </dt>
+                <dd th:text="|${p.active ? 'работает' : 'выключена'}${p.indexed ? '' : ', скрыта из поиска'} · заявок за 30 дней: ${p.requests30}, всего: ${p.requestsTotal}|">работает</dd>
+            </th:block>
+        </dl>
+    </div>
+
+    <div class="card">
+        <div class="card__title">Онбординг</div>
+        <dl class="au-fields">
+            <th:block th:each="f : ${onboarding}">
+                <dt th:text="${f.label}">Мастер</dt>
+                <dd th:text="${f.value}">пройден</dd>
+            </th:block>
+        </dl>
+        <ul class="au-steps" th:unless="${steps.isEmpty()}">
+            <li th:each="s : ${steps}" th:classappend="${s.done} ? 'is-done'"
+                th:text="|${s.done ? '✓' : '○'} ${s.title}|">○ Шаг</li>
+        </ul>
+    </div>
+
+    <div class="card">
+        <div class="card__title">Документы</div>
+        <dl class="au-fields">
+            <th:block th:each="f : ${documents}">
+                <dt th:text="${f.label}">Документ</dt>
+                <dd th:text="${f.value}">редакция 1</dd>
+            </th:block>
+        </dl>
+    </div>
+
+    <div class="card">
+        <div class="card__title">Журнал действий администраторов</div>
+        <p class="muted" th:if="${auditRows.isEmpty()}">Записей нет.</p>
+        <dl class="au-fields" th:unless="${auditRows.isEmpty()}">
+            <th:block th:each="f : ${auditRows}">
+                <dt th:text="${f.label}">когда</dt>
+                <dd th:text="${f.value}">что</dd>
+            </th:block>
+        </dl>
+    </div>
+</div>
+</body>
+</html>

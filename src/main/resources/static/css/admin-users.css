@@ -1,0 +1,23 @@
+/* Админка: пользователи (/admin/users) и карточка (/admin/users/<id>). Цвета — переменные core.css. */
+.au-filters { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: flex-end; }
+.au-filters .form-group { margin: 0; min-width: 0; flex: 0 1 11rem; }
+.au-filters .au-search { flex: 1 1 16rem; }
+.au-table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
+.au-table th { padding: 0.5rem; text-align: left; color: var(--text-secondary); font-weight: 500; white-space: nowrap;
+    border-bottom: 1px solid var(--border); }
+.au-table td { padding: 0.5rem; vertical-align: top; border-bottom: 1px solid var(--border-subtle); min-width: 7rem; }
+.au-table td.au-wide { min-width: 12rem; }
+.au-off { color: var(--red); }
+.au-pager { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; margin: var(--sp-4) 0; }
+.au-fields { display: grid; grid-template-columns: minmax(10rem, 16rem) minmax(0, 1fr); gap: var(--sp-2) var(--sp-4);
+    margin: 0; font-size: var(--text-sm); }
+.au-fields dt { color: var(--text-secondary); }
+.au-fields dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+    .au-fields { grid-template-columns: minmax(0, 1fr); gap: 0; }
+    .au-fields dd { margin-bottom: var(--sp-2); }
+}
+.au-steps { list-style: none; margin: var(--sp-2) 0 0; padding: 0; font-size: var(--text-sm); }
+.au-steps li { margin: var(--sp-1) 0; }
+.au-steps .is-done { color: var(--green); }
+.au-note { font-size: var(--text-sm); color: var(--text-secondary); }

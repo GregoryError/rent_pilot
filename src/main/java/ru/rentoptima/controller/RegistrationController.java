@@ -13,7 +13,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import ru.rentoptima.auth.EmailVerificationService;
 import ru.rentoptima.auth.PasswordPolicy;
+import ru.rentoptima.auth.LastLogin;
 import ru.rentoptima.auth.RegistrationMode;
+import ru.rentoptima.auth.SignupSource;
 import ru.rentoptima.entity.User;
 import ru.rentoptima.onboarding.OnboardingService;
 import ru.rentoptima.security.AppUserDetailsService;
@@ -36,6 +38,7 @@ public class RegistrationController {
     private final RegistrationMode mode;
     private final WidgetFormToken formTokens;
     private final PublicRateLimiter rateLimiter;
+    private final LastLogin lastLogin;
 
     /** Регистраций с одного IP в час. */
     static final int PER_IP_PER_HOUR = 5;
@@ -43,7 +46,14 @@ public class RegistrationController {
     static final String FORM_SCOPE = "register";
 
     @GetMapping("/register")
-    public String registerPage(Model model) {
+    public String registerPage(@RequestParam(name = "utm_source", required = false) String utmSource,
+                               @RequestParam(name = "utm_medium", required = false) String utmMedium,
+                               @RequestParam(name = "utm_campaign", required = false) String utmCampaign,
+                               @RequestParam(required = false) String ref,
+                               HttpServletRequest request, Model model) {
+        // Источник — в скрытые поля формы: без cookie и сессии до регистрации
+        model.addAttribute("source", SignupSource.of(utmSource, utmMedium, utmCampaign, ref,
+                request.getHeader("Referer"), request.getServerName()));
         return form(model, null, null, null);
     }
 
@@ -56,9 +66,16 @@ public class RegistrationController {
                              @RequestParam(required = false) String agreedToConsent,
                              @RequestParam(name = HONEYPOT, required = false) String honeypot,
                              @RequestParam(required = false) String formToken,
+                             @RequestParam(name = "utm_source", required = false) String utmSource,
+                             @RequestParam(name = "utm_medium", required = false) String utmMedium,
+                             @RequestParam(name = "utm_campaign", required = false) String utmCampaign,
+                             @RequestParam(required = false) String ref,
                              HttpServletRequest request,
                              Model model) {
         String ip = request.getRemoteAddr();
+        // источник из скрытых полей — и в регистрацию, и обратно в форму, если она вернётся с ошибкой
+        SignupSource source = SignupSource.of(utmSource, utmMedium, utmCampaign, ref, null, request.getServerName());
+        model.addAttribute("source", source);
         // Скрытое поле заполняют только боты; ответ — общий, без подсказки, что не так
         if (honeypot != null && !honeypot.isBlank()) {
             log.info("Регистрация отклонена: заполнено скрытое поле (ip {})", ip);
@@ -92,7 +109,9 @@ public class RegistrationController {
                     email, password, tenantName,
                     agreedToTerms != null,
                     agreedToConsent != null,
-                    strict);
+                    strict,
+                    source);
+            lastLogin.record(user.getId());
 
             UserDetails userDetails = userDetailsService.loadUserByUsername(user.getUsername());
             UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
@@ -127,6 +146,7 @@ public class RegistrationController {
 
     private String form(Model model, String error, String email, String tenantName) {
         if (error != null) model.addAttribute("error", error);
+        if (!model.containsAttribute("source")) model.addAttribute("source", SignupSource.NONE);
         model.addAttribute("email", email);
         model.addAttribute("tenantName", tenantName);
         model.addAttribute("formToken", formTokens.issue(FORM_SCOPE));

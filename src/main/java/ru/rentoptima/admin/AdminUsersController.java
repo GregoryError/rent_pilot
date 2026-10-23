@@ -1,0 +1,219 @@
+package ru.rentoptima.admin;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * Раздел «Пользователи»: список (поиск по адресу, имени и названию объекта, фильтры, сортировка,
+ * страницы по 50) и карточка пользователя. Только ADMIN (как весь /admin/**). Данных гостей,
+ * паролей, токенов и секретов нет — см. {@link AdminUsers}. «Войти как пользователь» нет и не будет.
+ */
+@Controller
+@PreAuthorize("hasRole('ADMIN')")
+@RequiredArgsConstructor
+public class AdminUsersController {
+
+    private static final Locale RU = Locale.forLanguageTag("ru");
+    private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMMM yyyy", RU);
+    private static final DateTimeFormatter DATE_TIME = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", RU);
+
+    private final AdminUsers users;
+    private final AdminAudit audit;
+
+    /** Строка списка: всё уже текстом, цвета — здесь. */
+    public record Row(long id, String login, String displayName, String role, String registered, String lastLogin,
+                      String verification, String verificationColor, boolean active, String props, String housing,
+                      String channels, String bookingPage, String onboarding, String documents, String source) {}
+
+    /** Пара «подпись — значение» в карточке. */
+    public record Field(String label, String value) {}
+
+    @GetMapping("/admin/users")
+    public String list(@RequestParam(required = false) String q,
+                       @RequestParam(required = false) String status,
+                       @RequestParam(required = false) String verified,
+                       @RequestParam(required = false) String props,
+                       @RequestParam(required = false) String sort,
+                       @RequestParam(defaultValue = "1") int page,
+                       Model model) {
+        AdminUsers.Query query = new AdminUsers.Query(q, status, verified, props, sort, page);
+        AdminUsers.Page result = users.list(query);
+        model.addAttribute("activePage", "admin-users");
+        model.addAttribute("query", query);
+        model.addAttribute("rows", result.users().stream().map(this::row).toList());
+        model.addAttribute("total", result.total());
+        model.addAttribute("page", result.page());
+        model.addAttribute("pages", result.pages());
+        model.addAttribute("prevUrl", result.page() > 1 ? url(query, result.page() - 1) : null);
+        model.addAttribute("nextUrl", result.page() < result.pages() ? url(query, result.page() + 1) : null);
+        model.addAttribute("sorts", SORT_LABELS);
+        return "pages/admin/users";
+    }
+
+    @GetMapping("/admin/users/{id}")
+    public String card(@PathVariable long id, Model model) {
+        AdminUsers.User u = users.byId(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        Row row = row(u);
+        model.addAttribute("activePage", "admin-users");
+        model.addAttribute("u", u);
+        model.addAttribute("row", row);
+        model.addAttribute("account", List.of(
+                new Field("Логин", u.login()),
+                new Field("E-mail", u.email() == null ? "—" : u.email()),
+                new Field("Отображаемое имя", blank(u.displayName())),
+                new Field("Роль", row.role()),
+                new Field("Аккаунт", u.tenantName() + " (№ " + u.tenantId() + ")"),
+                new Field("Состояние", u.active() ? "активен" : "отключён"),
+                new Field("Зарегистрирован", dateTime(u.createdAt())),
+                new Field("Последний вход", u.lastLoginAt() == null ? "нет данных" : dateTime(u.lastLoginAt())),
+                new Field("Почта", row.verification()),
+                new Field("Источник регистрации", row.source())));
+        model.addAttribute("documents", List.of(
+                new Field("Пользовательское соглашение", version(u.termsVersion(), u.termsAt())),
+                new Field("Политика конфиденциальности", version(u.privacyVersion(), u.termsAt())),
+                new Field("Согласие на обработку ПД", version(u.consentVersion(), u.consentAt())),
+                new Field("Повторное согласие", u.reconsentRequired() ? "запрошено, ещё не дано" : "не требуется")));
+        model.addAttribute("members", users.members(u.tenantId()));
+        model.addAttribute("properties", users.properties(u.tenantId()).stream().map(p -> new Field(
+                p.name() + (p.active() ? "" : " (выключен)"),
+                AdminUsers.housingLabel(p.kind()) + " · мест: " + p.units() + " · добавлен " + date(p.createdAt())))
+                .toList());
+        model.addAttribute("channels", users.channels(u.tenantId()).stream().map(c -> new Field(
+                c.name() + (c.active() ? "" : " (выключена)"),
+                channelType(c.type()) + (c.unitType() == null ? "" : " · " + c.unitType())
+                        + " · синхронизация: " + (c.lastSyncAt() == null ? "не было" : dateTime(c.lastSyncAt()))
+                        + (c.consecutiveErrors() > 0 ? " · ошибок подряд: " + c.consecutiveErrors()
+                        : c.hasError() ? " · была ошибка" : "")
+                        + (c.platform() == null ? "" : " · из мастера: " + c.platform())))
+                .toList());
+        model.addAttribute("bookingPages", users.bookingPages(u.tenantId()));
+        model.addAttribute("onboarding", List.of(
+                new Field("Мастер", AdminUsers.wizardLabel(u.wizardStatus())
+                        + (u.wizardStep() != null && "ACTIVE".equals(u.wizardStatus()) ? " (шаг «" + u.wizardStep() + "»)" : "")
+                        + (u.wizardFinishedAt() != null ? ", " + dateTime(u.wizardFinishedAt()) : "")),
+                new Field("Ветка", u.hasOnboarding() ? AdminUsers.branchLabel(u.branch()) : "—")));
+        model.addAttribute("steps", users.checklist(u));
+        model.addAttribute("auditRows", audit.recent(null, "user", u.id(), 100).stream()
+                .map(e -> new Field(dateTime(e.at()) + " · " + (e.admin() == null ? "—" : e.admin()),
+                        e.label() + " — " + switch (e.result()) {
+                            case OK -> "выполнено";
+                            case FAILED -> "ошибка";
+                            case REFUSED -> "отказано";
+                        } + (e.details() == null || e.details().isBlank() ? "" : " · " + e.details())))
+                .toList());
+        return "pages/admin/user";
+    }
+
+    private static final Map<String, String> SORT_LABELS = new LinkedHashMap<>();
+
+    static {
+        SORT_LABELS.put("created", "Сначала новые");
+        SORT_LABELS.put("created_asc", "Сначала старые");
+        SORT_LABELS.put("login", "По последнему входу");
+        SORT_LABELS.put("email", "По адресу");
+        SORT_LABELS.put("props", "По числу объектов");
+    }
+
+    private Row row(AdminUsers.User u) {
+        String verification;
+        String color;
+        if (u.emailVerified()) {
+            verification = "подтверждена" + (u.emailVerifiedAt() == null ? "" : " " + date(u.emailVerifiedAt()));
+            color = "var(--green)";
+        } else if (u.verifyDeadline() != null && u.verifyDeadline().isBefore(LocalDateTime.now())) {
+            verification = "не подтверждена, срок истёк " + date(u.verifyDeadline());
+            color = "var(--red)";
+        } else {
+            verification = "не подтверждена" + (u.verifyDeadline() == null ? "" : ", срок " + date(u.verifyDeadline()));
+            color = "var(--amber)";
+        }
+        String props;
+        if (u.props() == 0) {
+            props = "нет";
+        } else {
+            props = u.props() + ": " + String.join(", ", u.propNames())
+                    + (u.props() > u.propNames().size() ? " и ещё " + (u.props() - u.propNames().size()) : "");
+        }
+        String channels = u.channels() == 0 ? "нет"
+                : u.channels() + (u.lastSyncAt() == null ? ", синхронизации не было" : ", синхр. " + dateTime(u.lastSyncAt()));
+        String page = u.pages() == 0 ? "нет" : "да, заявок за 30 дней: " + u.requests30();
+        String onboarding = !u.hasOnboarding() ? "без онбординга"
+                : AdminUsers.branchLabel(u.branch()) + " · " + AdminUsers.wizardLabel(u.wizardStatus()) + " · шаги "
+                + users.checklist(u).stream().filter(AdminUsers.Step::done).count() + " из 6";
+        String documents = u.consentVersion() == null ? "не приняты"
+                : "соглашение " + v(u.termsVersion()) + ", политика " + v(u.privacyVersion()) + ", согласие "
+                + v(u.consentVersion()) + (u.consentAt() == null ? "" : " — " + date(u.consentAt()));
+        return new Row(u.id(), u.login(), blank(u.displayName()), u.isAdmin() ? "администратор" : "хозяин",
+                date(u.createdAt()), u.lastLoginAt() == null ? "—" : dateTime(u.lastLoginAt()), verification, color,
+                u.active(), props,
+                u.kinds().isEmpty() ? "—" : u.kinds().stream().map(AdminUsers::housingLabel).collect(Collectors.joining(", ")),
+                channels, page, onboarding, documents, source(u));
+    }
+
+    private static String source(AdminUsers.User u) {
+        List<String> parts = new ArrayList<>();
+        if (u.utmSource() != null) parts.add("источник " + u.utmSource());
+        if (u.utmMedium() != null) parts.add("канал " + u.utmMedium());
+        if (u.utmCampaign() != null) parts.add("кампания " + u.utmCampaign());
+        if (u.referrerDomain() != null) parts.add("переход с " + u.referrerDomain());
+        return parts.isEmpty() ? "—" : String.join(", ", parts);
+    }
+
+    private static String version(Integer v, LocalDateTime at) {
+        if (v == null) return "не принят";
+        return "редакция " + v + (at == null ? "" : ", " + dateTime(at));
+    }
+
+    private static String v(Integer version) {
+        return version == null ? "—" : "ред. " + version;
+    }
+
+    private static String channelType(String type) {
+        return switch (type) {
+            case "ICAL" -> "площадка по ссылке";
+            case "MANUAL" -> "ручные записи";
+            case "AVITO" -> "Авито";
+            default -> type;
+        };
+    }
+
+    private static String blank(String s) {
+        return s == null || s.isBlank() ? "—" : s;
+    }
+
+    static String date(LocalDateTime t) {
+        return t == null ? "—" : t.format(DATE);
+    }
+
+    static String dateTime(LocalDateTime t) {
+        return t == null ? "—" : t.format(DATE_TIME);
+    }
+
+    private static String url(AdminUsers.Query q, int page) {
+        UriComponentsBuilder b = UriComponentsBuilder.fromPath("/admin/users");
+        if (!q.q().isEmpty()) b.queryParam("q", q.q());
+        if (!q.status().isEmpty()) b.queryParam("status", q.status());
+        if (!q.verified().isEmpty()) b.queryParam("verified", q.verified());
+        if (!q.props().isEmpty()) b.queryParam("props", q.props());
+        if (!"created".equals(q.sort())) b.queryParam("sort", q.sort());
+        b.queryParam("page", page);
+        return b.encode().build().toUriString();
+    }
+}

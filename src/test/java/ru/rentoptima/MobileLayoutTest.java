@@ -48,6 +48,8 @@ class MobileLayoutTest {
     private static final String RECONSENT_LOGIN = "mobile-reconsent@example.com";
     /** Статья для /instrukcii/mobile-statya и предпросмотра в админке. */
     private Long articleId;
+    /** Пользователь проверки — для карточки /admin/users/<id>. */
+    private Long userId;
 
     @LocalServerPort int port;
     @Autowired JdbcTemplate jdbc;
@@ -81,7 +83,7 @@ class MobileLayoutTest {
                     "/housekeeper/mc-keeper", "/housekeeper/nope", "/legal/nope",
                     "/instrukcii/mobile-statya")));
             pb.environment().put("EXTRA_ADMIN_PATHS", "/admin/guides/" + articleId + "/preview,/admin/guides/"
-                    + articleId + "/edit");
+                    + articleId + "/edit,/admin/users/" + userId + ",/admin/users?q=mobile&sort=login");
             process = pb.start();
             assertThat(process.waitFor(10, TimeUnit.MINUTES)).as("проверка уложилась в 10 минут").isTrue();
             output = Files.readString(log.toPath(), StandardCharsets.UTF_8);
@@ -97,7 +99,7 @@ class MobileLayoutTest {
     private void seed() {
         Long tenantId = jdbc.queryForObject(
                 "INSERT INTO tenants(name, slug) VALUES ('Проверка вёрстки', 'mobile-check') RETURNING id", Long.class);
-        Long userId = jdbc.queryForObject("INSERT INTO users(tenant_id, username, password_hash, display_name, role, email)"
+        userId = jdbc.queryForObject("INSERT INTO users(tenant_id, username, password_hash, display_name, role, email)"
                         + " VALUES (?, ?, ?, 'Проверка вёрстки', 'ADMIN', ?) RETURNING id", Long.class,
                 tenantId, LOGIN, new BCryptPasswordEncoder().encode(PASSWORD), LOGIN);
         Long propertyId = jdbc.queryForObject(

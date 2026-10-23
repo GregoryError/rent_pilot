@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Пользователи</title>
+    <link rel="stylesheet" th:href="@{/css/admin-users.css}">
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Пользователи</h1>
+        <p class="page-subtitle">Аккаунты и их настройка. Данных гостей, паролей и ключей ссылок здесь нет.</p>
+    </div>
+
+    <form method="get" th:action="@{/admin/users}" class="card au-filters">
+        <div class="form-group au-search">
+            <label class="form-label" for="au-q">Поиск: адрес, имя, название объекта</label>
+            <input type="search" id="au-q" name="q" th:value="${query.q}" class="form-input form-input--sm">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="au-status">Состояние</label>
+            <select id="au-status" name="status" class="form-input form-input--sm">
+                <option value="">Все</option>
+                <option value="active" th:selected="${query.status == 'active'}">Активные</option>
+                <option value="disabled" th:selected="${query.status == 'disabled'}">Отключённые</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="au-verified">Почта</label>
+            <select id="au-verified" name="verified" class="form-input form-input--sm">
+                <option value="">Все</option>
+                <option value="yes" th:selected="${query.verified == 'yes'}">Подтверждена</option>
+                <option value="no" th:selected="${query.verified == 'no'}">Не подтверждена</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="au-props">Объекты</label>
+            <select id="au-props" name="props" class="form-input form-input--sm">
+                <option value="">Все</option>
+                <option value="yes" th:selected="${query.props == 'yes'}">Есть</option>
+                <option value="no" th:selected="${query.props == 'no'}">Нет</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="au-sort">Порядок</label>
+            <select id="au-sort" name="sort" class="form-input form-input--sm">
+                <option th:each="s : ${sorts}" th:value="${s.key}" th:text="${s.value}"
+                        th:selected="${s.key == query.sort}">Сначала новые</option>
+            </select>
+        </div>
+        <button type="submit" class="btn">Показать</button>
+    </form>
+
+    <p class="au-note" th:text="|Найдено: ${total}. Страница ${page} из ${pages}.|">Найдено: 0.</p>
+
+    <div class="card table-wrap">
+        <p class="muted" th:if="${rows.isEmpty()}">Никого не нашлось.</p>
+        <table class="au-table" th:unless="${rows.isEmpty()}">
+            <thead>
+            <tr>
+                <th>Пользователь</th>
+                <th>Регистрация</th>
+                <th>Последний вход</th>
+                <th>Почта</th>
+                <th>Объекты</th>
+                <th>Тип жилья</th>
+                <th>Площадки</th>
+                <th>Страница бронирования</th>
+                <th>Онбординг</th>
+                <th>Документы</th>
+                <th>Источник</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="r : ${rows}">
+                <td class="au-wide">
+                    <a th:href="@{'/admin/users/' + ${r.id}}" th:text="${r.login}">user@example.com</a>
+                    <div class="muted" th:text="|${r.displayName} · ${r.role}|">Имя · хозяин</div>
+                    <div class="au-off" th:unless="${r.active}">отключён</div>
+                </td>
+                <td th:text="${r.registered}">1 октября 2026</td>
+                <td th:text="${r.lastLogin}">—</td>
+                <td th:style="|color: ${r.verificationColor};|" th:text="${r.verification}">подтверждена</td>
+                <td class="au-wide" th:text="${r.props}">нет</td>
+                <td th:text="${r.housing}">—</td>
+                <td th:text="${r.channels}">нет</td>
+                <td th:text="${r.bookingPage}">нет</td>
+                <td class="au-wide" th:text="${r.onboarding}">—</td>
+                <td class="au-wide" th:text="${r.documents}">—</td>
+                <td th:text="${r.source}">—</td>
+            </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <nav class="au-pager" aria-label="Страницы" th:if="${pages > 1}">
+        <a class="btn btn-sm" th:if="${prevUrl != null}" th:href="${prevUrl}">← Назад</a>
+        <span class="au-note" th:text="|${page} из ${pages}|">1 из 2</span>
+        <a class="btn btn-sm" th:if="${nextUrl != null}" th:href="${nextUrl}">Дальше →</a>
+    </nav>
+</div>
+</body>
+</html>

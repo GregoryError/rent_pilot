@@ -23,6 +23,8 @@
     <th:block th:replace="~{fragments/site :: icons}"></th:block>
     <link rel="stylesheet" th:href="@{/css/site.css}">
     <script type="application/ld+json" th:each="ld : ${jsonLd}" th:utext="${ld}"></script>
+    <!-- Метки и домен перехода — к ссылкам на /register (без cookie и хранилища) -->
+    <script defer th:src="@{/js/signup-source.js}"></script>
     <!-- Метрика сайта — только после согласия в баннере (consent.js); нет счётчика — нет и баннера.
          В предпросмотре статьи для администратора (preview) Метрики нет, как во всей админке. -->
     <script defer th:if="${!#strings.isEmpty(site.metrikaId) and preview != true}" th:src="@{/js/consent.js}"

@@ -165,15 +165,10 @@
             <!-- Admin only -->
             <div sec:authorize="hasRole('ADMIN')">
                 <div class="nav-section">Администрирование</div>
-                <a th:href="@{/admin/onboarding}"
-                   th:classappend="${activePage == 'admin-onboarding'} ? 'nav-item--active'"
+                <a th:href="@{/admin/users}"
+                   th:classappend="${activePage == 'admin-users'} ? 'nav-item--active'"
                    class="nav-item">
-                    <span>◔</span> Воронка онбординга
-                </a>
-                <a th:href="@{/admin/registration}"
-                   th:classappend="${activePage == 'admin-registration'} ? 'nav-item--active'"
-                   class="nav-item">
-                    <span>✉</span> Регистрация
+                    <span>☺</span> Пользователи
                 </a>
                 <a th:href="@{/admin/guides}"
                    th:classappend="${activePage == 'admin-guides'} ? 'nav-item--active'"
@@ -184,6 +179,16 @@
                    th:classappend="${activePage == 'admin-legal'} ? 'nav-item--active'"
                    class="nav-item">
                     <span>⚖</span> Правовые документы
+                </a>
+                <a th:href="@{/admin/registration}"
+                   th:classappend="${activePage == 'admin-registration'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>✉</span> Регистрация
+                </a>
+                <a th:href="@{/admin/onboarding}"
+                   th:classappend="${activePage == 'admin-onboarding'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>◔</span> Воронка онбординга
                 </a>
                 <a th:href="@{/admin/audit}"
                    th:classappend="${activePage == 'admin-audit'} ? 'nav-item--active'"
