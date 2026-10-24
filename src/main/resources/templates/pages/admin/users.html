@@ -53,7 +53,13 @@
         <button type="submit" class="btn">Показать</button>
     </form>
 
-    <p class="au-note" th:text="|Найдено: ${total}. Страница ${page} из ${pages}.|">Найдено: 0.</p>
+    <div class="au-pager">
+        <p class="au-note" th:text="|Найдено: ${total}. Страница ${page} из ${pages}.|">Найдено: 0.</p>
+        <form method="post" th:action="@{/admin/users/emails.csv}"
+              onsubmit="return confirm('Выгрузить адреса активных хозяев с подтверждённой почтой? Выгрузка попадёт в журнал.');">
+            <button type="submit" class="btn btn-sm">Адреса для рассылки (CSV)</button>
+        </form>
+    </div>
 
     <div class="card table-wrap">
         <p class="muted" th:if="${rows.isEmpty()}">Никого не нашлось.</p>

@@ -90,24 +90,32 @@ public class WidgetBookingService {
     /** Виджет по секрету — для прежних ссылок /book/ и /widget/. */
     public Optional<BookingWidget> findActive(String secret) {
         if (secret == null || secret.isBlank() || secret.length() > 64) return Optional.empty();
-        return widgetRepo.findBySecretAndActiveTrue(secret);
+        return widgetRepo.findBySecretAndActiveTrue(secret).filter(this::publicPagesOn);
     }
 
     /** Виджет по публичному адресу — для API. */
     public Optional<BookingWidget> findBySlug(String slug) {
         if (!WidgetSlug.valid(slug)) return Optional.empty();
-        return widgetRepo.findBySlugAndActiveTrue(slug);
+        return widgetRepo.findBySlugAndActiveTrue(slug).filter(this::publicPagesOn);
     }
 
-    /** Была ли по этому адресу страница, которую хозяин удалил. */
+    /**
+     * Была ли по этому адресу страница, которой больше нет: хозяин удалил её или администратор
+     * отключил публичные страницы аккаунта (V48). Такой адрес отвечает 410.
+     */
     public boolean wasDeleted(String slug) {
-        return WidgetSlug.valid(slug)
-                && widgetRepo.findBySlug(slug).filter(w -> !Boolean.TRUE.equals(w.getActive())).isPresent();
+        return WidgetSlug.valid(slug) && widgetRepo.findBySlug(slug)
+                .filter(w -> !Boolean.TRUE.equals(w.getActive()) || !publicPagesOn(w)).isPresent();
     }
 
     /** Действующий виджет по id — для коротких ссылок карточки. */
     public Optional<BookingWidget> findById(Long id) {
-        return widgetRepo.findById(id).filter(w -> Boolean.TRUE.equals(w.getActive()));
+        return widgetRepo.findById(id).filter(w -> Boolean.TRUE.equals(w.getActive())).filter(this::publicPagesOn);
+    }
+
+    /** Публичные страницы аккаунта не отключены администратором (tenants.public_pages_off, V48). */
+    private boolean publicPagesOn(BookingWidget w) {
+        return tenantRepo.findById(w.getTenantId()).map(t -> !Boolean.TRUE.equals(t.getPublicPagesOff())).orElse(true);
     }
 
     /** Последний день, на который можно назначить выезд. */

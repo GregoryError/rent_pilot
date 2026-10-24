@@ -141,8 +141,9 @@ public class WidgetPublicController {
         WidgetQrLink link = cards.findLink(code)
                 .filter(l -> !WidgetQrLink.KIND_FEEDBACK.equals(l.getKind()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        // Ссылка есть, а страницы нет — её удалили или отключили: 410, как у /b/
         BookingWidget w = widgets.findById(link.getWidgetId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.GONE));
         return ResponseEntity.status(HttpStatus.FOUND)
                 .header(HttpHeaders.LOCATION, site.linkBase(request) + cards.target(link, w, LocalDate.now()))
                 .header(HttpHeaders.CACHE_CONTROL, "no-store")

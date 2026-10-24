@@ -21,3 +21,10 @@
 .au-steps li { margin: var(--sp-1) 0; }
 .au-steps .is-done { color: var(--green); }
 .au-note { font-size: var(--text-sm); color: var(--text-secondary); }
+.au-actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: flex-end; }
+.au-action { display: flex; flex-direction: column; gap: var(--sp-2); max-width: 32rem; }
+.au-check { display: flex; gap: var(--sp-2); align-items: flex-start; font-size: var(--text-sm); color: var(--text-secondary); }
+.au-check input { flex: none; margin-top: 3px; }
+.au-flash--ok { border-color: var(--green); color: var(--green); }
+.au-flash--err { border-color: var(--red); color: var(--red); }
+.au-danger { border-color: var(--red); color: var(--red); }

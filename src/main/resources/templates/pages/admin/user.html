@@ -17,6 +17,38 @@
         </p>
     </div>
 
+    <div class="card au-flash au-flash--ok" role="status" th:if="${notice != null}" th:text="${notice}">Готово</div>
+    <div class="card au-flash au-flash--err" role="alert" th:if="${error != null}" th:text="${error}">Ошибка</div>
+
+    <div class="card">
+        <div class="card__title">Действия</div>
+        <p class="au-note" th:if="${hasAdmin}">В аккаунте есть администратор — отключить его нельзя.</p>
+        <div class="au-actions">
+            <form method="post" th:if="${!hasAdmin and u.accountActive}" th:action="@{'/admin/users/' + ${u.id} + '/disable'}"
+                  class="au-action" onsubmit="return confirm('Отключить аккаунт? Вход будет запрещён всем его пользователям, открытые сессии завершатся.');">
+                <label class="au-check"><input type="checkbox" name="publicPages" value="true">
+                    <span>отключить и публичные страницы — страницы бронирования ответят «страница удалена», заявки перестанут приниматься</span></label>
+                <button type="submit" class="btn au-danger">Отключить аккаунт</button>
+            </form>
+            <form method="post" th:if="${!u.accountActive}" th:action="@{'/admin/users/' + ${u.id} + '/enable'}"
+                  class="au-action" onsubmit="return confirm('Включить аккаунт? Вход и страницы бронирования снова заработают.');">
+                <button type="submit" class="btn btn-primary">Включить аккаунт</button>
+            </form>
+            <form method="post" th:if="${u.email != null and !u.emailVerified}" th:action="@{'/admin/users/' + ${u.id} + '/verify-resend'}"
+                  class="au-action" onsubmit="return confirm('Отправить письмо со ссылкой подтверждения ещё раз?');">
+                <button type="submit" class="btn">Отправить письмо подтверждения</button>
+            </form>
+            <form method="post" th:if="${u.email != null and !u.emailVerified}" th:action="@{'/admin/users/' + ${u.id} + '/verify'}"
+                  class="au-action" onsubmit="return confirm('Отметить почту подтверждённой без письма?');">
+                <button type="submit" class="btn">Отметить почту подтверждённой</button>
+            </form>
+            <form method="post" th:if="${u.email != null and u.active}" th:action="@{'/admin/users/' + ${u.id} + '/reset-link'}"
+                  class="au-action" onsubmit="return confirm('Отправить пользователю ссылку на смену пароля?');">
+                <button type="submit" class="btn">Отправить ссылку на смену пароля</button>
+            </form>
+        </div>
+    </div>
+
     <div class="card">
         <div class="card__title">Аккаунт</div>
         <dl class="au-fields">

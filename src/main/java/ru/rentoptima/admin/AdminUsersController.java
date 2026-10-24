@@ -1,15 +1,25 @@
 package ru.rentoptima.admin;
 
 import lombok.RequiredArgsConstructor;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
+import ru.rentoptima.seo.SiteSettings;
+
+import java.nio.charset.StandardCharsets;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -36,6 +46,8 @@ public class AdminUsersController {
 
     private final AdminUsers users;
     private final AdminAudit audit;
+    private final AdminUserActions actions;
+    private final SiteSettings site;
 
     /** Строка списка: всё уже текстом, цвета — здесь. */
     public record Row(long id, String login, String displayName, String role, String registered, String lastLogin,
@@ -80,7 +92,10 @@ public class AdminUsersController {
                 new Field("Отображаемое имя", blank(u.displayName())),
                 new Field("Роль", row.role()),
                 new Field("Аккаунт", u.tenantName() + " (№ " + u.tenantId() + ")"),
-                new Field("Состояние", u.active() ? "активен" : "отключён"),
+                new Field("Состояние", !u.accountActive() ? "аккаунт отключён"
+                        + (u.disabledAt() == null ? "" : " " + dateTime(u.disabledAt()))
+                        + (u.publicPagesOff() ? ", страницы бронирования тоже" : ", страницы бронирования работают")
+                        : u.active() ? "активен" : "отключён"),
                 new Field("Зарегистрирован", dateTime(u.createdAt())),
                 new Field("Последний вход", u.lastLoginAt() == null ? "нет данных" : dateTime(u.lastLoginAt())),
                 new Field("Почта", row.verification()),
@@ -118,7 +133,85 @@ public class AdminUsersController {
                             case REFUSED -> "отказано";
                         } + (e.details() == null || e.details().isBlank() ? "" : " · " + e.details())))
                 .toList());
+        model.addAttribute("hasAdmin", actions.hasAdmin(u.tenantId()));
         return "pages/admin/user";
+    }
+
+    // --- Действия: подтверждение — в интерфейсе, запись в журнал — здесь
+
+    @PostMapping("/admin/users/{id}/disable")
+    public String disable(@PathVariable long id, @RequestParam(required = false) String publicPages,
+                          RedirectAttributes redirect) {
+        AdminUsers.User u = user(id);
+        boolean publicToo = "true".equals(publicPages);
+        AdminUserActions.Outcome r = actions.disable(u.tenantId(), publicToo);
+        return done(r, AdminAudit.Action.USER_DISABLE, u, "аккаунт № " + u.tenantId(), redirect);
+    }
+
+    @PostMapping("/admin/users/{id}/enable")
+    public String enable(@PathVariable long id, RedirectAttributes redirect) {
+        AdminUsers.User u = user(id);
+        return done(actions.enable(u.tenantId()), AdminAudit.Action.USER_ENABLE, u, "аккаунт № " + u.tenantId(), redirect);
+    }
+
+    @PostMapping("/admin/users/{id}/verify-resend")
+    public String resendVerification(@PathVariable long id, HttpServletRequest request, RedirectAttributes redirect) {
+        AdminUsers.User u = user(id);
+        return done(actions.resendVerification(u, site.linkBase(request)), AdminAudit.Action.USER_VERIFY_RESEND, u,
+                null, redirect);
+    }
+
+    @PostMapping("/admin/users/{id}/reset-link")
+    public String resetLink(@PathVariable long id, HttpServletRequest request, RedirectAttributes redirect) {
+        AdminUsers.User u = user(id);
+        return done(actions.sendResetLink(u, site.linkBase(request)), AdminAudit.Action.USER_RESET_LINK, u, null,
+                redirect);
+    }
+
+    @PostMapping("/admin/users/{id}/verify")
+    public String markVerified(@PathVariable long id, RedirectAttributes redirect) {
+        AdminUsers.User u = user(id);
+        return done(actions.markVerified(u), AdminAudit.Action.USER_VERIFY_MANUAL, u, null, redirect);
+    }
+
+    /** Адреса активных хозяев с подтверждённой почтой — CSV, одна колонка. */
+    @PostMapping("/admin/users/emails.csv")
+    public ResponseEntity<byte[]> emails() {
+        List<String> emails = actions.activeVerifiedEmails();
+        StringBuilder csv = new StringBuilder("email\r\n");
+        for (String e : emails) csv.append(csvCell(e)).append("\r\n");
+        audit.ok(AdminAudit.Action.EMAILS_EXPORT, null, null, "адресов: " + emails.size());
+        return ResponseEntity.ok()
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("optirent-emails-" + java.time.LocalDate.now() + ".csv").build().toString())
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(csv.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    /** Ячейка CSV: в кавычках, если есть разделитель, кавычка или перевод строки; формулы обезврежены. */
+    static String csvCell(String v) {
+        String s = v == null ? "" : v;
+        if (!s.isEmpty() && "=+-@".indexOf(s.charAt(0)) >= 0) s = "'" + s;
+        if (s.contains(",") || s.contains(";") || s.contains("\"") || s.contains("\n") || s.contains("\r")) {
+            s = "\"" + s.replace("\"", "\"\"") + "\"";
+        }
+        return s;
+    }
+
+    private AdminUsers.User user(long id) {
+        return users.byId(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+    }
+
+    /** Журнал и сообщение администратору. В журнал — номера и итог, без адресов и имён. */
+    private String done(AdminUserActions.Outcome r, AdminAudit.Action action, AdminUsers.User u, String extra,
+                        RedirectAttributes redirect) {
+        String details = String.join("; ", java.util.stream.Stream.of(extra, r.details())
+                .filter(x -> x != null && !x.isBlank()).toList());
+        audit.record(action, "user", u.id(), r.ok() ? AdminAudit.Result.OK : AdminAudit.Result.REFUSED,
+                details.isEmpty() ? null : details);
+        redirect.addFlashAttribute(r.ok() ? "notice" : "error", r.message());
+        return "redirect:/admin/users/" + u.id();
     }
 
     private static final Map<String, String> SORT_LABELS = new LinkedHashMap<>();

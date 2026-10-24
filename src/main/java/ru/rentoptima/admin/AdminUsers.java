@@ -66,7 +66,8 @@ public class AdminUsers {
                        String wizardStep, LocalDateTime wizardFinishedAt, JsonNode onboardingData,
                        Integer termsVersion, Integer privacyVersion, Integer consentVersion,
                        LocalDateTime termsAt, LocalDateTime consentAt, boolean reconsentRequired,
-                       String utmSource, String utmMedium, String utmCampaign, String referrerDomain) {
+                       String utmSource, String utmMedium, String utmCampaign, String referrerDomain,
+                       boolean accountActive, boolean publicPagesOff, LocalDateTime disabledAt) {
         public boolean isAdmin() {
             return "ADMIN".equals(role);
         }
@@ -120,7 +121,9 @@ public class AdminUsers {
                    o.branch, o.wizard_status, o.wizard_step, o.wizard_finished_at, o.data::text AS onboarding_data,
                    u.terms_version, u.privacy_version, u.consent_version, u.agreed_to_terms_at,
                    u.agreed_to_consent_at, u.legal_reconsent_required,
-                   u.signup_utm_source, u.signup_utm_medium, u.signup_utm_campaign, u.signup_referrer_domain
+                   u.signup_utm_source, u.signup_utm_medium, u.signup_utm_campaign, u.signup_referrer_domain,
+                   t.active AS account_active, t.public_pages_off,
+                   t.disabled_at AT TIME ZONE 'Europe/Moscow' AS disabled_at
             FROM users u
             JOIN tenants t ON t.id = u.tenant_id
             LEFT JOIN onboarding_state o ON o.user_id = u.id
@@ -288,6 +291,8 @@ public class AdminUsers {
                 (Integer) rs.getObject("consent_version"), rs.getObject("agreed_to_terms_at", LocalDateTime.class),
                 rs.getObject("agreed_to_consent_at", LocalDateTime.class), rs.getBoolean("legal_reconsent_required"),
                 rs.getString("signup_utm_source"), rs.getString("signup_utm_medium"),
-                rs.getString("signup_utm_campaign"), rs.getString("signup_referrer_domain"));
+                rs.getString("signup_utm_campaign"), rs.getString("signup_referrer_domain"),
+                rs.getBoolean("account_active"), rs.getBoolean("public_pages_off"),
+                rs.getObject("disabled_at", LocalDateTime.class));
     }
 }

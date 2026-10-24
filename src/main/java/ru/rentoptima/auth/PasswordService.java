@@ -84,6 +84,17 @@ public class PasswordService {
         log.info("Сброс пароля: ссылка выдана пользователю {} ({})", user.getId(), via);
     }
 
+    /**
+     * Ссылка сброса по просьбе администратора (/admin/users): то же письмо, что и «Забыли пароль?»,
+     * без лимитов по IP. Проверки (активен, есть адрес, почта настроена) — у вызывающего.
+     */
+    public void sendResetLink(Long userId, String linkBase) {
+        User user = users.findById(userId).orElseThrow();
+        if (user.getEmail() == null || !user.getActive()) return;
+        notifier.resetLinkByEmail(user.getEmail(), link(linkBase, tokens.issue(user.getId(), AuthTokenService.Kind.RESET, RESET_TTL)));
+        log.info("Сброс пароля: ссылка выдана пользователю {} по просьбе администратора", user.getId());
+    }
+
     /** Пользователь, которому принадлежит действующая ссылка сброса. */
     public Optional<User> resetTarget(String token) {
         return tokens.peek(token, AuthTokenService.Kind.RESET).flatMap(users::findById).filter(User::getActive);
