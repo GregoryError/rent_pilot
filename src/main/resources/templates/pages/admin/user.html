@@ -42,6 +42,11 @@
                   class="au-action" onsubmit="return confirm('Отметить почту подтверждённой без письма?');">
                 <button type="submit" class="btn">Отметить почту подтверждённой</button>
             </form>
+            <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/export'}" class="au-action"
+                  onsubmit="return confirm('Выгрузить данные аккаунта? В архиве будут и данные гостей. Выгрузка попадёт в журнал.');">
+                <button type="submit" class="btn">Выгрузить данные (ZIP)</button>
+            </form>
+            <a th:unless="${hasAdmin}" th:href="@{'/admin/users/' + ${u.id} + '/delete'}" class="btn au-danger">Удалить аккаунт…</a>
             <form method="post" th:if="${u.email != null and u.active}" th:action="@{'/admin/users/' + ${u.id} + '/reset-link'}"
                   class="au-action" onsubmit="return confirm('Отправить пользователю ссылку на смену пароля?');">
                 <button type="submit" class="btn">Отправить ссылку на смену пароля</button>

@@ -58,6 +58,8 @@ public class FeedbackController {
     private final SiteSettings site;
     private final ru.rentoptima.legal.GuestOperators operators;
     private final ru.rentoptima.legal.LegalDocuments legalDocs;
+    /** Адреса удалённых аккаунтов — 410 (V49). */
+    private final ru.rentoptima.account.GoneLinks gone;
 
     /** « Иванов И. И.» для «Даю согласие хосту…»; пусто — просто «хосту». Текст — th:text, экранируется. */
     private String hostSuffix(Property property) {
@@ -69,7 +71,8 @@ public class FeedbackController {
     @GetMapping("/feedback/{code}")
     public String feedbackPage(@PathVariable String code, Model model) {
         Property property = propertyRepo.findByFeedbackCode(code).orElse(null);
-        if (property == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        if (property == null) throw new ResponseStatusException(
+                gone.isGone(ru.rentoptima.account.GoneLinks.Kind.FEEDBACK, code) ? HttpStatus.GONE : HttpStatus.NOT_FOUND);
 
         String sessionId = UUID.randomUUID().toString();
         model.addAttribute("property", property);
@@ -86,7 +89,8 @@ public class FeedbackController {
     @GetMapping("/f/{code}")
     public String cardFeedbackPage(@PathVariable String code, Model model, HttpServletRequest request) {
         Property property = cardProperty(code);
-        if (property == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        if (property == null) throw new ResponseStatusException(
+                gone.isGone(ru.rentoptima.account.GoneLinks.Kind.QR, code) ? HttpStatus.GONE : HttpStatus.NOT_FOUND);
         // QR со старым доменом (staging.optirent.ru/f/…): анкета открывается на основном —
         // там же её стили и /api/feedback/submit, который старый домен уже не пропускает
         if (site.isSecondaryHost(request)) return "redirect:" + site.getBaseUrl() + "/f/" + code;

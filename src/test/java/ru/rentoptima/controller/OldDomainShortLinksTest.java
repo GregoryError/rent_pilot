@@ -81,7 +81,8 @@ class OldDomainShortLinksTest {
     void cardLinkFromOldDomain() {
         link(WidgetQrLink.KIND_CARD);
         when(cards.target(any(), any(), any(LocalDate.class))).thenReturn("/b/sadovaya?utm_source=qr_card&utm_medium=print");
-        var controller = new WidgetPublicController(widgets, configs, verification, cards, PROD, unitTypeRepo, propertyRepo);
+        var controller = new WidgetPublicController(widgets, configs, verification, cards, PROD, unitTypeRepo, propertyRepo,
+                org.mockito.Mockito.mock(ru.rentoptima.account.GoneLinks.class));
 
         var response = controller.shortLink("abc1234", request("staging.optirent.ru", "/q/abc1234"));
 
@@ -98,7 +99,8 @@ class OldDomainShortLinksTest {
         return new FeedbackController(propertyRepo, unitTypeRepo, bookingRepo, cards, widgets, rateLimiter,
                 telegram, feedbackRepo, questionRepo, answerRepo, PROD,
                 org.mockito.Mockito.mock(ru.rentoptima.legal.GuestOperators.class),
-                org.mockito.Mockito.mock(ru.rentoptima.legal.LegalDocuments.class));
+                org.mockito.Mockito.mock(ru.rentoptima.legal.LegalDocuments.class),
+                org.mockito.Mockito.mock(ru.rentoptima.account.GoneLinks.class));
     }
 
     @Test

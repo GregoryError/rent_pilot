@@ -49,6 +49,8 @@ public class ICalFeedController {
     private final PropertyRepository propertyRepo;
     private final AvailabilityService availability;
     private final ChannelFeedFetchRepository fetchRepo;
+    /** Ссылки удалённых аккаунтов — 410 (V49): площадка быстрее перестанет их опрашивать. */
+    private final ru.rentoptima.account.GoneLinks gone;
 
     @GetMapping(value = "/ical/{secret}.ics", produces = "text/calendar;charset=UTF-8")
     public ResponseEntity<byte[]> feed(@PathVariable String secret,
@@ -58,6 +60,9 @@ public class ICalFeedController {
 
         // Одинаковый 404 и для несуществующего, и для выключенного канала —
         // чтобы по коду ответа нельзя было перебором нащупать валидные секреты.
+        if (channel == null && gone.isGone(ru.rentoptima.account.GoneLinks.Kind.ICAL, secret)) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.GONE).build();
+        }
         if (channel == null || !Boolean.TRUE.equals(channel.getActive())) {
             return ResponseEntity.notFound().build();
         }

@@ -56,6 +56,8 @@ public class HousekeeperController {
     private final FeedbackAnswerRepository answerRepo;
     private final FeedbackQuestionRepository questionRepo;
     private final ru.rentoptima.legal.GuestOperators operators;
+    /** Адреса удалённых аккаунтов — 410 (V49). */
+    private final ru.rentoptima.account.GoneLinks gone;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
     @GetMapping("/housekeeper/{code}")
@@ -65,7 +67,8 @@ public class HousekeeperController {
                                   @RequestParam(required = false, defaultValue = "schedule") String tab,
                                   Model model) {
         Property property = propertyRepo.findByHousekeeperCode(code).orElse(null);
-        if (property == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        if (property == null) throw new ResponseStatusException(
+                gone.isGone(ru.rentoptima.account.GoneLinks.Kind.HOUSEKEEPER, code) ? HttpStatus.GONE : HttpStatus.NOT_FOUND);
 
         if (property.getHousekeeperPinHash() == null || property.getHousekeeperPinHash().isBlank()) {
             model.addAttribute("code", code);
@@ -148,7 +151,8 @@ public class HousekeeperController {
                         @RequestParam String pin,
                         HttpServletResponse response) {
         Property property = propertyRepo.findByHousekeeperCode(code).orElse(null);
-        if (property == null) throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        if (property == null) throw new ResponseStatusException(
+                gone.isGone(ru.rentoptima.account.GoneLinks.Kind.HOUSEKEEPER, code) ? HttpStatus.GONE : HttpStatus.NOT_FOUND);
 
         if (property.getHousekeeperPinHash() == null
                 || !encoder.matches(pin, property.getHousekeeperPinHash())) {

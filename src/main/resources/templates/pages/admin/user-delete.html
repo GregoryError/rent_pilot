@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Удаление аккаунта</title>
+    <link rel="stylesheet" th:href="@{/css/admin-users.css}">
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Удаление аккаунта</h1>
+        <p class="page-subtitle"><a th:href="@{'/admin/users/' + ${u.id}}">← Назад к пользователю</a></p>
+    </div>
+
+    <div class="card au-flash au-flash--err" role="alert" th:if="${error != null}" th:text="${error}">Ошибка</div>
+
+    <div class="card" th:if="${hasAdmin}">
+        <p>В аккаунте есть администратор — его нельзя удалить.</p>
+    </div>
+
+    <div class="card" th:unless="${hasAdmin}">
+        <div class="card__title">Будет удалено без возможности восстановить</div>
+        <ul class="au-steps">
+            <li th:text="|Аккаунт № ${u.tenantId} и все его пользователи: ${summary.users}|">Аккаунт</li>
+            <li th:text="|Объекты: ${summary.properties}, с категориями, ценами и календарём|">Объекты</li>
+            <li th:text="|Брони и заявки: ${summary.bookings}, отзывы и анкеты|">Брони</li>
+            <li th:text="|Страницы бронирования: ${summary.pages}, с фото, промокодами и карточками|">Страницы</li>
+            <li>Площадки, настройки, онбординг, ссылки входа и сброса пароля</li>
+        </ul>
+        <p class="au-note">Публичные адреса — страницы бронирования, короткие ссылки с карточек, анкеты, расписание горничной и ссылки для площадок — станут отвечать «страница удалена» (410). В журнал попадёт запись «аккаунт удалён по запросу» с номером аккаунта и числами, без адресов и имён. Из бэкапов данные уйдут вместе с их сроком — 30 дней.</p>
+        <p class="au-note">Если пользователь просил и копию данных — сначала сделайте выгрузку в карточке.</p>
+
+        <form method="post" th:action="@{'/admin/users/' + ${u.id} + '/delete'}" class="au-action"
+              onsubmit="return confirm('Удалить аккаунт безвозвратно?');">
+            <label class="form-label" for="au-confirm">Для подтверждения введите адрес пользователя:
+                <strong th:text="${confirmWord}">user@example.com</strong></label>
+            <input type="text" id="au-confirm" name="confirmEmail" class="form-input" autocomplete="off"
+                   autocapitalize="none" spellcheck="false" required>
+            <button type="submit" class="btn au-danger">Удалить аккаунт</button>
+        </form>
+    </div>
+</div>
+</body>
+</html>

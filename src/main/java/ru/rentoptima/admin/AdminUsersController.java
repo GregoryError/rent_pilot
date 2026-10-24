@@ -47,6 +47,8 @@ public class AdminUsersController {
     private final AdminUsers users;
     private final AdminAudit audit;
     private final AdminUserActions actions;
+    private final ru.rentoptima.account.AccountExport exporter;
+    private final ru.rentoptima.account.AccountDeletion deletion;
     private final SiteSettings site;
 
     /** Строка списка: всё уже текстом, цвета — здесь. */
@@ -172,6 +174,61 @@ public class AdminUsersController {
     public String markVerified(@PathVariable long id, RedirectAttributes redirect) {
         AdminUsers.User u = user(id);
         return done(actions.markVerified(u), AdminAudit.Action.USER_VERIFY_MANUAL, u, null, redirect);
+    }
+
+    /** Выгрузка данных аккаунта — ZIP с JSON (данные гостей — отдельным файлом). */
+    @PostMapping("/admin/users/{id}/export")
+    public ResponseEntity<byte[]> export(@PathVariable long id) {
+        AdminUsers.User u = user(id);
+        ru.rentoptima.account.AccountExport.Export e = exporter.export(u.tenantId());
+        audit.ok(AdminAudit.Action.USER_EXPORT, "user", u.id(), "аккаунт № " + u.tenantId() + "; файлов: " + e.files().size());
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/zip"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("optirent-account-" + u.tenantId() + "-" + java.time.LocalDate.now() + ".zip")
+                        .build().toString())
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .body(e.zip());
+    }
+
+    /** Удаление, шаг 1: что будет удалено и поле для адреса пользователя. */
+    @GetMapping("/admin/users/{id}/delete")
+    public String deletePage(@PathVariable long id, Model model) {
+        AdminUsers.User u = user(id);
+        model.addAttribute("activePage", "admin-users");
+        model.addAttribute("u", u);
+        model.addAttribute("hasAdmin", actions.hasAdmin(u.tenantId()));
+        model.addAttribute("summary", deletion.summary(u.tenantId()));
+        model.addAttribute("confirmWord", confirmWord(u));
+        return "pages/admin/user-delete";
+    }
+
+    /** Удаление, шаг 2: адрес введён — аккаунт удаляется со всеми пользователями и данными. */
+    @PostMapping("/admin/users/{id}/delete")
+    public String delete(@PathVariable long id, @RequestParam(required = false) String confirmEmail,
+                         RedirectAttributes redirect) {
+        AdminUsers.User u = user(id);
+        if (actions.hasAdmin(u.tenantId())) {
+            audit.record(AdminAudit.Action.USER_DELETE, "user", u.id(), AdminAudit.Result.REFUSED, "в аккаунте есть администратор");
+            redirect.addFlashAttribute("error", "В аккаунте есть администратор — его нельзя удалить.");
+            return "redirect:/admin/users/" + u.id();
+        }
+        if (confirmEmail == null || !confirmEmail.strip().equalsIgnoreCase(confirmWord(u))) {
+            audit.record(AdminAudit.Action.USER_DELETE, "user", u.id(), AdminAudit.Result.REFUSED, "адрес для подтверждения не совпал");
+            redirect.addFlashAttribute("error", "Адрес не совпал — аккаунт не удалён.");
+            return "redirect:/admin/users/" + u.id() + "/delete";
+        }
+        ru.rentoptima.account.AccountDeletion.Summary sum = deletion.delete(u.tenantId());
+        audit.ok(AdminAudit.Action.USER_DELETE, "user", u.id(), "аккаунт удалён по запросу; аккаунт № " + u.tenantId()
+                + "; пользователей: " + sum.users() + ", объектов: " + sum.properties() + ", броней: " + sum.bookings()
+                + ", страниц бронирования: " + sum.pages());
+        redirect.addFlashAttribute("notice", "Аккаунт № " + u.tenantId() + " удалён.");
+        return "redirect:/admin/users";
+    }
+
+    /** Что вводить для подтверждения: адрес почты, у пользователя без почты — логин. */
+    private static String confirmWord(AdminUsers.User u) {
+        return u.email() != null ? u.email() : u.login();
     }
 
     /** Адреса активных хозяев с подтверждённой почтой — CSV, одна колонка. */

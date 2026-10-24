@@ -64,6 +64,8 @@ public class WidgetPublicController {
     private final SiteSettings site;
     private final UnitTypeRepository unitTypeRepo;
     private final PropertyRepository propertyRepo;
+    /** Адреса удалённых аккаунтов — 410 (V49). */
+    private final ru.rentoptima.account.GoneLinks gone;
 
     @GetMapping("/b/{slug}")
     public String page(@PathVariable String slug, Model model, HttpServletRequest request,
@@ -140,7 +142,8 @@ public class WidgetPublicController {
     public ResponseEntity<Void> shortLink(@PathVariable String code, HttpServletRequest request) {
         WidgetQrLink link = cards.findLink(code)
                 .filter(l -> !WidgetQrLink.KIND_FEEDBACK.equals(l.getKind()))
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+                .orElseThrow(() -> new ResponseStatusException(gone.isGone(ru.rentoptima.account.GoneLinks.Kind.QR, code)
+                        ? HttpStatus.GONE : HttpStatus.NOT_FOUND));
         // Ссылка есть, а страницы нет — её удалили или отключили: 410, как у /b/
         BookingWidget w = widgets.findById(link.getWidgetId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.GONE));
@@ -199,7 +202,7 @@ public class WidgetPublicController {
     /** Нет такой страницы — 404; была, но хозяин удалил — 410: поисковик уберёт её быстрее. */
     private BookingWidget bySlug(String slug) {
         return widgets.findBySlug(slug).orElseThrow(() -> new ResponseStatusException(
-                widgets.wasDeleted(slug) ? HttpStatus.GONE : HttpStatus.NOT_FOUND));
+                widgets.wasDeleted(slug) || gone.isGone(ru.rentoptima.account.GoneLinks.Kind.PAGE, slug) ? HttpStatus.GONE : HttpStatus.NOT_FOUND));
     }
 
     /**
@@ -246,7 +249,8 @@ public class WidgetPublicController {
     }
 
     private BookingWidget bySecret(String secret) {
-        return widgets.findActive(secret).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        return widgets.findActive(secret).orElseThrow(() -> new ResponseStatusException(
+                gone.isGone(ru.rentoptima.account.GoneLinks.Kind.SECRET, secret) ? HttpStatus.GONE : HttpStatus.NOT_FOUND));
     }
 
     private static String themeOf(BookingWidget w) {

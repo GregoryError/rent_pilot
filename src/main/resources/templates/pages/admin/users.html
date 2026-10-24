@@ -14,6 +14,8 @@
         <p class="page-subtitle">Аккаунты и их настройка. Данных гостей, паролей и ключей ссылок здесь нет.</p>
     </div>
 
+    <div class="card au-flash au-flash--ok" role="status" th:if="${notice != null}" th:text="${notice}">Готово</div>
+
     <form method="get" th:action="@{/admin/users}" class="card au-filters">
         <div class="form-group au-search">
             <label class="form-label" for="au-q">Поиск: адрес, имя, название объекта</label>

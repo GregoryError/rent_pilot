@@ -83,7 +83,7 @@ class MobileLayoutTest {
                     "/housekeeper/mc-keeper", "/housekeeper/nope", "/legal/nope",
                     "/instrukcii/mobile-statya")));
             pb.environment().put("EXTRA_ADMIN_PATHS", "/admin/guides/" + articleId + "/preview,/admin/guides/"
-                    + articleId + "/edit,/admin/users/" + userId + ",/admin/users?q=mobile&sort=login");
+                    + articleId + "/edit,/admin/users/" + userId + ",/admin/users/" + userId + "/delete,/admin/users?q=mobile&sort=login");
             process = pb.start();
             assertThat(process.waitFor(10, TimeUnit.MINUTES)).as("проверка уложилась в 10 минут").isTrue();
             output = Files.readString(log.toPath(), StandardCharsets.UTF_8);
