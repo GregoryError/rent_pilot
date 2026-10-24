@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сервис закрыт — OptiRent</title>
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="theme-color" content="#f6f5f2">
+    <th:block th:replace="~{fragments/site :: icons}"></th:block>
+    <link rel="stylesheet" th:href="@{/css/core.css}">
+    <script th:src="@{/js/theme.js}"></script>
+</head>
+<body>
+    <!--/* /forgot, /reset и /verify, пока вход закрыт выключателем «Сервис открыт» */-->
+    <div class="login-page">
+        <div class="login-card">
+            <a th:href="@{/}" class="login-title login-brand">
+                <svg th:replace="~{fragments/logo :: mark(32)}"></svg>
+                <span>OptiRent</span>
+            </a>
+            <h1 class="login-subtitle" th:text="${heading}">Восстановление пароля</h1>
+            <div th:replace="~{fragments/service :: notice(${serviceNotice})}"></div>
+            <div class="login-links"><a th:href="@{/}">На главную</a></div>
+        </div>
+    </div>
+</body>
+</html>

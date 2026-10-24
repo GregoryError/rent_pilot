@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org" lang="ru">
+<!--/*
+    Объявление выключателя «Сервис открыт» (ServiceLock): на входе, регистрации и страницах
+    восстановления пароля и подтверждения почты, когда закрыто. notice.html — уже безопасный HTML
+    (LegalMarkdown: абзацы и ссылки).
+*/-->
+<body>
+<div th:fragment="notice(notice)" class="service-notice" role="status">
+    <strong class="service-notice__title" th:text="${notice.title}">Сервис на стадии запуска</strong>
+    <div class="service-notice__text" th:utext="${notice.html}"><p>Регистрация откроется в ближайшее время.</p></div>
+</div>
+</body>
+</html>

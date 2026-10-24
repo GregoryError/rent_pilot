@@ -27,9 +27,20 @@ public class PasswordController {
 
     private final PasswordService passwords;
     private final SiteSettings site;
+    private final ServiceLock serviceLock;
+
+    /** Вход закрыт выключателем «Сервис открыт» — вместо формы объявление; null — открыт. */
+    private String closed(String heading, Model model) {
+        if (serviceLock.loginOpen()) return null;
+        model.addAttribute("heading", heading);
+        model.addAttribute("serviceNotice", serviceLock.notice());
+        return "pages/auth/service-closed";
+    }
 
     @GetMapping("/forgot")
     public String forgot(@RequestParam(required = false) String sent, Model model) {
+        String closed = closed("Восстановление пароля", model);
+        if (closed != null) return closed;
         model.addAttribute("emailAvailable", passwords.emailAvailable());
         model.addAttribute("sent", "email".equals(sent) || "telegram".equals(sent) ? sent : null);
         return "pages/auth/forgot";
@@ -38,7 +49,9 @@ public class PasswordController {
     @PostMapping("/forgot")
     public String requestLink(@RequestParam(required = false) String email,
                               @RequestParam(defaultValue = "email") String via,
-                              HttpServletRequest request) {
+                              HttpServletRequest request, Model model) {
+        String closed = closed("Восстановление пароля", model);
+        if (closed != null) return closed;
         PasswordService.Via channel = "telegram".equals(via) ? PasswordService.Via.TELEGRAM : PasswordService.Via.EMAIL;
         passwords.requestReset(email, channel, request.getRemoteAddr(), site.linkBase(request));
         return "redirect:/forgot?sent=" + (channel == PasswordService.Via.TELEGRAM ? "telegram" : "email");
@@ -47,6 +60,8 @@ public class PasswordController {
     @GetMapping("/reset")
     public String resetForm(@RequestParam(required = false) String token, Model model, HttpServletResponse response) {
         noStore(response);
+        String closed = closed("Новый пароль", model);
+        if (closed != null) return closed;
         Optional<User> user = passwords.resetTarget(token);
         model.addAttribute("valid", user.isPresent());
         model.addAttribute("token", token);
@@ -61,6 +76,8 @@ public class PasswordController {
                         @RequestParam(required = false) String confirmPassword,
                         HttpServletRequest request, HttpServletResponse response, Model model) {
         noStore(response);
+        String closed = closed("Новый пароль", model);
+        if (closed != null) return closed;
         String error = passwords.reset(token, password, confirmPassword, request.getRequestedSessionId(),
                 site.linkBase(request));
         if (error == null) return "redirect:/login?reset";

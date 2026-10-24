@@ -69,6 +69,16 @@
             else window.open(open.href, '_blank');
         });
     });
+    // Другие формы страницы («Скрыть из поиска сейчас», «Снять с публикации»): сначала сохранить
+    // рабочую копию, потом отправить — иначе запоздавшее автосохранение затёрло бы их действие
+    document.querySelectorAll('form').forEach(function (f) {
+        if (f === form) return;
+        f.addEventListener('submit', function (e) {
+            if (e.defaultPrevented || !dirty) { submitting = true; return; }
+            e.preventDefault();
+            autosave().then(function () { submitting = true; f.submit(); });
+        });
+    });
     window.addEventListener('beforeunload', function (e) {
         if (!dirty || submitting) return;
         // sendBeacon не умеет заголовки — токен формы уходит параметром

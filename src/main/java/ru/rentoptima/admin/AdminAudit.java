@@ -35,7 +35,11 @@ public class AdminAudit {
         GUIDE_SAVE("Инструкция или статья сохранена"),
         GUIDE_RESTORE("Восстановлена прежняя версия"),
         GUIDE_CREATE("Создана статья"),
-        GUIDE_IMAGE("Загружено изображение для статьи");
+        GUIDE_IMAGE("Загружено изображение для статьи"),
+        GUIDE_SEARCH("Видимость инструкции в поиске"),
+        SERVICE_REGISTRATION("Сервис: регистрация"),
+        SERVICE_LOGIN("Сервис: вход для пользователей"),
+        SERVICE_NOTICE("Сервис: текст объявления");
 
         public final String label;
 

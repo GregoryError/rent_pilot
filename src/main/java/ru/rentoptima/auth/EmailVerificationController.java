@@ -27,12 +27,19 @@ public class EmailVerificationController {
 
     private final EmailVerificationService verification;
     private final SiteSettings site;
+    private final ServiceLock serviceLock;
 
     @GetMapping("/verify")
     public String confirm(@RequestParam(required = false) String token, Model model,
                           HttpServletResponse response, RedirectAttributes redirect) {
         response.setHeader("Cache-Control", CacheControl.noStore().getHeaderValue());
         response.setHeader("Referrer-Policy", "no-referrer");
+        // Вход закрыт выключателем «Сервис открыт» — ссылка не тратится, показываем объявление
+        if (!serviceLock.loginOpen()) {
+            model.addAttribute("heading", "Подтверждение почты");
+            model.addAttribute("serviceNotice", serviceLock.notice());
+            return "pages/auth/service-closed";
+        }
         Optional<Long> userId = verification.confirm(token);
         Long current = AuthContext.userId();
         if (userId.isPresent()) {

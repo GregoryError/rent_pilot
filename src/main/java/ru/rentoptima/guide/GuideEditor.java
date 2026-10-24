@@ -124,6 +124,21 @@ public class GuideEditor {
         return List.of();
     }
 
+    /**
+     * «Скрыть из поиска» сразу, без публикации: и на сайте, и в рабочей копии. Опубликованная
+     * страница открывается, но получает noindex и уходит из sitemap.xml; поисковикам — IndexNow.
+     *
+     * @return изменилось ли что-то
+     */
+    @Transactional
+    public boolean setHiddenFromSearch(GuideRepository.Guide g, boolean hidden) {
+        if (g.hiddenFromSearch() == hidden) return false;
+        jdbc.update("UPDATE guides SET hidden_from_search = ?, updated_at = now() WHERE id = ?", hidden, g.id());
+        jdbc.update("UPDATE guide_drafts SET hidden_from_search = ? WHERE guide_id = ?", hidden, g.id());
+        if (g.published()) indexNow.submit(g.path());
+        return true;
+    }
+
     /** «Снять с публикации»: страница станет 404 для всех, кроме администратора. */
     @Transactional
     public void unpublish(GuideRepository.Guide g) {

@@ -54,7 +54,7 @@ public class AdminGuidesController {
 
     /** Строка списка: всё уже текстом. */
     public record Row(long id, String title, String path, String kind, String status, String statusColor,
-                      boolean unpublished, int order, String updated) {
+                      boolean unpublished, int order, String updated, boolean hidden) {
     }
 
     @GetMapping("/admin/guides")
@@ -64,7 +64,7 @@ public class AdminGuidesController {
                 !g.published() ? "черновик" : g.hiddenFromSearch() ? "опубликовано, скрыто из поиска" : "опубликовано",
                 !g.published() ? "var(--text-muted)" : g.hiddenFromSearch() ? "var(--amber)" : "var(--green)",
                 editor.hasUnpublished(g), g.sortOrder(),
-                g.updatedAt() == null ? "" : g.updatedAt().format(WHEN))).toList();
+                g.updatedAt() == null ? "" : g.updatedAt().format(WHEN), g.hiddenFromSearch())).toList();
         model.addAttribute("activePage", "admin-guides");
         model.addAttribute("rows", rows);
         return "pages/admin/guides";
@@ -132,8 +132,28 @@ public class AdminGuidesController {
         }
         audit.ok(publish ? AdminAudit.Action.GUIDE_PUBLISH : AdminAudit.Action.GUIDE_SAVE, "guide", id,
                 GuideRepository.PATH_PREFIX + (g.isPlatform() ? g.slug() : f.slug()));
+        // Публикация поменяла видимость в поиске — отдельной строкой, чтобы её было видно в журнале
+        if (publish && g.hiddenFromSearch() != f.hiddenFromSearch()) {
+            audit.ok(AdminAudit.Action.GUIDE_SEARCH, "guide", id, searchLabel(f.hiddenFromSearch()));
+        }
         redirect.addFlashAttribute("success", publish ? "Опубликовано" : "Сохранено");
         return "redirect:/admin/guides/" + id + "/edit";
+    }
+
+    /** «Скрыть из поиска» / «Открыть для поиска» — сразу, без публикации (список и редактор). */
+    @PostMapping("/admin/guides/{id}/search")
+    public String search(@PathVariable long id, @RequestParam(defaultValue = "true") boolean hidden,
+                         @RequestParam(required = false) String back, RedirectAttributes redirect) {
+        GuideRepository.Guide g = guide(id);
+        if (editor.setHiddenFromSearch(g, hidden)) {
+            audit.ok(AdminAudit.Action.GUIDE_SEARCH, "guide", id, searchLabel(hidden));
+            redirect.addFlashAttribute("success", hidden ? "Скрыто из поиска" : "Открыто для поиска");
+        }
+        return "edit".equals(back) ? "redirect:/admin/guides/" + id + "/edit" : "redirect:/admin/guides";
+    }
+
+    private static String searchLabel(boolean hidden) {
+        return hidden ? "скрыта из поиска" : "открыта для поиска";
     }
 
     /** Автосохранение раз в 30 секунд и при уходе со страницы: только рабочая копия. */

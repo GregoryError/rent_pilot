@@ -40,6 +40,11 @@
                 <td style="padding: 0.5rem; white-space: nowrap;" th:text="${r.updated}"></td>
                 <td style="padding: 0.5rem; text-align: right;">
                     <a th:href="@{'/admin/guides/' + ${r.id} + '/edit'}" class="btn btn-sm">Редактировать</a>
+                    <form method="post" th:action="@{'/admin/guides/' + ${r.id} + '/search'}" style="display: inline;">
+                        <input type="hidden" name="hidden" th:value="${!r.hidden}">
+                        <button type="submit" class="btn btn-sm btn-ghost"
+                                th:text="${r.hidden} ? 'Открыть для поиска' : 'Скрыть из поиска'">Скрыть из поиска</button>
+                    </form>
                 </td>
             </tr>
             </tbody>

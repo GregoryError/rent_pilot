@@ -19,6 +19,7 @@
             </a>
             <h1 class="login-subtitle" style="font-weight: 400;">Вход в календарь бронирования</h1>
 
+            <th:block th:if="${loginClosed}"><div th:replace="~{fragments/service :: notice(${serviceNotice})}"></div></th:block>
             <div th:if="${param.error}" class="login-error">
                 Неверный логин или пароль
             </div>
@@ -33,6 +34,9 @@
             </div>
 
             <form th:action="@{/login}" method="post">
+                <!--/* Вход закрыт — поля неактивны; администратору — по ссылке ниже (?admin=1) */-->
+                <fieldset class="service-locked" th:disabled="${loginClosed and !adminMode}">
+                <input type="hidden" name="admin" value="1" th:if="${adminMode}">
                 <div class="form-group">
                     <label class="form-label" for="username">Логин</label>
                     <input type="text" id="username" name="username" inputmode="email"
@@ -47,11 +51,15 @@
                 <button type="submit" class="btn btn-primary" style="width:100%; justify-content:center; padding: var(--sp-4);">
                     Войти
                 </button>
+                </fieldset>
             </form>
-            <div class="login-links">
+            <div class="login-links" th:if="${loginClosed and !adminMode}">
+                <a th:href="@{/login(admin=1)}">Вход для администратора</a>
+            </div>
+            <div class="login-links" th:unless="${loginClosed}">
                 <a th:href="@{/forgot}">Забыли пароль?</a>
             </div>
-            <div class="login-links">
+            <div class="login-links" th:if="${registrationOpen}">
                 Нет аккаунта? <a th:href="@{/register}">Создать</a>
             </div>
         </div>

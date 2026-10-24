@@ -23,6 +23,8 @@ services:
       - INDEXNOW_KEY=${INDEXNOW_KEY:-}
       - METRIKA_ID=${METRIKA_ID:-}
       - APP_ICAL_EXPORT_CANCELLED=${APP_ICAL_EXPORT_CANCELLED:-true}
+      # open — аварийно открыть вход и регистрацию (ServiceLock, INTEGRATION_ADMIN.md)
+      - APP_SERVICE_LOCK_OVERRIDE=${APP_SERVICE_LOCK_OVERRIDE:-}
       - SMTP_HOST=${SMTP_HOST:-}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_SECURITY=${SMTP_SECURITY:-}

@@ -1570,6 +1570,25 @@ h1.login-subtitle { font-weight: 400; text-align: center; }
     font-variant-numeric: tabular-nums;
 }
 
+/* Объявление выключателя «Сервис открыт» (fragments/service :: notice) — над формой входа и регистрации */
+.service-notice {
+    padding: var(--sp-4);
+    border: 1px solid var(--amber);
+    background: var(--amber-dim);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+    margin-bottom: var(--sp-5);
+    overflow-wrap: anywhere;
+}
+.service-notice__title { display: block; font-size: var(--text-base, 1rem); margin-bottom: var(--sp-2); }
+.service-notice__text p { margin: 0 0 var(--sp-2); }
+.service-notice__text p:last-child { margin-bottom: 0; }
+.service-notice__text a { color: var(--accent); }
+fieldset.service-locked { border: 0; margin: 0; padding: 0; min-width: 0; }
+fieldset.service-locked:disabled { opacity: 0.55; }
+
 /* =============================================
    Узкий экран
    До 1100px — меньше поля. До 900px — меню прячется за бургер в шапке,
@@ -1921,3 +1940,4 @@ td .empty-state { padding: var(--sp-6) 0; }
 .channel-link-result--ok { border-color: var(--green); background: var(--green-dim); }
 .channel-link-replace { margin-top: var(--sp-2); }
 .channel-link-replace > summary { cursor: pointer; color: var(--accent); }
+

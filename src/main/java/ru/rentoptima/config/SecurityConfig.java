@@ -19,6 +19,8 @@ import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import ru.rentoptima.admin.AdminGateFilter;
+import ru.rentoptima.auth.ServiceLock;
+import ru.rentoptima.auth.ServiceLockFilter;
 import ru.rentoptima.security.AppUserDetailsService;
 
 @EnableMethodSecurity(prePostEnabled = true)
@@ -27,6 +29,7 @@ import ru.rentoptima.security.AppUserDetailsService;
 public class SecurityConfig {
 
     private final AppUserDetailsService userDetailsService;
+    private final ServiceLock serviceLock;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -118,9 +121,16 @@ public class SecurityConfig {
                 )
                 // /admin/** для всех, кроме ADMIN, — 404 (и анониму: без редиректа на вход)
                 .addFilterBefore(new AdminGateFilter(), AuthorizationFilter.class)
+                // «Сервис открыт» выключен: сессии хозяев гаснут на первом запросе (ServiceLock)
+                .addFilterBefore(new ServiceLockFilter(serviceLock), AdminGateFilter.class)
                 .formLogin(form -> form
                         .loginPage("/login")
                         .defaultSuccessUrl("/calendar/grid", true)
+                        // Вход закрыт — любая неудача показывает объявление, а не «неверный пароль»:
+                        // по ответу не понять, есть ли аккаунт и не администратор ли это
+                        .failureHandler((request, response, e) -> response.sendRedirect(request.getContextPath()
+                                + (serviceLock.loginOpen() ? "/login?error"
+                                : "/login?closed" + ("1".equals(request.getParameter("admin")) ? "&admin=1" : ""))))
                         .permitAll()
                 )
                 // Реестр сессий: после смены или сброса пароля остальные сессии пользователя

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{fragments/layout}">
+<head>
+    <title>Сервис</title>
+    <link rel="stylesheet" th:href="@{/css/admin-users.css}">
+</head>
+<body>
+<div layout:fragment="content">
+
+    <div class="page-header">
+        <h1 class="page-title">Сервис</h1>
+        <p class="page-subtitle">Открыты ли регистрация и вход и что видят посетители, когда закрыто. Страницы бронирования, виджет, ссылки для площадок, анкеты, расписание горничной, короткие ссылки, правовые страницы и сайт работают всегда.</p>
+    </div>
+
+    <div class="card au-flash au-flash--ok" role="status" th:if="${notice != null}" th:text="${notice}">Сохранено</div>
+    <div class="card au-flash au-flash--err" role="alert" th:if="${error != null}" th:text="${error}">Ошибка</div>
+    <div class="card au-flash au-flash--err" role="alert" th:if="${overridden}">
+        Включён аварийный выход APP_SERVICE_LOCK_OVERRIDE=open: вход и регистрация открыты, что бы ни стояло ниже. Уберите переменную из .env, когда доступ восстановлен.
+    </div>
+
+    <form method="post" th:action="@{/admin/service}" class="card"
+          onsubmit="return confirm('Сохранить? Если выключить вход, открытые сессии хозяев завершатся сразу.');">
+        <label class="au-check">
+            <input type="checkbox" name="registrationOpen" value="true" th:checked="${state.registrationOpen}">
+            <span><strong>Регистрация открыта</strong> — при выключенном входе регистрации нет в любом случае</span>
+        </label>
+        <label class="au-check">
+            <input type="checkbox" name="loginOpen" value="true" th:checked="${state.loginOpen}">
+            <span><strong>Вход для пользователей открыт</strong> — администратор входит всегда («Вход для администратора» на странице входа)</span>
+        </label>
+        <div class="form-group" style="margin-top: var(--sp-4);">
+            <label class="form-label" for="sv-title">Заголовок объявления</label>
+            <input type="text" id="sv-title" name="title" th:value="${state.title}" th:attr="maxlength=${titleMax}" required class="form-input">
+        </div>
+        <div class="form-group">
+            <label class="form-label" for="sv-text">Текст: абзацы — через пустую строку, ссылка — [текст](https://…)</label>
+            <textarea id="sv-text" name="text" rows="4" th:attr="maxlength=${textMax}" required class="form-input" th:text="${state.text}"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">Сохранить</button>
+    </form>
+
+    <div class="card">
+        <div class="card__title">Так объявление выглядит сейчас</div>
+        <p class="au-note">Видно на входе, регистрации и страницах восстановления пароля, пока закрыто. Кнопки «Начать бесплатно» на сайте ведут на регистрацию — с этим объявлением.</p>
+        <div th:replace="~{fragments/service :: notice(${preview})}"></div>
+    </div>
+</div>
+</body>
+</html>

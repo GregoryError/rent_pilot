@@ -185,6 +185,11 @@
                    class="nav-item">
                     <span>✉</span> Регистрация
                 </a>
+                <a th:href="@{/admin/service}"
+                   th:classappend="${activePage == 'admin-service'} ? 'nav-item--active'"
+                   class="nav-item">
+                    <span>⏻</span> Сервис
+                </a>
                 <a th:href="@{/admin/onboarding}"
                    th:classappend="${activePage == 'admin-onboarding'} ? 'nav-item--active'"
                    class="nav-item">

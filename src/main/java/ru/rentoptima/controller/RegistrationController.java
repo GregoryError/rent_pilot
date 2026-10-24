@@ -39,6 +39,7 @@ public class RegistrationController {
     private final WidgetFormToken formTokens;
     private final PublicRateLimiter rateLimiter;
     private final LastLogin lastLogin;
+    private final ru.rentoptima.auth.ServiceLock serviceLock;
 
     /** Регистраций с одного IP в час. */
     static final int PER_IP_PER_HOUR = 5;
@@ -76,6 +77,11 @@ public class RegistrationController {
         // источник из скрытых полей — и в регистрацию, и обратно в форму, если она вернётся с ошибкой
         SignupSource source = SignupSource.of(utmSource, utmMedium, utmCampaign, ref, null, request.getServerName());
         model.addAttribute("source", source);
+        // Регистрация закрыта выключателем «Сервис открыт» — не только в интерфейсе
+        if (!serviceLock.registrationOpen()) {
+            log.info("Регистрация отклонена: регистрация закрыта (ip {})", ip);
+            return form(model, null, email, tenantName);
+        }
         // Скрытое поле заполняют только боты; ответ — общий, без подсказки, что не так
         if (honeypot != null && !honeypot.isBlank()) {
             log.info("Регистрация отклонена: заполнено скрытое поле (ip {})", ip);
@@ -147,6 +153,9 @@ public class RegistrationController {
     private String form(Model model, String error, String email, String tenantName) {
         if (error != null) model.addAttribute("error", error);
         if (!model.containsAttribute("source")) model.addAttribute("source", SignupSource.NONE);
+        boolean closed = !serviceLock.registrationOpen();
+        model.addAttribute("registrationClosed", closed);
+        if (closed) model.addAttribute("serviceNotice", serviceLock.notice());
         model.addAttribute("email", email);
         model.addAttribute("tenantName", tenantName);
         model.addAttribute("formToken", formTokens.issue(FORM_SCOPE));

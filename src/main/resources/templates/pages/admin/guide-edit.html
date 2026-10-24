@@ -18,6 +18,13 @@
             <span th:if="${unpublished}"> · есть неопубликованные правки</span>
             <th:block th:if="${guide.published()}"> · <a th:href="${guide.path()}" target="_blank" rel="noopener">на сайте ↗</a></th:block>
         </p>
+        <form method="post" th:action="@{'/admin/guides/' + ${guide.id} + '/search'}">
+            <input type="hidden" name="hidden" th:value="${!guide.hiddenFromSearch()}">
+            <input type="hidden" name="back" value="edit">
+            <button type="submit" class="btn btn-sm btn-ghost"
+                    th:text="${guide.hiddenFromSearch()} ? 'Открыть для поиска сейчас' : 'Скрыть из поиска сейчас'">Скрыть из поиска сейчас</button>
+            <span class="form-hint">Сразу, без публикации; галочка ниже меняет то же при «Опубликовать».</span>
+        </form>
     </div>
 
     <div class="card ge-errors" role="alert" th:if="${errors != null}">

@@ -125,6 +125,7 @@
     </a>
     <h1 class="register-subtitle" style="font-weight: 400;">Регистрация нового аккаунта</h1>
 
+    <th:block th:if="${registrationClosed}"><div th:replace="~{fragments/service :: notice(${serviceNotice})}"></div></th:block>
     <div th:if="${error}" class="alert-error" th:text="${error}"></div>
 
     <form method="post" th:action="@{/register}">
@@ -141,6 +142,8 @@
             <input type="text" th:id="${honeypot}" th:name="${honeypot}" tabindex="-1" autocomplete="off">
         </div>
 
+        <!--/* Регистрация закрыта выключателем «Сервис открыт» — поля неактивны; сервер тоже не примет */-->
+        <fieldset class="service-locked" th:disabled="${registrationClosed}">
         <div class="form-group">
             <label class="form-label">Email</label>
             <input type="email" name="email" inputmode="email" class="form-input" required
@@ -170,6 +173,7 @@
         <th:block th:replace="~{fragments/legal :: account-checks}"></th:block>
 
         <button type="submit" class="btn-submit" id="submitBtn" disabled>Зарегистрироваться</button>
+        </fieldset>
 
         <script>
         (function() {
